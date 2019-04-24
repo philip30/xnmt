@@ -63,12 +63,13 @@ class SimultaneousTranslator(DefaultTranslator, Serializable):
       actions, outputs, decoder_state, _ = self._create_trajectory(src, trg)
       state = SimultMergedDecoderState(decoder_state)
       ground_truth = [trg[i] if i < trg.sent_len() else vocabs.Vocab.ES for i in range(len(decoder_state))]
-      batch_loss.append(self.decoder.calc_loss(state, batchers.mark_as_batch(ground_truth)))
+      seq_loss = dy.sum_batches(self.decoder.calc_loss(state, batchers.mark_as_batch(ground_truth)))
+      batch_loss.append(seq_loss)
       self.actions.append(actions)
       self.outputs.append(outputs)
       # Accumulate loss
     dy.forward(batch_loss)
-    return dy.esum(batch_loss)
+    return dy.concatenate_to_batch(batch_loss)
  
   def add_input(self, word, state) -> DefaultTranslator.Output:
     src = self.src[0]
@@ -138,7 +139,6 @@ class SimultaneousTranslator(DefaultTranslator, Serializable):
         
       model_states.append(current_state)
       actions.append(action.value)
-  
     return actions, outputs, decoder_states, model_states
 
   def _next_action(self, state, src_len):
