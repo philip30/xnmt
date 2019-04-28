@@ -83,6 +83,9 @@ class Sentence(object):
       return self
     else:
       return self[:self.len_unpadded()]
+  
+  def batch_size(self):
+    return 1
 
 class ReadableSentence(Sentence):
   """
@@ -283,6 +286,23 @@ class SimpleSentence(ReadableSentence):
                           output_procs=self.output_procs,
                           pad_token=self.pad_token,
                           unpadded_sent=unpadded_sent)
+  
+class AuxSimpleSentence(SimpleSentence):
+  def __init__(self, **kwargs):
+    super().__init__(**kwargs)
+    
+  def len_unpadded(self):
+    return 0
+  
+  def sent_len(self):
+    return 0
+  
+  def real_len_unpadded(self):
+    return super().len_unpadded()
+  
+  def real_sent_len(self):
+    return super().sent_len()
+
 
 class SegmentedSentence(SimpleSentence):
   def __init__(self, segment=[], **kwargs) -> None:
@@ -298,6 +318,7 @@ class SegmentedSentence(SimpleSentence):
                              pad_token=self.pad_token,
                              segment=self.segment,
                              unpadded_sent=self.unpadded_sent)
+
 
 class ArraySentence(Sentence):
   """
@@ -649,6 +670,18 @@ class RNNGAction(object):
       return self.action_type == other.action_type and self.action_content == other.action_content
     else:
       return False
+    
+  def __repr__(self):
+    if self.action_type == self.Type.GEN:
+      return "GEN('{}')".format(self.action_content)
+    elif self.action_type == self.Type.NT:
+      return "NT('{}')".format(self.action_content)
+    elif self.action_type == self.Type.REDUCE_LEFT:
+      return "RL('{}')".format(self.action_content)
+    elif self.action_type == self.Type.REDUCE_RIGHT:
+      return "RR('{}')".format(self.action_content)
+    else:
+      return "NONE()"
 
   
 class DepTreeRNNGSequenceSentence(GraphSentence):
@@ -731,10 +764,11 @@ class DepTreeRNNGSequenceSentence(GraphSentence):
       
       for child, edge in sorted(successors):
         actions_from_graph(child, results)
+        label = self.edge_vocab.convert(edge.label) if self.edge_vocab is not None else None
         if child < current_id:
-          results[0].append(RNNGAction(RNNGAction.Type.REDUCE_LEFT, self.edge_vocab.convert(edge.label)))
+          results[0].append(RNNGAction(RNNGAction.Type.REDUCE_LEFT, label))
         else:
-          results[0].append(RNNGAction(RNNGAction.Type.REDUCE_RIGHT, self.edge_vocab.convert(edge.label)))
+          results[0].append(RNNGAction(RNNGAction.Type.REDUCE_RIGHT, label))
       return results[0]
     # Driver function
     return actions_from_graph(roots[0], [[], 1])

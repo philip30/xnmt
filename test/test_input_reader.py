@@ -30,23 +30,25 @@ class TestInputReader(unittest.TestCase):
 class TestCoNLLInputReader(unittest.TestCase):
   
   def test_read_tree(self):
-    vocab = vocabs.Vocab(vocab_file="examples/data/dep_tree.vocab")
+    vocab = vocabs.Vocab(vocab_file="examples/data/head.en.vocab")
     reader = input_readers.CoNLLToRNNGActionsReader(vocab, vocab, None)
-    tree = list(reader.read_sents(filename="examples/data/dep_tree.conll"))
-    expected = [sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("David")),
-                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("Gallo")),
+    tree = list(reader.read_sents(filename="examples/data/head.en.conll"))
+    expected = [sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("can")),
+                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("you")),
+                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("do")),
                 sent.RNNGAction(sent.RNNGAction.Type.REDUCE_LEFT),
-                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert(":")),
+                sent.RNNGAction(sent.RNNGAction.Type.REDUCE_LEFT),
+                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("it")),
                 sent.RNNGAction(sent.RNNGAction.Type.REDUCE_RIGHT),
-                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("This")),
-                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("is")),
-                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("Bill")),
-                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("Lange")),
-                sent.RNNGAction(sent.RNNGAction.Type.REDUCE_LEFT),
+                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("in")),
+                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("one")),
+                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("day")),
                 sent.RNNGAction(sent.RNNGAction.Type.REDUCE_LEFT),
                 sent.RNNGAction(sent.RNNGAction.Type.REDUCE_LEFT),
                 sent.RNNGAction(sent.RNNGAction.Type.REDUCE_RIGHT),
-                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert(".")),
+                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("?")),
+                sent.RNNGAction(sent.RNNGAction.Type.REDUCE_RIGHT),
+                sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.ES),
                 sent.RNNGAction(sent.RNNGAction.Type.REDUCE_RIGHT)]
     self.assertListEqual(tree[0].actions, expected)
 

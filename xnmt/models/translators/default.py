@@ -12,13 +12,13 @@ import xnmt.input_readers as input_readers
 import xnmt.search_strategies as search_strategies
 import xnmt.sent as sent
 import xnmt.vocabs as vocabs
-import xnmt.losses as losses
 
 from xnmt.settings import settings
 from xnmt.modelparts import attenders, decoders, embedders
 from xnmt.transducers import recurrent, base as transducers_base
 from xnmt.persistence import serializable_init, Serializable, bare
 from xnmt.reports import Reportable
+from xnmt.losses import LossExpr
 
 from .auto_regressive import AutoRegressiveTranslator
 
@@ -79,7 +79,12 @@ class DefaultTranslator(AutoRegressiveTranslator, Serializable, Reportable):
   def finish_generating(self, output, dec_state):
     return self.decoder.finish_generating(output, dec_state)
 
-  def calc_nll(self, src: Union[batchers.Batch, sent.Sentence], trg: Union[batchers.Batch, sent.Sentence]) -> dy.Expression:
+  def calc_nll(self,
+               src: Union[batchers.Batch, sent.Sentence],
+               trg: Union[batchers.Batch, sent.Sentence]) -> LossExpr:
+    if not batchers.is_batched(src):
+      src = batchers.mark_as_batch([src])
+      trg = batchers.mark_as_batch([trg])
     event_trigger.start_sent(src)
     if isinstance(src, batchers.CompoundBatch): src = src.batches[0]
     # Encode the sentence
@@ -113,12 +118,8 @@ class DefaultTranslator(AutoRegressiveTranslator, Serializable, Reportable):
         word_loss = trg_mask.cmult_by_timestep_expr(word_loss, i, inverse=True)
       cur_losses.append(word_loss)
       input_word = ref_word
-#   TODO(philip30): truncate_dec_batches is not needed? Remove?
-#    if self.truncate_dec_batches:
-#      loss_expr = dy.esum([dy.sum_batches(wl) for wl in cur_losses])
-#    else:
-#      loss_expr = dy.esum(cur_losses)
-    return dy.esum(cur_losses)
+    units = [t.len_unpadded() for t in trg]
+    return LossExpr(dy.esum(cur_losses), units)
 
   def _select_ref_words(self, sentence, index, truncate_masked = False):
     if truncate_masked:

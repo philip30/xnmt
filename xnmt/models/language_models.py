@@ -9,6 +9,7 @@ from xnmt.models import base as models
 from xnmt.transducers import base as transducers
 from xnmt.transducers import recurrent
 from xnmt.persistence import serializable_init, Serializable, bare
+from xnmt.losses import LossExpr
 
 class LanguageModel(models.ConditionedModel, Serializable):
   """
@@ -63,5 +64,5 @@ class LanguageModel(models.ConditionedModel, Serializable):
     if src_targets.mask:
       loss_expr_perstep = dy.cmult(loss_expr_perstep, dy.inputTensor(1.0-src_targets.mask.np_arr.T, batched=True))
     loss = dy.sum_elems(loss_expr_perstep)
-
-    return loss
+    units = [s.len_unpadded() for s in src]
+    return LossExpr(loss, units)

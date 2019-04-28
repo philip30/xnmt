@@ -103,7 +103,7 @@ class HyperGraph(object):
     def _topo_sort(current_id):
       visited[current_id] = True
       if current_id in self._succ_list:
-        for adj_id in self._succ_list[current_id]:
+        for adj_id, _ in self._succ_list[current_id]:
           if not visited[adj_id]:
             _topo_sort(adj_id)
       stack.append(current_id)

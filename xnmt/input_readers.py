@@ -19,6 +19,7 @@ from xnmt.persistence import serializable_init, Serializable
 from xnmt import sent
 from xnmt import batchers, output
 
+
 class InputReader(object):
   """
   A base class to read in a file and turn it into an input
@@ -318,6 +319,38 @@ class CharFromWordTextReader(PlainTextReader, Serializable):
                                         vocab=self.vocab,
                                         output_procs=self.output_procs)
     return sent_input
+  
+class SimultActionTextReader(PlainTextReader, Serializable):
+  yaml_tag = "!SimultActionTextReader"
+  
+  @serializable_init
+  def __init__(self):
+    self.vocab = vocabs.Vocab(i2w=["READ", "WRITE"])
+  
+  def read_sent(self, line: str, idx: numbers.Integral) -> sent.Sentence:
+    try:
+      actions = [self._parse_action(x) for x in line.strip().split()]
+    except ValueError:
+      raise ValueError("Error on idx {} on line: \n{}".format(idx, line.strip()))
+    
+    actions.extend([self.vocab.convert("READ"),
+                    self.vocab.convert("WRITE")])
+    
+    return sent.AuxSimpleSentence(words=actions, idx=idx, vocab=self.vocab)
+    
+  def _parse_action(self, action_str: str):
+    if action_str.endswith(")"):
+      start_index = action_str.index("(")
+      content =  action_str[start_index+1:-1]
+      action_str = action_str[:start_index]
+    else:
+      content = None
+      
+    if action_str == "READ" or action_str == "WRITE":
+      return self.vocab.convert(action_str)
+    else:
+      raise ValueError(content)
+    
 
 class H5Reader(InputReader, Serializable):
   """
@@ -638,9 +671,10 @@ class LatticeReader(GraphReader, Serializable):
 
   @serializable_init
   def __init__(self, vocab:vocabs.Vocab, text_input: bool = False, flatten = False, output_procs=[]):
-    super().__init__(None, None, vocab, output_procs)
+    super().__init__(None, None, vocab)
     self.text_input = text_input
     self.flatten = flatten
+    self.output_procs = output_procs
 
   def read_sent(self, line, idx):
     edge_list = []
@@ -674,7 +708,7 @@ class LatticeReader(GraphReader, Serializable):
     assert len(graph.roots()) == 1 # <SOS>
     assert len(graph.leaves()) == 1 # <EOS>
     # Construct LatticeSentence
-    return sent.GraphSentence(idx=idx, graph=graph, value_vocab=self.value_vocab)
+    return sent.GraphSentence(idx=idx, graph=graph, value_vocab=self.value_vocab, score=None)
 
   def vocab_size(self):
     return len(self.value_vocab)

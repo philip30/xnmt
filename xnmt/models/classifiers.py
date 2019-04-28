@@ -12,6 +12,7 @@ from xnmt.transducers import recurrent
 from xnmt.transducers import base as transducers
 from xnmt.models import base as models
 from xnmt.persistence import serializable_init, Serializable, bare
+from xnmt.losses import LossExpr
 
 class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, Serializable):
   """
@@ -60,11 +61,17 @@ class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, Seriali
     return self.transform.transform(h)
 
   def calc_nll(self, src: Union[batchers.Batch, sent.Sentence], trg: Union[batchers.Batch, sent.Sentence]) \
-          -> dy.Expression:
+          -> LossExpr:
+    if batchers.is_batched(trg):
+      units = [t.len_unpadded() for t in trg]
+      ids = batchers.ListBatch([t.value for t in trg])
+    else:
+      units = trg.len_unpadded()
+      ids = trg.value
+    
     h = self._encode_src(src)
-    ids = trg.value if not batchers.is_batched(trg) else batchers.ListBatch([trg_i.value for trg_i in trg])
     loss_expr = self.scorer.calc_loss(h, ids)
-    return loss_expr
+    return LossExpr(loss_expr, units)
 
   def generate(self,
                src: Union[batchers.Batch, sent.Sentence],

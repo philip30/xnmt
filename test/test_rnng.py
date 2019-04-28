@@ -36,9 +36,9 @@ class TestGraphToGraph(unittest.TestCase):
     xnmt.events.clear()
     ParamManager.init_param_col()
     
-    edge_vocab = Vocab(vocab_file="examples/data/dep_tree.edge_vocab")
-    node_vocab = Vocab(vocab_file="examples/data/dep_tree.node_vocab")
-    value_vocab = Vocab(vocab_file="examples/data/dep_tree.vocab")
+    edge_vocab = Vocab(vocab_file="examples/data/head.en.edge_vocab")
+    node_vocab = Vocab(vocab_file="examples/data/head.en.node_vocab")
+    value_vocab = Vocab(vocab_file="examples/data/head.en.vocab")
     
     self.src_reader = input_readers.PlainTextReader(vocab=value_vocab)
     self.trg_reader = input_readers.CoNLLToRNNGActionsReader(surface_vocab=value_vocab,
@@ -46,8 +46,8 @@ class TestGraphToGraph(unittest.TestCase):
                                                              edg_vocab=edge_vocab)
     
     self.layer_dim = layer_dim
-    self.src_data = list(self.src_reader.read_sents("examples/data/dep_tree.en"))
-    self.trg_data = list(self.trg_reader.read_sents("examples/data/dep_tree.conll"))
+    self.src_data = list(self.src_reader.read_sents("examples/data/head.en"))
+    self.trg_data = list(self.trg_reader.read_sents("examples/data/head.en.conll"))
     self.loss_calculator = MLELoss()
     self.head_composer = composer.DyerHeadComposer(
       fwd_combinator=UniLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim),

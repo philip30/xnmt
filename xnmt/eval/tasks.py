@@ -77,21 +77,19 @@ class LossEvalTask(EvalTask, Serializable):
                                            max_num_sents=self.max_num_sents,
                                            max_src_len=self.max_src_len,
                                            max_trg_len=self.max_trg_len)
-    loss_val = losses.FactoredLossVal()
     ref_words_cnt = 0
     for src, trg in zip(self.src_batches, self.ref_batches):
       with utils.ReportOnException({"src": src, "trg": trg, "graph": utils.print_cg_conditional}):
         dy.renew_cg(immediate_compute=settings.IMMEDIATE_COMPUTE, check_validity=settings.CHECK_VALIDITY)
 
-        loss = self.loss_calculator.calc_loss(self.model, src, trg)
+        loss_expr = self.loss_calculator.calc_loss(self.model, src, trg)
+        loss, loss_value = loss_expr.compute(comb_method=self.loss_comb_method)
+        
 
-        ref_words_cnt += sum([trg_i.len_unpadded() for trg_i in trg])
-        loss_val += loss.get_factored_loss_val(comb_method=self.loss_comb_method)
-
-    loss_stats = {k: v/ref_words_cnt for k, v in loss_val.items()}
+    loss_value = {k: value/unit for k, (value, unit) in loss_value.items()}
 #
-    return metrics.LossScore(sum(loss_stats.values()),
-                             loss_stats=loss_stats,
+    return metrics.LossScore(sum(loss_value.values()),
+                             loss_stats=loss_value,
                              num_ref_words=ref_words_cnt,
                              desc=self.desc)
 

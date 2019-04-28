@@ -9,6 +9,7 @@ from xnmt.modelparts import attenders, embedders, scorers, transforms
 from xnmt.models import base as models
 from xnmt.transducers import recurrent, base as transducers
 from xnmt.persistence import serializable_init, Serializable, bare
+from xnmt.losses import LossExpr
 
 class SeqLabeler(models.ConditionedModel, models.GeneratorModel, Serializable, reports.Reportable):
   """
@@ -61,9 +62,10 @@ class SeqLabeler(models.ConditionedModel, models.GeneratorModel, Serializable, r
     outputs = self.transform.transform(encoding_reshaped)
     return batch_size, encodings, outputs, seq_len
 
-  def calc_nll(self, src: Union[batchers.Batch, sent.Sentence], trg: Union[batchers.Batch, sent.Sentence]) \
-          -> dy.Expression:
-    assert batchers.is_batched(src) and batchers.is_batched(trg)
+  def calc_nll(self, src: Union[batchers.Batch, sent.Sentence], trg: Union[batchers.Batch, sent.Sentence]):
+    if not batchers.is_batched(src):
+      src = batchers.mark_as_batch([src])
+      trg = batchers.mark_as_batch([trg])
     batch_size, encodings, outputs, seq_len = self._encode_src(src)
 
     if trg.sent_len() != seq_len:
@@ -79,8 +81,8 @@ class SeqLabeler(models.ConditionedModel, models.GeneratorModel, Serializable, r
     if trg.mask:
       loss_expr_perstep = dy.cmult(loss_expr_perstep, dy.inputTensor(1.0-trg.mask.np_arr.T, batched=True))
     loss_expr = dy.sum_elems(loss_expr_perstep)
-
-    return loss_expr
+    units = [t.len_unpadded() for t in trg]
+    return LossExpr(loss_expr, units)
 
   def _cut_or_pad_targets(self, seq_len: numbers.Integral, trg: batchers.Batch) -> batchers.Batch:
     old_mask = trg.mask

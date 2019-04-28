@@ -2,7 +2,8 @@ from typing import Optional, Union
 import time
 import numbers
 
-from xnmt import batchers, events, logger, losses, sent, utils
+from collections import defaultdict
+from xnmt import batchers, events, logger, sent, utils
 from xnmt.eval import metrics
 
 class AccumTimeTracker(object):
@@ -32,8 +33,8 @@ class TrainLossTracker(object):
   def __init__(self, training_task: 'xnmt.train.tasks.TrainingTask') -> None:
     self.training_task = training_task
 
-    self.epoch_loss = losses.FactoredLossVal()
-    self.epoch_words = 0
+    self.epoch_loss = defaultdict(float)
+    self.epoch_words = defaultdict(int)
     self.last_report_sents_into_epoch = 0
     self.last_report_sents_since_start = 0
 
@@ -47,16 +48,19 @@ class TrainLossTracker(object):
   def on_new_epoch(self, training_task, num_sents):
     if training_task is self.training_task:
       self.epoch_loss.clear()
-      self.epoch_words = 0
+      self.epoch_words.clear()
       self.last_report_sents_since_start = 0
       self.last_report_words = 0
 
-  def report(self, trg: Union[sent.Sequence, batchers.Batch], loss: losses.FactoredLossVal) -> None:
+  def report(self, loss_data, trg) -> None:
     """
     Accumulate training loss and report every REPORT_EVERY sentences.
     """
-    self.epoch_words += self.count_trg_words(trg)
-    self.epoch_loss += loss
+    for loss_name, (loss_value, units) in loss_data.items():
+      self.epoch_words[loss_name] += units
+      self.epoch_loss[loss_name] += loss_value
+      
+    self.epoch_words["__TRG__"] = self.count_trg_words(trg)
 
     sent_num_not_report = self.training_task.training_state.sents_since_start - self.last_report_sents_since_start
     should_report = sent_num_not_report >= TrainLossTracker.REPORT_EVERY \
@@ -66,30 +70,30 @@ class TrainLossTracker(object):
       fractional_epoch = (self.training_task.training_state.epoch_num - 1) \
                          + self.training_task.training_state.sents_into_epoch / self.training_task.cur_num_sentences()
       accum_time = self.time_tracker.get_and_reset()
-      rep_train_loss = self.epoch_loss.sum_factors() / self.epoch_words
+      rep_train_loss = sum(self.epoch_loss.values()) / self.epoch_words["__TRG__"]
       utils.log_readable_and_tensorboard(
         template = TrainLossTracker.REPORT_TEMPLATE_SPEED if accum_time else TrainLossTracker.REPORT_TEMPLATE,
         args = {"loss": rep_train_loss},
         n_iter = fractional_epoch,
         time = utils.format_time(time.time() - self.start_time),
-        words = self.epoch_words,
+        words = self.epoch_words["__TRG__"],
         data_name = "train",
         task_name = self.name,
-        words_per_sec = (self.epoch_words - self.last_report_words) / accum_time if accum_time else None
+        words_per_sec = (self.epoch_words["__TRG__"] - self.last_report_words) / accum_time if accum_time else None
       )
 
       if len(self.epoch_loss) > 1:
         for loss_name, loss_values in self.epoch_loss.items():
           utils.log_readable_and_tensorboard(template=TrainLossTracker.REPORT_TEMPLATE_ADDITIONAL,
-                                             args={loss_name: loss_values / self.epoch_words},
+                                             args={loss_name: loss_values / self.epoch_words[loss_name]},
                                              n_iter=fractional_epoch,
                                              data_name="train",
                                              task_name=self.name,
                                              loss_name=loss_name,
-                                             loss=loss_values / self.epoch_words,
+                                             loss=loss_values / self.epoch_words[loss_name],
                                              )
 
-      self.last_report_words = self.epoch_words
+      self.last_report_words = self.epoch_words["__TRG__"]
       self.last_report_sents_since_start = self.training_task.training_state.sents_since_start
 
   def count_trg_words(self, trg_words: Union[sent.Sentence, batchers.Batch]) -> int:

@@ -4,6 +4,7 @@ import numpy as np
 import dynet as dy
 
 from xnmt import batchers, input_readers, sent, vocabs
+from xnmt.losses import LossExpr
 from xnmt.persistence import Serializable, serializable_init
 
 class TrainableModel(object):
@@ -11,7 +12,7 @@ class TrainableModel(object):
   A template class for a basic trainable model, implementing a loss function.
   """
 
-  def calc_nll(self, *args, **kwargs) -> dy.Expression:
+  def calc_nll(self, *args, **kwargs) -> LossExpr:
     """Calculate loss based on input-output pairs.
 
     Losses are accumulated only across unmasked timesteps in each batch element.
@@ -33,7 +34,7 @@ class UnconditionedModel(TrainableModel):
   def __init__(self, trg_reader: input_readers.InputReader) -> None:
     self.trg_reader = trg_reader
 
-  def calc_nll(self, trg: Union[batchers.Batch, sent.Sentence]) -> dy.Expression:
+  def calc_nll(self, trg: Union[batchers.Batch, sent.Sentence]) -> LossExpr:
     """Calculate loss based on target inputs.
 
     Losses are accumulated only across unmasked timesteps in each batch element.
@@ -60,7 +61,7 @@ class ConditionedModel(TrainableModel):
     self.trg_reader = trg_reader
 
   def calc_nll(self, src: Union[batchers.Batch, sent.Sentence], trg: Union[batchers.Batch, sent.Sentence]) \
-          -> dy.Expression:
+          -> LossExpr:
     """Calculate loss based on input-output pairs.
 
     Losses are accumulated only across unmasked timesteps in each batch element.
@@ -72,6 +73,12 @@ class ConditionedModel(TrainableModel):
     Returns:
       A (possibly batched) expression representing the loss.
     """
+    raise NotImplementedError("must be implemented by subclasses")
+  
+class PolicyConditionedModel(object):
+  
+  def calc_policy_nll(self, src, trg):
+    raise NotImplementedError("must be implemented by subclasses")
 
 
 class GeneratorModel(object):

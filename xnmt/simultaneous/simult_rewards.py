@@ -1,7 +1,6 @@
 
-import numpy as np
 import dynet as dy
-
+import numpy as np
 import xnmt.thirdparty.dl4mt_simul_trans.reward as simult_reward
 
 class SimultaneousReward(object):

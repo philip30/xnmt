@@ -262,7 +262,7 @@ class Inference(object):
     for sent_count, (src, ref) in enumerate(zip(batched_src, batched_ref)):
       if max_num_sents and sent_count >= max_num_sents: break
       dy.renew_cg(immediate_compute=settings.IMMEDIATE_COMPUTE, check_validity=settings.CHECK_VALIDITY)
-      loss = self.compute_losses_one(generator, src, ref)
+      loss, _ = self.compute_losses_one(generator, src, ref).compute()
       if isinstance(loss.value(), collections.abc.Iterable):
         ref_scores.extend(loss.value())
       else:

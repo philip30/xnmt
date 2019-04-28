@@ -54,10 +54,6 @@ def calc_reinforce_loss(trg: Union[sent.Sentence, batchers.Batch],
   """
   return None
 
-@events.register_xnmt_event_sum
-def calc_imitation_loss(trg: Union[sent.Sentence, batchers.Batch]) -> losses.FactoredLossExpr:
-  return None
-
 @events.register_xnmt_event_assign
 def get_report_input(context) -> dict:
   return context

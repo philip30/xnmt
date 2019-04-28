@@ -121,20 +121,16 @@ class SegmentingSeqTransducer(SeqTransducer, Serializable, Reportable):
     # Not learning policy return None
     if self.policy_learning is None:
       return None
-    reward = FactoredLossExpr()
    
     # R = log(P(E|F))
-    reward.add_loss("generator", -dy.inputTensor(generator_loss.value(), batched=True))
+    reward = dy.nobackprop(sum([x.loss_value()[0] for x in generator_loss.expr_factors.values()]))
     
     # R += log(P_poisson(F, u))
     if self.length_prior is not None:
-      reward.add_loss('length_prior', self.length_prior.log_ll(self.seg_size_unpadded))
+      reward += dy.nobackprop(self.length_prior.log_ll(self.seg_size_unpadded))
     
     # Packing up
-    reward_value = reward.value()
-    reward_value = [reward_value] if trg.batch_size() == 1 else reward_value
-    reward_tensor = dy.inputTensor(reward_value, batched=True)
-    reward_tensor = [reward_tensor] * self.src_sent.sent_len()
+    reward_tensor = [reward] * self.src_sent.sent_len()
 
     return self.policy_learning.calc_loss(reward_tensor)
 
@@ -182,7 +178,7 @@ class SegmentingSeqTransducer(SeqTransducer, Serializable, Reportable):
           sample_batch[i] = 1
       return sample_batch
     # Loop through all items in the sequence
-    valid_pos = self.src_sent.mask.get_valid_position()
+    valid_pos = self.src_sent.mask.get_valid_position() if self.src_sent.mask is not None else None
     for position, encoding in enumerate(encodings):
       # Sample from softmax if we have no predefined action
       predefined = predefined_actions[position] if predefined_actions is not None else None

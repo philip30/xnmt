@@ -19,7 +19,7 @@ def read_data():
       len_trg = len(trg_line.strip().split())
       align = align.strip().split()
       align = [x.split("-") for x in align]
-      align = [(int(f)-1, int(e)-1) for f, e in align]
+      align = [(int(f), int(e)) for f, e in align]
       yield len_src, len_trg, align
 
 def action_from_align(len_src, len_trg, align):

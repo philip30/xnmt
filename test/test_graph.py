@@ -17,20 +17,23 @@ class TestGraph(unittest.TestCase):
                 HyperEdge(2, [5])]
     self.nodes = nodes
     self.graph = HyperGraph(edg_list, nodes)
+
+  def _extract_id(self, graph):
+    return {k: [y[0] for y in v] for k, v in graph.items()}
     
   def test_construction(self):
     pred_list = {2: [1], 3: [1], 4: [2], 5: [2]}
     adj_list = {1: [2, 3], 2: [4, 5]}
-    self.assertDictEqual(adj_list, self.graph._succ_list)
-    self.assertDictEqual(pred_list, self.graph._pred_list)
+    self.assertDictEqual(adj_list, self._extract_id(self.graph._succ_list))
+    self.assertDictEqual(pred_list, self._extract_id(self.graph._pred_list))
     
   def test_reverse(self):
     reverse_graph = self.graph.reverse()
     # Now we reverse the expected adj_list & predec list
     pred_list = {1: [2, 3], 2: [4, 5]}
     adj_list = {2: [1], 3: [1], 4: [2], 5: [2]}
-    self.assertDictEqual(adj_list, reverse_graph._succ_list)
-    self.assertDictEqual(pred_list, reverse_graph._pred_list)
+    self.assertDictEqual(adj_list, self._extract_id(reverse_graph._succ_list))
+    self.assertDictEqual(pred_list, self._extract_id(reverse_graph._pred_list))
   
   def test_toposort(self):
     # Taken from https://www.geeksforgeeks.org/topological-sorting/

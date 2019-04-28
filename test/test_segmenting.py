@@ -117,11 +117,6 @@ class TestSegmentingEncoder(unittest.TestCase):
     for i, sample_item in enumerate(actions):
       # The last segmentation is 1
       self.assertEqual(sample_item[-1], src[i].len_unpadded())
-    self.assertTrue("mle" in loss.expr_factors)
-    self.assertTrue("global_fertility" in loss.expr_factors)
-    self.assertTrue("rl_reinf" in reinforce_loss.expr_factors)
-    self.assertTrue("rl_baseline" in reinforce_loss.expr_factors)
-    self.assertTrue("rl_confpen" in reinforce_loss.expr_factors)
     # Ensure we are sampling from the policy learning
     self.assertEqual(self.model.encoder.segmenting_action, SegmentingSeqTransducer.SegmentingAction.POLICY)
 

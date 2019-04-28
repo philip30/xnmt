@@ -85,7 +85,7 @@ class LatticeLSTMTransducer(transducers.SeqTransducer, Serializable):
     if self.dropout_rate > 0.0 and self.train:
       self.set_dropout_masks(batch_size=batch_size)
 
-    for i, cur_node_id in enumerate(lattice.nodes):
+    for i, cur_node_id in enumerate(lattice.graph.topo_sort()):
       prev_node = lattice.graph.predecessors(cur_node_id)
       val = expr_seq[i]
       if self.dropout_rate > 0.0 and self.train:

@@ -70,7 +70,7 @@ class PolicyGradient(Serializable, Reportable):
     policy = dy.log_softmax(self.policy_network.transform(state))
 
     # Select actions
-    if predefined_actions is not None:
+    if predefined_actions is not None and len(predefined_actions) != 0:
       actions = predefined_actions
     else:
       if argmax:
@@ -97,7 +97,8 @@ class PolicyGradient(Serializable, Reportable):
     Calc policy networks loss.
     """
     assert len(policy_reward) == len(self.states), "There should be a reward for every action taken"
-    loss = losses.FactoredLossExpr()
+    batch_size = self.states[0].dim()[1]
+    loss = {}
     
     # Calculate the baseline loss of the reinforce loss for each timestep:
     # b = W_b * s + b_b
@@ -107,16 +108,19 @@ class PolicyGradient(Serializable, Reportable):
     # loss_b = squared_distance(r_p - r_r)
     rewards = []
     baseline_loss = []
+    units = np.zeros(batch_size)
     for i, state in enumerate(self.states):
       r_p = self.baseline.transform(dy.nobackprop(state))
       rewards.append(policy_reward[i] - r_p)
       if self.valid_pos[i] is not None:
         r_p = dy.pick_batch_elems(r_p, self.valid_pos[i])
         r_r = dy.pick_batch_elems(policy_reward[i], self.valid_pos[i])
+        units[self.valid_pos[i]] += 1
       else:
         r_r = policy_reward[i]
-      baseline_loss.append(dy.squared_distance(r_p, r_r))
-    loss.add_loss("rl_baseline", dy.esum(baseline_loss))
+        units += 1
+      baseline_loss.append(dy.sum_batches(dy.squared_distance(r_p, r_r)))
+    loss["rl_baseline"] = losses.LossExpr(dy.esum(baseline_loss), units)
     
     # Z Normalization
     # R = R - mean(R) / std(R)
@@ -125,29 +129,32 @@ class PolicyGradient(Serializable, Reportable):
     if self.z_normalization:
       rewards_shape = dy.reshape(rewards, (r_dim[0][0], r_dim[1]))
       rewards_mean = dy.mean_elems(rewards_shape)
-      rewards_std = dy.std_elems(rewards) + 1e-20
+      rewards_std = dy.std_elems(rewards_shape) + 1e-20
       rewards = (rewards - rewards_mean.value()) / rewards_std.value()
     rewards = dy.nobackprop(rewards)
-
     # Calculate Confidence Penalty
     if self.confidence_penalty:
-      loss.add_loss("rl_confpen", self.confidence_penalty.calc_loss(self.policy_lls))
+      loss["rl_confpen"] = self.confidence_penalty.calc_loss(self.policy_lls)
     
     # Calculate Reinforce Loss
     # L = - sum([R-b] * pi_ll)
     reinf_loss = []
+    units = np.zeros(batch_size)
     for i, (policy, action) in enumerate(zip(self.policy_lls, self.actions)):
       reward = dy.pick(rewards, i)
       ll = dy.pick_batch(policy, action)
       if self.valid_pos[i] is not None:
         ll = dy.pick_batch_elems(ll, self.valid_pos[i])
         reward = dy.pick_batch_elems(reward, self.valid_pos[i])
+        units[self.valid_pos[i]] += 1
+      else:
+        units += 1
       reinf_loss.append(dy.sum_batches(dy.cmult(ll, reward)))
-    loss.add_loss("rl_reinf", -dy.esum(reinf_loss))
+    loss["rl_reinf"] = losses.LossExpr(-dy.esum(reinf_loss), units)
 
     # Pack up + return
     try:
-      return loss
+      return losses.FactoredLossExpr(loss)
     finally:
       if results is not None:
         results.update({

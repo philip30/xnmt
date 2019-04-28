@@ -151,3 +151,11 @@ def has_cython() -> bool:
   except:
     return False
 
+def remove_eos(sequence, eos_sym):
+  try:
+    idx = sequence.index(eos_sym)
+    sequence = sequence[:idx]
+  except ValueError:
+    # NO EOS
+    pass
+  return sequence
