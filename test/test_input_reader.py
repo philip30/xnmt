@@ -32,7 +32,7 @@ class TestCoNLLInputReader(unittest.TestCase):
   def test_read_tree(self):
     vocab = vocabs.Vocab(vocab_file="examples/data/head.en.vocab")
     reader = input_readers.CoNLLToRNNGActionsReader(vocab, vocab, None)
-    tree = list(reader.read_sents(filename="examples/data/head.en.conll"))
+    tree = list(reader.read_sents(filename="examples/data/parse/head.en.conll"))
     expected = [sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("can")),
                 sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("you")),
                 sent.RNNGAction(sent.RNNGAction.Type.GEN, vocab.convert("do")),

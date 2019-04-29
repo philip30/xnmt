@@ -11,11 +11,11 @@ dep_parse: !Experiment
       vocab: !Vocab {vocab_file: examples/data/head.en.vocab}
     trg_reader: !CoNLLToRNNGActionsReader
       surface_vocab: !Vocab
-        vocab_file: examples/data/head.en.vocab
+        vocab_file: examples/data/parse/head.en.vocab
       edg_vocab: !Vocab
-        vocab_file: examples/data/head.en.edge_vocab
+        vocab_file: examples/data/parse/head.en.edge_vocab
       nt_vocab: !Vocab
-        vocab_file: examples/data/head.en.nt_vocab
+        vocab_file: examples/data/parse/head.en.node_vocab
     encoder: !IdentitySeqTransducer {}
     decoder: !RNNGDecoder
       rnn: !UniLSTMSeqTransducer
@@ -37,17 +37,17 @@ dep_parse: !Experiment
       alpha: 0.001
     run_for_epochs: 20
     src_file: examples/data/head.en
-    trg_file: examples/data/head.en.conll
+    trg_file: examples/data/parse/head.en.conll
     dev_tasks:
       - !LossEvalTask
         src_file: examples/data/head.en
-        ref_file: examples/data/head.en.conll
+        ref_file: examples/data/parse/head.en.conll
         # final evaluation
   evaluate:
     - !AccuracyEvalTask
       eval_metrics: rnng_parse_fmeasure
       src_file: examples/data/head.en
       hyp_file: examples/output/{EXP}.test_hyp
-      ref_file: examples/data/head.en.rnng_actions
+      ref_file: examples/data/parse/head.en.rnng_actions
       inference: !AutoRegressiveInference
         search_strategy: !BeamSearch {}

@@ -12,9 +12,9 @@ string2dep: !Experiment
       surface_vocab: !Vocab
         vocab_file: examples/data/head.en.vocab
       edg_vocab: !Vocab
-        vocab_file: examples/data/head.en.edge_vocab
+        vocab_file: examples/data/parse/head.en.edge_vocab
       nt_vocab: !Vocab
-        vocab_file: examples/data/head.en.node_vocab
+        vocab_file: examples/data/parse/head.en.node_vocab
     encoder: !BiLSTMSeqTransducer {}
     decoder: !RNNGDecoder
       rnn: !UniLSTMSeqTransducer
@@ -38,11 +38,11 @@ string2dep: !Experiment
     trainer: !AdamTrainer {}
     run_for_epochs: 20
     src_file: examples/data/head.ja
-    trg_file: examples/data/head.en.conll
+    trg_file: examples/data/parse/head.en.conll
     dev_tasks:
       - !LossEvalTask
         src_file: examples/data/head.ja
-        ref_file: examples/data/head.en.conll
+        ref_file: examples/data/parse/head.en.conll
   # final evaluation
   evaluate:
     - !DecodingEvalTask
