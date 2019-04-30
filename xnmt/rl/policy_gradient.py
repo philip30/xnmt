@@ -82,7 +82,6 @@ class PolicyGradient(Serializable, Reportable):
     # Post Processing
     if sample_pp is not None:
       actions = sample_pp(actions)
-    
     # Return
     try:
       return actions

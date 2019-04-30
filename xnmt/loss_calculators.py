@@ -88,22 +88,23 @@ class CompositeLoss(Serializable, LossCalculator):
   """
   yaml_tag = "!CompositeLoss"
   @serializable_init
-  def __init__(self, pt_losses:List[LossCalculator], loss_weight: Optional[Sequence[numbers.Real]] = None) -> None:
-    self.pt_losses = pt_losses
+  def __init__(self, losses:List[LossCalculator], loss_weight: Optional[Sequence[numbers.Real]] = None) -> None:
+    self.losses = losses
     if loss_weight is None:
-      self.loss_weight = [1.0 for _ in range(len(pt_losses))]
+      self.loss_weight = [1.0 for _ in range(len(losses))]
     else:
       self.loss_weight = loss_weight
-    assert len(self.loss_weight) == len(pt_losses)
+    assert len(self.loss_weight) == len(losses)
 
   def calc_loss(self,
                 model: 'model_base.ConditionedModel',
                 src: Union[sent.Sentence, 'batchers.Batch'],
                 trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
     total_loss = {}
-    for i, (loss, weight) in enumerate(zip(self.pt_losses, self.loss_weight)):
+    for i, (loss, weight) in enumerate(zip(self.losses, self.loss_weight)):
       total_loss[str(i)] = loss.calc_loss(model, src, trg) * weight
     return losses.FactoredLossExpr(total_loss)
+
 
 class ReinforceLoss(Serializable, LossCalculator):
   """

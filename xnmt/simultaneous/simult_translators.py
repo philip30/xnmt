@@ -65,40 +65,51 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     event_trigger.start_sent(src_batch)
     batch_loss = []
     for src, trg in zip(src_batch, trg_batch):
-      actions, outputs, decoder_state, _ = self._create_trajectory(src, trg, from_oracle=self.is_pretraining)
-      state = SimultMergedDecoderState(decoder_state)
-      ground_truth = [trg[i] if i < trg.sent_len() else vocabs.Vocab.ES for i in range(len(decoder_state))]
+      actions, outputs, decoder_states, _ = self._create_trajectory(src, trg, from_oracle=self.is_pretraining)
+      state = SimultMergedDecoderState(decoder_states)
+      ground_truth = [trg[i] if i < trg.sent_len() else vocabs.Vocab.ES for i in range(len(decoder_states))]
       seq_loss = dy.sum_batches(self.decoder.calc_loss(state, batchers.mark_as_batch(ground_truth)))
       batch_loss.append(seq_loss)
       self.actions.append(actions)
       self.outputs.append(outputs)
       # Accumulate loss
     dy.forward(batch_loss)
-    units = [trg_batch[i].len_unpadded() for i in range(trg_batch.batch_size())]
-    return losses.LossExpr(dy.concatenate_to_batch(batch_loss), units)
+    total_loss =  dy.concatenate_to_batch(batch_loss)
+    total_units = [trg_batch[i].len_unpadded() for i in range(trg_batch.batch_size())]
+    return losses.LossExpr(total_loss, total_units)
   
   def calc_policy_nll(self, src_batch, trg_batch) -> losses.LossExpr:
     assert self.policy_learning is not None
-    nll = -1 * dy.concatenate_to_batch(self.policy_learning.policy_lls)
-    ref = []
-    for src in src_batch:
+    lls = iter(self.policy_learning.policy_lls)
+    batch_loss = []
+    for src, action in zip(src_batch, self.actions):
+      item_loss = []
+      ref_action = src.sents[1].words
+      #min_len = min(len(action), len(ref_action))
       assert type(src) == sent.CompoundSentence
-      ref.extend(src.sents[1])
-    return losses.LossExpr(dy.sum_batches(-dy.pick_batch(nll, ref)),
-                           [len(self.policy_learning.policy_lls)])
+      for j in range(len(ref_action)):
+        item_loss.append(dy.pick(next(lls), ref_action[j]))
+      batch_loss.append(-dy.esum(item_loss))
+
+    total_loss = dy.concatenate_to_batch(batch_loss)
+    total_units = [len(x) for x in self.actions]
+    return losses.LossExpr(total_loss, total_units)
+                           
     
   def add_input(self, word, state) -> DefaultTranslator.Output:
     src = self.src[0]
+    num_actions = state.has_been_read + state.has_been_written
     if type(src) == sent.CompoundSentence:
-      src = src[0]
+      src = src.sents[0]
     # Reading until next write
-    while True:
+    while num_actions < self.max_generation:
       next_action = self._next_action(state, src.sent_len())
       if next_action == self.Action.WRITE:
         break
       else:
         state = state.read(src)
         self.src_encoding.append(state.encoder_state.output())
+      num_actions += 1
     # Write one output
     if type(word) == list:
       word = batchers.mark_as_batch(word)
@@ -115,10 +126,10 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     return SimultaneousState(self, self.encoder.initial_state(), None, None)
 
   def _create_trajectory(self, src, ref=None, current_state=None, from_oracle=True):
-    if from_oracle:
-      assert type(src) == sent.CompoundSentence
+    if type(src) == sent.CompoundSentence:
       src, force_action = src.sents[0], src.sents[1]
-    else:
+   
+    if not from_oracle:
       force_action = defaultdict(lambda: None)
       
     current_state = current_state or self._initial_state(src)
@@ -129,15 +140,17 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     decoder_states = []
     model_states = [current_state]
 
-    def stoping_criterions_met(state, trg):
-      if self.policy_learning is None:
+    def stoping_criterions_met(state, trg, now_action):
+      if self.is_pretraining:
+        return state.has_been_written + state.has_been_read >= len(now_action.words)
+      elif self.policy_learning is None:
         return state.has_been_written >= trg.sent_len()
       else:
         return state.has_been_written >= self.max_generation or \
                state.prev_written_word == vocabs.Vocab.ES
 
     # Simultaneous greedy search
-    while not stoping_criterions_met(current_state, ref):
+    while not stoping_criterions_met(current_state, ref, force_action):
       # Define action based on state
       action = self._next_action(current_state, src_len, force_action[len(actions)])
       if action == self.Action.READ:
@@ -184,7 +197,9 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
       output_embed = state.output_embed if state.output_embed else dy.zeros(*enc_dim)
       input_state = dy.concatenate([encoder_state, context_state, output_embed])
       # Sample / Calculate a single action
-      action = self.policy_learning.sample_action(input_state, predefined_actions=force_action, argmax=not self.train)[0]
+      action = self.policy_learning.sample_action(input_state,
+                                                  predefined_actions=force_action,
+                                                  argmax=(self.is_pretraining or not self.train))[0]
       return self.Action(action)
 
   def _select_next_word(self, ref, state, force_ref=False):

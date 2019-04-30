@@ -9,7 +9,7 @@ args = argparse.parse_args()
 DELIMITER = "▁"
 
 def main():
-  for f_sp, e_sp, align in iter_input(args.f_sp_input, args.e_sp_input, args.align_file):
+  for line, (f_sp, e_sp, align) in enumerate(iter_input(args.f_sp_input, args.e_sp_input, args.align_file)):
     # Grouping piece together
     f_sp_word = []
     for i, piece in enumerate(f_sp):
@@ -22,16 +22,15 @@ def main():
       if DELIMITER in piece:
         e_sp_word.append([])
       e_sp_word[-1].append((piece, i))
+    
     # Mapping piece
     new_align = []
     for f, e in align:
       for _, fpiece in f_sp_word[f]:
         for _, epiece in e_sp_word[e]:
           new_align.append((fpiece, epiece))
-    
     new_align = sorted(new_align)
     print(" ".join(["{}-{}".format(f, e) for f, e in new_align]))
-
 
 def iter_input(f_sp_file, e_sp_file, align_file):
   with open(f_sp_file) as f_sp_fp, \
