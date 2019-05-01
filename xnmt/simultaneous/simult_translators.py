@@ -94,7 +94,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     total_loss = dy.concatenate_to_batch(batch_loss)
     total_units = [len(x) for x in self.actions]
     return losses.LossExpr(total_loss, total_units)
-                           
+    
     
   def add_input(self, word, state) -> DefaultTranslator.Output:
     src = self.src[0]
@@ -128,6 +128,8 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
   def _create_trajectory(self, src, ref=None, current_state=None, from_oracle=True):
     if type(src) == sent.CompoundSentence:
       src, force_action = src.sents[0], src.sents[1]
+    else:
+      force_action = defaultdict(lambda: None)
    
     if not from_oracle:
       force_action = defaultdict(lambda: None)
@@ -195,7 +197,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
       enc_dim = encoder_state.dim()
       context_state = state.context_state.as_vector() if state.context_state else dy.zeros(*enc_dim)
       output_embed = state.output_embed if state.output_embed else dy.zeros(*enc_dim)
-      input_state = dy.concatenate([encoder_state, context_state, output_embed])
+      input_state = dy.nobackprop(dy.concatenate([encoder_state, context_state, output_embed]))
       # Sample / Calculate a single action
       action = self.policy_learning.sample_action(input_state,
                                                   predefined_actions=force_action,
