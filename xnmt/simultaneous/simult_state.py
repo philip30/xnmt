@@ -7,6 +7,8 @@ import xnmt.transducers.base as transducers_base
 import xnmt.expression_seqs as expr_seq
 import xnmt.vocabs as vocabs
 
+from typing import Sequence
+
 class SimultaneousState(decoders.AutoRegressiveDecoderState):
   """
   The read/write state used to determine the state of the SimultaneousTranslator.
@@ -19,6 +21,7 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
                to_read:int = 0,
                to_write:int = 0,
                prev_written_word: numbers.Integral = None,
+               src_encoding: Sequence[dy.Expression] = [],
                reset_attender:bool = True):
     super().__init__(None, None)
     self.model = model
@@ -29,42 +32,49 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
     self.has_been_written = to_write
     self.prev_written_word = prev_written_word
     self.reset_attender = reset_attender
+    self.src_encoding = src_encoding
     
   def read(self, src):
     src_embed = self.model.src_embedder.embed(src[self.has_been_read])
     next_encoder_state = self.encoder_state.add_input(src_embed)
+    
+    src_encoding = [x for x in self.src_encoding]
+    src_encoding.append(next_encoder_state.output())
+    
     return SimultaneousState(self.model, next_encoder_state, self.context_state,
                              self.output_embed, self.has_been_read+1, self.has_been_written,
-                             self.prev_written_word, True)
+                             self.prev_written_word, src_encoding, True)
   
-  def calc_context(self, src_encoding):
+  def calc_context(self):
     # Generating h_t based on RNN(h_{t-1}, embed(e_{t-1}))
     if self.prev_written_word is None:
       final_transducer_state = [transducers_base.FinalTransducerState(h, c) \
                                 for h, c in zip(self.encoder_state.h(), self.encoder_state.c())]
-      context_state = self.model.decoder.initial_state(final_transducer_state,
-                                                       vocabs.Vocab.SS)
+      context_state = self.model.decoder.initial_state(final_transducer_state, vocabs.Vocab.SS)
     else:
       context_state = self.model.decoder.add_input(self.context_state, self.prev_written_word)
+      
     # Reset attender if there is a read action
     reset_attender = self.reset_attender
     if reset_attender:
-      self.model.attender.init_sent(expr_seq.ExpressionSequence(expr_list=src_encoding))
+      self.model.attender.init_sent(expr_seq.ExpressionSequence(expr_list=self.src_encoding))
       reset_attender = False
+    
     # Calc context for decoding
     attention = self.model.attender.calc_attention(context_state.rnn_state.output())
     context_state.attention = attention
     context_state.context = self.model.attender.calc_context(None, attention=attention)
+    
     return SimultaneousState(self.model, self.encoder_state, context_state,
                              self.output_embed, self.has_been_read, self.has_been_written,
-                             self.prev_written_word,
+                             self.prev_written_word, self.src_encoding,
                              reset_attender)
     
   def write(self, next_word):
     return SimultaneousState(self.model, self.encoder_state, self.context_state,
                              self.model.decoder.embedder.embed(next_word), self.has_been_read,
                              self.has_been_written+1,
-                             next_word,
+                             next_word, self.src_encoding,
                              self.reset_attender)
  
   # These states are used for decoding

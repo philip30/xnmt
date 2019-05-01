@@ -3,7 +3,7 @@ from typing import Sequence, Union, Optional, Any
 import dynet as dy
 
 from xnmt.settings import settings
-
+from collections import defaultdict
 from xnmt import batchers, event_trigger, events, inferences, input_readers, loss_calculators, losses, reports, utils, \
   xnmt_evaluate
 from xnmt.eval import metrics
@@ -78,6 +78,8 @@ class LossEvalTask(EvalTask, Serializable):
                                            max_src_len=self.max_src_len,
                                            max_trg_len=self.max_trg_len)
     ref_words_cnt = 0
+    loss_maps = defaultdict(float)
+    loss_wrds = defaultdict(float)
     for src, trg in zip(self.src_batches, self.ref_batches):
       with utils.ReportOnException({"src": src, "trg": trg, "graph": utils.print_cg_conditional}):
         dy.renew_cg(immediate_compute=settings.IMMEDIATE_COMPUTE, check_validity=settings.CHECK_VALIDITY)
@@ -85,11 +87,14 @@ class LossEvalTask(EvalTask, Serializable):
         loss_expr = self.loss_calculator.calc_loss(self.model, src, trg)
         loss, loss_value = loss_expr.compute(comb_method=self.loss_comb_method)
         
-
-    loss_value = {k: value/unit for k, (value, unit) in loss_value.items()}
-#
-    return metrics.LossScore(sum(loss_value.values()),
-                             loss_stats=loss_value,
+        for k, (value, unit) in loss_value.items():
+          loss_maps[k] += value
+          loss_wrds[k] += unit
+        
+    loss_stats = {k: loss_maps[k]/loss_wrds[k] for k in loss_maps.keys()}
+    
+    return metrics.LossScore(sum(loss_stats.values()),
+                             loss_stats=loss_stats,
                              num_ref_words=ref_words_cnt,
                              desc=self.desc)
 
