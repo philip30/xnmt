@@ -44,6 +44,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
                freeze_decoder_param=False,
                max_generation=100,
                is_pretraining=False,
+               read_before_write=False,
                logger=None) -> None:
     super().__init__(src_reader=src_reader,
                      trg_reader=trg_reader,
@@ -60,6 +61,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     self.max_generation = max_generation
     self.logger = logger
     self.is_pretraining = is_pretraining
+    self.read_before_write = read_before_write
   
   def calc_nll(self, src_batch, trg_batch) -> losses.LossExpr:
     event_trigger.start_sent(src_batch)
@@ -180,7 +182,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     return actions, outputs, decoder_states, model_states
 
   def _next_action(self, state, src_len, force_action=None):
-    if self.policy_learning is None:
+    if self.read_before_write:
       if state.has_been_read < src_len:
         return self.Action.READ
       else:
@@ -190,18 +192,20 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
       if force_action is None:
         force_action = self.Action.READ.value if state.has_been_read == 0 else force_action # No writing at the beginning.
         force_action = self.Action.WRITE.value if state.has_been_read == src_len else force_action # No reading at the end.
-      if force_action is not None:
-        force_action = [force_action]
       # Compose inputs from 3 states
-      encoder_state = state.encoder_state.output()
-      enc_dim = encoder_state.dim()
-      context_state = state.context_state.as_vector() if state.context_state else dy.zeros(*enc_dim)
-      output_embed = state.output_embed if state.output_embed else dy.zeros(*enc_dim)
-      input_state = dy.nobackprop(dy.concatenate([encoder_state, context_state, output_embed]))
-      # Sample / Calculate a single action
-      action = self.policy_learning.sample_action(input_state,
-                                                  predefined_actions=force_action,
-                                                  argmax=(self.is_pretraining or not self.train))[0]
+      if self.policy_learning is not None:
+        encoder_state = state.encoder_state.output()
+        enc_dim = encoder_state.dim()
+        context_state = state.context_state.as_vector() if state.context_state else dy.zeros(*enc_dim)
+        output_embed = state.output_embed if state.output_embed else dy.zeros(*enc_dim)
+        input_state = dy.nobackprop(dy.concatenate([encoder_state, context_state, output_embed]))
+        # Sample / Calculate a single action
+        action = self.policy_learning.sample_action(input_state,
+                                                    predefined_actions=[force_action] if force_action is not None else None,
+                                                    argmax=(self.is_pretraining or not self.train))[0]
+      else:
+        action = force_action
+      assert action is not None
       return self.Action(action)
 
   def _select_next_word(self, ref, state, force_ref=False):
