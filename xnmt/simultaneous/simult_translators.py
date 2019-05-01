@@ -66,9 +66,13 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     batch_loss = []
     for src, trg in zip(src_batch, trg_batch):
       actions, outputs, decoder_states, _ = self._create_trajectory(src, trg, from_oracle=self.is_pretraining)
-      state = SimultMergedDecoderState(decoder_states)
-      ground_truth = [trg[i] if i < trg.sent_len() else vocabs.Vocab.ES for i in range(len(decoder_states))]
-      seq_loss = dy.sum_batches(self.decoder.calc_loss(state, batchers.mark_as_batch(ground_truth)))
+      #state = SimultMergedDecoderState(decoder_states)
+      #ground_truth = [trg[i] if i < trg.sent_len() else vocabs.Vocab.ES for i in range(len(decoder_states))]
+      #seq_loss = dy.sum_batches(self.decoder.calc_loss(state, batchers.mark_as_batch(ground_truth)))
+      seq_loss = []
+      for i, state in enumerate(decoder_states):
+        seq_loss.append(self.decoder.calc_loss(state, trg[i]))
+      seq_loss = dy.esum(seq_loss)
       batch_loss.append(seq_loss)
       self.actions.append(actions)
       self.outputs.append(outputs)
@@ -101,6 +105,13 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     num_actions = state.has_been_read + state.has_been_written
     if type(src) == sent.CompoundSentence:
       src = src.sents[0]
+    
+    # Write one output
+    if type(word) == list:
+      word = batchers.mark_as_batch(word)
+    if word is not None:
+      state = state.write(word)
+    
     # Reading until next write
     while num_actions < self.max_generation:
       next_action = self._next_action(state, src.sent_len())
@@ -110,14 +121,9 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
         state = state.read(src)
         self.src_encoding.append(state.encoder_state.output())
       num_actions += 1
-    # Write one output
-    if type(word) == list:
-      word = batchers.mark_as_batch(word)
-    if word is not None:
-      state = state.write(word)
+    
     state = state.calc_context(self.src_encoding)
-    output = super().add_input(state.prev_written_word, state)
-    return DefaultTranslator.Output(state, output.attention)
+    return DefaultTranslator.Output(state, state.context_state.attention)
     
   def _initial_state(self, src):
     # To hold all the source encodings
@@ -162,14 +168,13 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
       else:
         # Predicting next word
         current_state = current_state.calc_context(self.src_encoding)
-        current_output = super().add_input(current_state.prev_written_word, current_state)
         
         # Calculating losses
         ground_truth = self._select_ground_truth(current_state, ref)
-        decoder_states.append(current_output.state)
+        decoder_states.append(current_state)
         
         # Use word from ref/model depeding on settings
-        next_word = self._select_next_word(ground_truth, current_output.state, True)
+        next_word = self._select_next_word(ground_truth, current_state, True)
         # The produced words
         outputs.append(next_word)
         current_state = current_state.write(next_word)

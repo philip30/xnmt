@@ -52,7 +52,9 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
       self.model.attender.init_sent(expr_seq.ExpressionSequence(expr_list=src_encoding))
       reset_attender = False
     # Calc context for decoding
-    context_state.context = self.model.attender.calc_context(context_state.rnn_state.output())
+    attention = self.model.attender.calc_attention(context_state.rnn_state.output())
+    context_state.attention = attention
+    context_state.context = self.model.attender.calc_context(None, attention=attention)
     return SimultaneousState(self.model, self.encoder_state, context_state,
                              self.output_embed, self.has_been_read, self.has_been_written,
                              self.prev_written_word,
