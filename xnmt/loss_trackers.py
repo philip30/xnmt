@@ -70,7 +70,7 @@ class TrainLossTracker(object):
       fractional_epoch = (self.training_task.training_state.epoch_num - 1) \
                          + self.training_task.training_state.sents_into_epoch / self.training_task.cur_num_sentences()
       accum_time = self.time_tracker.get_and_reset()
-      rep_train_loss = sum(self.epoch_loss.values()) / self.epoch_words["__TRG__"]
+      rep_train_loss = sum([self.epoch_loss[k]/self.epoch_words[k] for k in self.epoch_loss.keys()])
       utils.log_readable_and_tensorboard(
         template = TrainLossTracker.REPORT_TEMPLATE_SPEED if accum_time else TrainLossTracker.REPORT_TEMPLATE,
         args = {"loss": rep_train_loss},
