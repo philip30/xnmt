@@ -64,11 +64,12 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     self.policy_network = policy_network
     self.read_before_write = read_before_write
     
-  def create_trajectories(self, src_batch, trg_batch):
+  def create_trajectories(self, src_batch, trg_batch, force_oracle=False):
     if len(self.actions) != 0:
       return
     
     from_oracle = self.policy_train_oracle if self.train else self.policy_test_oracle
+    from_oracle = from_oracle or force_oracle
     
     for src, trg in zip(src_batch, trg_batch):
       actions, outputs, decoder_states, model_states = \
