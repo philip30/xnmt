@@ -67,8 +67,8 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
     
     # Calc context for decoding
     return SimultaneousState(self.model, self.encoder_state, decoder_state,
-                            self.has_been_read, self.has_been_written+1,
-                             self.src_encoding, word, policy_action,
+                             self.has_been_read, self.has_been_written+1,
+                             None, word, policy_action,
                              reset_attender=reset_attender, parent=self)
   
   def find_backward(self, field):
@@ -80,7 +80,9 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
         self.cache[field] = now.cache[field]
         return self.cache[field]
       else:
-        results.append(getattr(now, field))
+        result = getattr(now, field)
+        if result is not None:
+          results.append(result)
       now = now.parent
     self.cache[field] = list(reversed(results))
     return self.cache[field]
