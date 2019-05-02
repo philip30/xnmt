@@ -61,6 +61,8 @@ class TestSimultaneousTranslation(unittest.TestCase):
                                     scorer=Softmax(vocab_size=self.output_vocab_size, input_dim=layer_dim),
                                     embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=self.output_vocab_size),
                                     bridge=NoBridge(dec_dim=layer_dim, dec_layers=1)),
+      policy_train_oracle=False,
+      policy_test_oracle=False
     )
     event_trigger.set_train(True)
     
@@ -121,8 +123,9 @@ class TestSimultTranslationWithGivenAction(unittest.TestCase):
                                     scorer=Softmax(vocab_size=self.output_vocab_size, input_dim=layer_dim),
                                     embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=self.output_vocab_size),
                                     bridge=NoBridge(dec_dim=layer_dim, dec_layers=1)),
-      is_pretraining=True,
-      policy_network = network.PolicyNetwork(transforms.MLP(2*self.layer_dim, self.layer_dim, 2))
+      policy_network = network.PolicyNetwork(transforms.MLP(2*self.layer_dim, self.layer_dim, 2)),
+      policy_train_oracle=True,
+      policy_test_oracle=True
     )
     event_trigger.set_train(True)
     

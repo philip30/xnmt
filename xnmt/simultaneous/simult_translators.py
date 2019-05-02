@@ -42,7 +42,9 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
                truncate_dec_batches: bool = False,
                policy_network: PolicyNetwork = None,
                max_generation=100,
-               is_pretraining=False,
+               policy_train_oracle=False,
+               policy_test_oracle=False,
+               policy_sample=False,
                read_before_write=False,
                logger=None) -> None:
     super().__init__(src_reader=src_reader,
@@ -56,7 +58,9 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     PolicyConditionedModel.__init__(self)
     self.max_generation = max_generation
     self.logger = logger
-    self.is_pretraining = is_pretraining
+    self.policy_train_oracle = policy_train_oracle
+    self.policy_test_oracle = policy_test_oracle
+    self.policy_sample = policy_sample
     self.policy_network = policy_network
     self.read_before_write = read_before_write
     
@@ -64,9 +68,11 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     if len(self.actions) != 0:
       return
     
+    from_oracle = self.policy_train_oracle if self.train else self.policy_test_oracle
+    
     for src, trg in zip(src_batch, trg_batch):
       actions, outputs, decoder_states, model_states = \
-        self.create_trajectory(src, trg, from_oracle=self.is_pretraining, force_decoding=True)
+        self.create_trajectory(src, trg, from_oracle=from_oracle, force_decoding=True)
       self.actions.append(actions)
       self.outputs.append(outputs)
       self.decoder_states.append(decoder_states)
@@ -114,9 +120,11 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
       src_sent = src
     if type(prev_word) == list:
       prev_word = prev_word[0]
+      
+    look_oracle = self.policy_train_oracle if self.train else self.policy_test_oracle
     # Reading until next write
     while state.has_been_read < src.sent_len():
-      if self.is_pretraining:
+      if look_oracle:
         force_action = src.sents[1][state.has_been_read + state.has_been_written]
       else:
         force_action = None
@@ -152,7 +160,8 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     model_states = [current_state]
 
     def stoping_criterions_met(state, trg, now_action):
-      if self.is_pretraining:
+      look_oracle = self.policy_train_oracle if self.train else self.policy_test_oracle
+      if look_oracle:
         return state.has_been_written + state.has_been_read >= len(now_action.words)
       elif self.policy_network is None:
         return state.has_been_written >= trg.sent_len()
@@ -213,7 +222,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
       # Sample / Calculate a single action
       policy_action = self.policy_network.sample_action(policy_input,
                                                         predefined_actions=predefined_action,
-                                                        argmax=(self.is_pretraining or not self.train))
+                                                        argmax=not (self.train and self.policy_sample))
       policy_action.single_action()
     else:
       policy_action = PolicyAction(force_action)
