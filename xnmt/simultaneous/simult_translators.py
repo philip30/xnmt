@@ -81,7 +81,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     
   def calc_nll(self, src_batch, trg_batch) -> losses.LossExpr:
     event_trigger.start_sent(src_batch)
-    self.create_trajectories(src_batch, trg_batch)
+    self.create_trajectories(src_batch, trg_batch, force_oracle=True)
     
     batch_loss = []
     for src, trg, decoder_state in zip(src_batch, trg_batch, self.decoder_states):
@@ -97,7 +97,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     assert self.policy_network is not None
   
     event_trigger.start_sent(src_batch)
-    self.create_trajectories(src_batch, trg_batch)
+    self.create_trajectories(src_batch, trg_batch, force_oracle=True)
   
     batch_loss = []
     for src, action, model_states in zip(src_batch, self.actions, self.model_states):
