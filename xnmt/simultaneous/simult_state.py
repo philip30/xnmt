@@ -37,17 +37,17 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
     self.cache = {}
     self.parent = parent
     
-  def read(self, src, policy_action=None):
+  def read(self, src, policy_action):
     src_embed = self.model.src_embedder.embed(src[self.has_been_read])
     next_encoder_state = self.encoder_state.add_input(src_embed)
     
     return SimultaneousState(self.model, next_encoder_state, self.decoder_state,
-                             self.has_been_read+1, self.has_been_written,
-                             next_encoder_state.output(), self.written_word,
-                             policy_action, reset_attender=True,
+                             has_been_read=self.has_been_read+1, has_been_written=self.has_been_written,
+                             src_encoding=next_encoder_state.output(), written_word=self.written_word,
+                             policy_action=policy_action, reset_attender=True,
                              parent = self)
   
-  def write(self, word, policy_action=None):
+  def write(self, word, policy_action):
     # Reset attender if there is a read action
     reset_attender = self.reset_attender
     if reset_attender:
@@ -67,8 +67,8 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
     
     # Calc context for decoding
     return SimultaneousState(self.model, self.encoder_state, decoder_state,
-                             self.has_been_read, self.has_been_written+1,
-                             None, word, policy_action,
+                             has_been_read=self.has_been_read, has_been_written=self.has_been_written+1,
+                             src_encoding=None, written_word=word, policy_action=policy_action,
                              reset_attender=reset_attender, parent=self)
   
   def find_backward(self, field):
@@ -97,4 +97,8 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
   @property
   def context(self):
     return self.decoder_state.context
+  
+  def __repr__(self):
+    content = self.policy_action.content if self.policy_action is not None else None
+    return "({}, {}, {})".format(content, self.has_been_read, self.has_been_written)
 

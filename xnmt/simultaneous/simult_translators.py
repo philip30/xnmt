@@ -125,18 +125,18 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
       
     look_oracle = self.policy_train_oracle if self.train else self.policy_test_oracle
     # Reading until next write
-    while state.has_been_read < src.sent_len():
+    while True:
       if look_oracle:
         force_action = src.sents[1][state.has_been_read + state.has_been_written]
       else:
         force_action = None
-      next_action = self._next_action(state, src.sent_len(), force_action)
-      if next_action == self.Action.WRITE.value:
+      next_action = self._next_action(state, src.len_unpadded(), force_action)
+      if next_action.content == self.Action.WRITE.value:
+        state = state.write(prev_word, next_action)
         break
       else:
-        state = state.read(src_sent)
+        state = state.read(src_sent, next_action)
     # Write one output without reference
-    state = state.write(prev_word)
   
     return DefaultTranslator.Output(state, state.decoder_state.attention)
   
@@ -146,7 +146,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
 
   def create_trajectory(self, src, ref=None, current_state=None, from_oracle=True, force_decoding=True):
     if type(src) == sent.CompoundSentence:
-      src, force_action = src.sents[0], src.sents[1]
+      src, force_action = src.sents[0], src.sents[1].words
     else:
       force_action = defaultdict(lambda: None)
    
@@ -164,7 +164,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     def stoping_criterions_met(state, trg, now_action):
       look_oracle = self.policy_train_oracle if self.train else self.policy_test_oracle
       if look_oracle:
-        return state.has_been_written + state.has_been_read >= len(now_action.words)
+        return state.has_been_written + state.has_been_read >= len(now_action)
       elif self.policy_network is None:
         return state.has_been_written >= trg.sent_len()
       else:
@@ -173,7 +173,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
 
     # Simultaneous greedy search
     while not stoping_criterions_met(current_state, ref, force_action):
-      if len(actions) < force_action:
+      if len(actions) < len(force_action) or type(force_action) == defaultdict:
         defined_action = force_action[len(actions)]
       else:
         defined_action = None
