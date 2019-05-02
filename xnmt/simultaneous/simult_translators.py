@@ -153,7 +153,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
       force_action = defaultdict(lambda: None)
       
     current_state = current_state or self._initial_state(src)
-    src_len = src.sent_len()
+    src_len = src.len_unpadded()
 
     actions = []
     outputs = []
@@ -168,7 +168,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
         return state.has_been_written >= trg.sent_len()
       else:
         return state.has_been_written >= self.max_generation or \
-               state.prev_written_word == vocabs.Vocab.ES
+               state.written_word == vocabs.Vocab.ES
 
     # Simultaneous greedy search
     while not stoping_criterions_met(current_state, ref, force_action):
@@ -181,7 +181,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
       elif action == self.Action.WRITE.value:
         # Calculating losses
         if force_decoding:
-          if ref.sent_len() <= current_state.has_been_written:
+          if ref.len_unpadded() <= current_state.has_been_written:
             ref_word = vocabs.Vocab.ES
           else:
             ref_word = ref[current_state.has_been_written]
