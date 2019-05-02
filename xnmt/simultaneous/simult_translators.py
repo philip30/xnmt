@@ -95,9 +95,9 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     batch_loss = []
     for src, action, model_states in zip(src_batch, self.actions, self.model_states):
       assert type(src) == sent.CompoundSentence
-      policy_actions = model_states[-1].find_backward("policy_action")
+      policy_actions = reversed(model_states[-1].find_backward("policy_action"))
       ref_action = src.sents[1].words
-      seq_ll = [dy.pick(policy_actions[i].log_likelihood, ref_action[i]) for i in range(len(policy_actions))]
+      seq_ll = [dy.pick(act.log_likelihood, ref) for act, ref in zip(policy_actions, ref_action)]
       batch_loss.append(-dy.esum(seq_ll))
 
     dy.forward(batch_loss)
