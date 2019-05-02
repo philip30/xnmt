@@ -15,6 +15,7 @@ import xnmt.vocabs as vocabs
 import xnmt.sent as sent
 import xnmt.losses as losses
 
+from xnmt import logger
 from xnmt.models.base import PolicyConditionedModel
 from xnmt.models.translators.default import DefaultTranslator
 from xnmt.persistence import bare, Serializable, serializable_init
@@ -172,8 +173,14 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
 
     # Simultaneous greedy search
     while not stoping_criterions_met(current_state, ref, force_action):
+      if len(actions) < force_action:
+        defined_action = force_action[len(actions)]
+      else:
+        defined_action = None
+        logger.warning("Requesting more action than it should have!\n src-{}".format(src.idx))
+      
       # Define action based on state
-      policy_action = self._next_action(current_state, src_len, force_action[len(actions)])
+      policy_action = self._next_action(current_state, src_len, defined_action)
       action = policy_action.content
       if action == self.Action.READ.value:
         # Reading + Encoding
