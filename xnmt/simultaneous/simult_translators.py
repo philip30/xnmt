@@ -109,16 +109,22 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
   def add_input(self, prev_word, state) -> DefaultTranslator.Output:
     src = self.src[0]
     if type(src) == sent.CompoundSentence:
-      src = src.sents[0]
+      src_sent = src.sents[0]
+    else:
+      src_sent = src
     if type(prev_word) == list:
       prev_word = prev_word[0]
     # Reading until next write
     while state.has_been_read < src.sent_len():
-      next_action = self._next_action(state, src.sent_len())
+      if self.is_pretraining:
+        force_action = src.sents[1][state.has_been_read + state.has_been_written]
+      else:
+        force_action = None
+      next_action = self._next_action(state, src.sent_len(), force_action)
       if next_action == self.Action.WRITE.value:
         break
       else:
-        state = state.read(src)
+        state = state.read(src_sent)
     # Write one output without reference
     state = state.write(prev_word)
   
