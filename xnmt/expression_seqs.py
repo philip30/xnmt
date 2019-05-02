@@ -193,14 +193,17 @@ class ReversedExpressionSequence(ExpressionSequence):
   """
   A reversed expression sequences, where expressions are created in a lazy fashion
   """
-  def __init__(self, base_expr_seq):
+  def __init__(self, base_expr_seq=None, expr_tensor=None, expr_list=None, mask=None):
     self.base_expr_seq = base_expr_seq
-    self.expr_tensor = None
-    self.expr_list = None
-    if base_expr_seq.mask is None:
-      self.mask = None
+    self.expr_tensor = expr_tensor
+    self.expr_list = expr_list
+    if base_expr_seq is not None:
+      if base_expr_seq.mask is None:
+        self.mask = None
+      else:
+        self.mask = base_expr_seq.mask.reversed()
     else:
-      self.mask = base_expr_seq.mask.reversed()
+      self.mask = mask
 
   def __len__(self):
     return len(self.base_expr_seq)
@@ -219,7 +222,7 @@ class ReversedExpressionSequence(ExpressionSequence):
     return self.expr_list
 
   def has_list(self) -> bool:
-    return self.base_expr_seq.has_list()
+    return self.base_expr_seq is not None and self.base_expr_seq.has_list()
 
   def as_tensor(self) -> dy.Expression:
     # note: this is quite memory hungry and should be avoided if possible

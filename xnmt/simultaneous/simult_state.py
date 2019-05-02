@@ -52,7 +52,7 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
     reset_attender = self.reset_attender
     if reset_attender:
       encodings = self.find_backward("src_encoding")
-      self.model.attender.init_sent(expr_seq.ExpressionSequence(expr_list=encodings))
+      self.model.attender.init_sent(expr_seq.ReversedExpressionSequence(expr_list=encodings))
       reset_attender = False
 
     # Generating h_t based on RNN(h_{t-1}, embed(e_{t-1}))
@@ -76,15 +76,17 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
     results = []
     while now.parent is not None:
       if field in now.cache:
-        now.cache[field].extend(reversed(results))
-        self.cache[field] = now.cache[field]
-        return self.cache[field]
+        if len(results) == 0:
+          results = now.cache[field]
+        else:
+          results.extend(now.cache[field])
+        break
       else:
         result = getattr(now, field)
         if result is not None:
           results.append(result)
       now = now.parent
-    self.cache[field] = list(reversed(results))
+    self.cache[field] = results
     return self.cache[field]
  
   # These states are used for decoding
