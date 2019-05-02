@@ -76,10 +76,17 @@ class ConditionedModel(TrainableModel):
     raise NotImplementedError("must be implemented by subclasses")
   
 class PolicyConditionedModel(object):
+  def __init__(self, *args, **kwargs):
+    self.actions = []
+    self.outputs = []
+    self.decoder_states = []
+    self.model_states = []
   
   def calc_policy_nll(self, src, trg):
     raise NotImplementedError("must be implemented by subclasses")
 
+  def create_trajectories(self, src_batch, trg_batch):
+    raise NotImplementedError("must be implemented by subclasses")
 
 class GeneratorModel(object):
   """

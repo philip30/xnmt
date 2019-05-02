@@ -8,7 +8,8 @@ from xnmt.modelparts import transforms
 from xnmt.persistence import Ref, bare, Serializable, serializable_init
 from xnmt.reports import Reportable
 
-class PolicyGradient(Serializable, Reportable):
+
+class PolicyGradientLoss(Serializable, Reportable):
   """
   (Sequence) policy gradient class. It holds a policy network that will perform a linear regression to the output_dim decision labels.
   This class works by calling the sample_action() that will sample some actions from the current policy, given the input state.
@@ -26,70 +27,17 @@ class PolicyGradient(Serializable, Reportable):
     weight: The weight of the reinforce_loss.
     output_dim: The size of the predicitions.
   """
-  yaml_tag = '!PolicyGradient'
+  yaml_tag = '!PolicyGradientLoss'
   @serializable_init
   @events.register_xnmt_handler
   def __init__(self,
-               policy_network=None,
-               baseline=None,
+               policy_model=None,
+               baseline_network=None,
                z_normalization=True,
-               conf_penalty=None,
-               input_dim=Ref("exp_global.default_layer_dim"),
-               output_dim=2,
-               param_init=Ref("exp_global.param_init", default=bare(param_initializers.GlorotInitializer)),
-               bias_init=Ref("exp_global.bias_init", default=bare(param_initializers.ZeroInitializer))):
-    self.input_dim = input_dim
-    self.policy_network = self.add_serializable_component("policy_network",
-                                                           policy_network,
-                                                          lambda: transforms.Linear(input_dim=self.input_dim,
-                                                                                    output_dim=output_dim,
-                                                                                    param_init=param_init,
-                                                                                    bias_init=bias_init))
-    self.baseline = self.add_serializable_component("baseline",
-                                                    baseline,
-                                                    lambda: transforms.Linear(input_dim=self.input_dim,
-                                                                              output_dim=1,
-                                                                              param_init=param_init,
-                                                                              bias_init=bias_init))
-
-    self.confidence_penalty = self.add_serializable_component("conf_penalty",
-                                                              conf_penalty,
-                                                              lambda: conf_penalty) if conf_penalty is not None else None
+               eps_greedy_prob=1.0):
+    self.policy_model = policy_model
+    self.baseline_network = baseline_network
     self.z_normalization = z_normalization
-
-  def sample_action(self, state, argmax=False, sample_pp=None, predefined_actions=None, valid_pos=None):
-    """
-    state: Input state.
-    argmax: Whether to perform argmax or sampling.
-    sample_pp: Stands for sample post_processing.
-               Every time the sample are being drawn, this method will be invoked with sample_pp(sample).
-    predefined_actions: Whether to forcefully the network to assign the action value to some predefined actions.
-                        This predefined actions can be from the gold distribution or some probability priors.
-                        It should be calculated from the outside.
-    """
-    policy = dy.log_softmax(self.policy_network.transform(state))
-
-    # Select actions
-    if predefined_actions is not None and len(predefined_actions) != 0:
-      actions = predefined_actions
-    else:
-      if argmax:
-        actions = policy.tensor_value().argmax().as_numpy()[0]
-      else:
-        actions = policy.tensor_value().categorical_sample_log_prob().as_numpy()[0]
-      if len(actions.shape) == 0:
-        actions = [actions]
-    # Post Processing
-    if sample_pp is not None:
-      actions = sample_pp(actions)
-    # Return
-    try:
-      return actions
-    finally:
-      self.policy_lls.append(policy)
-      self.actions.append(actions)
-      self.states.append(state)
-      self.valid_pos.append(valid_pos)
 
   def calc_loss(self, policy_reward, results={}):
     """
@@ -152,26 +100,5 @@ class PolicyGradient(Serializable, Reportable):
     loss["rl_reinf"] = losses.LossExpr(-dy.esum(reinf_loss), units)
 
     # Pack up + return
-    try:
-      return losses.FactoredLossExpr(loss)
-    finally:
-      if results is not None:
-        results.update({
-          "pg_loss": loss,
-          "pg_policy_reward": policy_reward,
-          "pg_rewards": rewards,
-          "pg_policy_ll": self.policy_lls,
-          "pg_actions": self.actions,
-          "pg_valid_pos": self.valid_pos
-        })
+    return losses.FactoredLossExpr(loss)
 
-  def shared_params(self):
-    return [{".input_dim", ".policy_network.input_dim"},
-            {".input_dim", ".baseline.input_dim"}]
-
-  @events.handle_xnmt_event
-  def on_start_sent(self, src_sent):
-    self.policy_lls = []
-    self.actions = []
-    self.states = []
-    self.valid_pos = []

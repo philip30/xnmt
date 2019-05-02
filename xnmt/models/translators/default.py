@@ -85,7 +85,6 @@ class DefaultTranslator(AutoRegressiveTranslator, Serializable, Reportable):
     if not batchers.is_batched(src):
       src = batchers.mark_as_batch([src])
       trg = batchers.mark_as_batch([trg])
-    event_trigger.start_sent(src)
     if isinstance(src, batchers.CompoundBatch): src = src.batches[0]
     # Encode the sentence
     initial_state = self._initial_state(src)

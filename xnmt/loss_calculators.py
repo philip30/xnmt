@@ -279,3 +279,29 @@ class PolicyReinforceLoss(Serializable, LossCalculator):
     return loss_builder
 
  
+class ConfidencePenaltyLoss(Serializable):
+  """
+  The confidence penalty.
+  part of: https://arxiv.org/pdf/1701.06548.pdf
+  
+  Calculate the -entropy for the given (batched policy).
+  Entropy is used as an additional loss so that it will penalize a too confident network.
+  """
+ 
+  yaml_tag = "!ConfidencePenaltyLoss"
+
+  @serializable_init
+  def __init__(self): pass
+
+  def calc_loss(self, model, src, trg) -> losses.LossExpr:
+    neg_entropy = []
+    units = np.zeros(policy[0].dim()[1])
+    for i, ll in enumerate(policy):
+      if self.valid_pos[i] is not None:
+        ll = dy.pick_batch_elems(ll, self.valid_pos[i])
+        units[self.valid_pos[i]] += 1
+      else:
+        units += 1
+      loss = dy.sum_batches(dy.sum_elems(dy.cmult(dy.exp(ll), ll)))
+      neg_entropy.append(dy.sum_batches(loss))
+    return losses.LossExpr(dy.esum(neg_entropy), units)

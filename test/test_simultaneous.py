@@ -8,6 +8,7 @@ import random
 import dynet as dy
 
 import xnmt.loss_calculators as loss_calculators
+import xnmt.modelparts.transforms as transforms
 
 from xnmt.modelparts.attenders import MlpAttender
 from xnmt.modelparts.bridges import NoBridge
@@ -23,7 +24,8 @@ from xnmt.simultaneous.simult_translators import SimultaneousTranslator
 from xnmt.modelparts.transforms import AuxNonLinear
 from xnmt.modelparts.scorers import Softmax
 from xnmt.vocabs import Vocab
-from xnmt.rl.policy_gradient import PolicyGradient
+
+import xnmt.rl.policy_network as network
 
 
 class TestSimultaneousTranslation(unittest.TestCase):
@@ -80,13 +82,6 @@ class TestSimultaneousTranslation(unittest.TestCase):
     event_trigger.set_train(False)
     self.model.generate(batchers.mark_as_batch([self.src_data[0]]), BeamSearch())
    
-  def test_policy(self):
-    event_trigger.set_train(True)
-    self.model.policy_learning = PolicyGradient(input_dim=3*self.layer_dim)
-    mle_loss = loss_calculators.MLELoss()
-    loss = mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
-    event_trigger.calc_reinforce_loss(self.trg[0], self.model, loss)
-
 
 class TestSimultTranslationWithGivenAction(unittest.TestCase):
   def setUp(self):
@@ -126,8 +121,8 @@ class TestSimultTranslationWithGivenAction(unittest.TestCase):
                                     scorer=Softmax(vocab_size=self.output_vocab_size, input_dim=layer_dim),
                                     embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=self.output_vocab_size),
                                     bridge=NoBridge(dec_dim=layer_dim, dec_layers=1)),
-      policy_learning=PolicyGradient(input_dim=3*self.layer_dim),
-      is_pretraining=True
+      is_pretraining=True,
+      policy_network = network.PolicyNetwork(transforms.MLP(2*self.layer_dim, self.layer_dim, 2))
     )
     event_trigger.set_train(True)
     

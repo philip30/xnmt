@@ -3,7 +3,6 @@ import dynet as dy
 from enum import Enum
 from collections import defaultdict
 
-import xnmt.batchers as batchers
 import xnmt.input_readers as input_readers
 import xnmt.modelparts.embedders as embedders
 import xnmt.modelparts.attenders as attenders
@@ -13,13 +12,14 @@ import xnmt.transducers.recurrent as recurrent
 import xnmt.events as events
 import xnmt.event_trigger as event_trigger
 import xnmt.vocabs as vocabs
-import xnmt.simultaneous.simult_rewards as rewards
 import xnmt.sent as sent
 import xnmt.losses as losses
 
 from xnmt.models.base import PolicyConditionedModel
 from xnmt.models.translators.default import DefaultTranslator
 from xnmt.persistence import bare, Serializable, serializable_init
+from xnmt.rl.policy_network import PolicyNetwork
+from xnmt.rl.policy_action import PolicyAction
 
 from .simult_state import SimultaneousState
 
@@ -40,8 +40,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
                decoder: decoders.Decoder = bare(decoders.AutoRegressiveDecoder),
                inference: inferences.AutoRegressiveInference = bare(inferences.AutoRegressiveInference),
                truncate_dec_batches: bool = False,
-               policy_learning=None,
-               freeze_decoder_param=False,
+               policy_network: PolicyNetwork = None,
                max_generation=100,
                is_pretraining=False,
                read_before_write=False,
@@ -54,82 +53,82 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
                      decoder=decoder,
                      inference=inference,
                      truncate_dec_batches=truncate_dec_batches)
-    self.policy_learning = policy_learning
-    self.actions = []
-    self.outputs = []
-    self.freeze_decoder_param = freeze_decoder_param
+    PolicyConditionedModel.__init__(self)
     self.max_generation = max_generation
     self.logger = logger
     self.is_pretraining = is_pretraining
+    self.policy_network = policy_network
     self.read_before_write = read_before_write
-  
-  def calc_nll(self, src_batch, trg_batch) -> losses.LossExpr:
-    event_trigger.start_sent(src_batch)
-    batch_loss = []
+    
+  def create_trajectories(self, src_batch, trg_batch):
+    if len(self.actions) != 0:
+      return
+    
     for src, trg in zip(src_batch, trg_batch):
-      actions, outputs, decoder_states, _ = self._create_trajectory(src, trg, from_oracle=self.is_pretraining)
-      seq_loss = []
-      for i, state in enumerate(decoder_states):
-        seq_loss.append(self.decoder.calc_loss(state, trg[i]))
-      seq_loss = dy.esum(seq_loss)
-      batch_loss.append(seq_loss)
+      actions, outputs, decoder_states, model_states = \
+        self.create_trajectory(src, trg, from_oracle=self.is_pretraining, force_decoding=True)
       self.actions.append(actions)
       self.outputs.append(outputs)
-      # Accumulate loss
+      self.decoder_states.append(decoder_states)
+      self.model_states.append(model_states)
+    
+  def calc_nll(self, src_batch, trg_batch) -> losses.LossExpr:
+    event_trigger.start_sent(src_batch)
+    self.create_trajectories(src_batch, trg_batch)
+    
+    batch_loss = []
+    for src, trg, decoder_state in zip(src_batch, trg_batch, self.decoder_states):
+      seq_loss = [self.decoder.calc_loss(decoder_state[i], trg[i]) for i in range(len(decoder_state))]
+      batch_loss.append(dy.esum(seq_loss))
+    
     dy.forward(batch_loss)
     total_loss =  dy.concatenate_to_batch(batch_loss)
     total_units = [trg_batch[i].len_unpadded() for i in range(trg_batch.batch_size())]
     return losses.LossExpr(total_loss, total_units)
   
   def calc_policy_nll(self, src_batch, trg_batch) -> losses.LossExpr:
-    assert self.policy_learning is not None
-    lls = iter(self.policy_learning.policy_lls)
+    assert self.policy_network is not None
+  
+    event_trigger.start_sent(src_batch)
+    self.create_trajectories(src_batch, trg_batch)
+  
     batch_loss = []
-    for src, action in zip(src_batch, self.actions):
-      item_loss = []
-      ref_action = src.sents[1].words
-      #min_len = min(len(action), len(ref_action))
+    for src, action, model_states in zip(src_batch, self.actions, self.model_states):
       assert type(src) == sent.CompoundSentence
-      for j in range(len(ref_action)):
-        item_loss.append(dy.pick(next(lls), ref_action[j]))
-      batch_loss.append(-dy.esum(item_loss))
+      policy_actions = model_states[-1].find_backward("policy_action")
+      ref_action = src.sents[1].words
+      seq_ll = [dy.pick(policy_actions[i].log_likelihood, ref_action[i]) for i in range(len(policy_actions))]
+      batch_loss.append(-dy.esum(seq_ll))
 
+    dy.forward(batch_loss)
     total_loss = dy.concatenate_to_batch(batch_loss)
     total_units = [len(x) for x in self.actions]
     return losses.LossExpr(total_loss, total_units)
     
     
-  def add_input(self, word, state) -> DefaultTranslator.Output:
+  def add_input(self, prev_word, state) -> DefaultTranslator.Output:
     src = self.src[0]
-    num_actions = state.has_been_read + state.has_been_written
     if type(src) == sent.CompoundSentence:
       src = src.sents[0]
-    
-    # Write one output
-    if type(word) == list:
-      word = batchers.mark_as_batch(word)
-    if word is not None:
-      state = state.write(word)
-    
+    if type(prev_word) == list:
+      prev_word = prev_word[0]
     # Reading until next write
-    while num_actions < self.max_generation:
+    while state.has_been_read < src.sent_len():
       next_action = self._next_action(state, src.sent_len())
-      if next_action == self.Action.WRITE:
+      if next_action == self.Action.WRITE.value:
         break
       else:
         state = state.read(src)
-      num_actions += 1
-    
-    state = state.calc_context()
-    return DefaultTranslator.Output(state, state.context_state.attention)
-    
+    # Write one output without reference
+    state = state.write(prev_word)
+  
+    return DefaultTranslator.Output(state, state.decoder_state.attention)
+  
   def _initial_state(self, src):
-    return SimultaneousState(self,
-                             encoder_state=self.encoder.initial_state(),
-                             context_state=None,
-                             output_embed=None)
+    encoder_state = self.encoder.initial_state()
+    return SimultaneousState(self, encoder_state=encoder_state, decoder_state=None)
 
-  def _create_trajectory(self, src, ref=None, current_state=None, from_oracle=True):
+  def create_trajectory(self, src, ref=None, current_state=None, from_oracle=True, force_decoding=True):
     if type(src) == sent.CompoundSentence:
       src, force_action = src.sents[0], src.sents[1]
     else:
@@ -149,7 +148,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     def stoping_criterions_met(state, trg, now_action):
       if self.is_pretraining:
         return state.has_been_written + state.has_been_read >= len(now_action.words)
-      elif self.policy_learning is None:
+      elif self.policy_network is None:
         return state.has_been_written >= trg.sent_len()
       else:
         return state.has_been_written >= self.max_generation or \
@@ -158,68 +157,62 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     # Simultaneous greedy search
     while not stoping_criterions_met(current_state, ref, force_action):
       # Define action based on state
-      action = self._next_action(current_state, src_len, force_action[len(actions)])
-      if action == self.Action.READ:
+      policy_action = self._next_action(current_state, src_len, force_action[len(actions)])
+      action = policy_action.content
+      if action == self.Action.READ.value:
         # Reading + Encoding
-        current_state = current_state.read(src)
-      else:
-        # Predicting next word
-        current_state = current_state.calc_context()
-        
+        current_state = current_state.read(src, policy_action)
+      elif action == self.Action.WRITE.value:
         # Calculating losses
-        ground_truth = self._select_ground_truth(current_state, ref)
-        decoder_states.append(current_state)
-        
-        # Use word from ref/model depeding on settings
-        next_word = self._select_next_word(ground_truth, current_state, force_ref=True)
+        if force_decoding:
+          if ref.sent_len() <= current_state.has_been_written:
+            ref_word = vocabs.Vocab.ES
+          else:
+            ref_word = ref[current_state.has_been_written]
+        else:
+          ref_word = None
+        # Write
+        current_state = current_state.write(ref_word, policy_action)
         # The produced words
-        outputs.append(next_word)
-        current_state = current_state.write(next_word)
+        decoder_states.append(current_state)
+        outputs.append(current_state.written_word)
+      else:
+        raise ValueError(action)
         
       model_states.append(current_state)
-      actions.append(action.value)
+      actions.append(action)
       
     return actions, outputs, decoder_states, model_states
 
-  def _next_action(self, state, src_len, force_action=None):
-    if self.read_before_write:
+  def _next_action(self, state, src_len, force_action=None) -> PolicyAction:
+    nopolicy_nooracle = force_action is None and self.policy_network is None
+    if self.read_before_write or nopolicy_nooracle:
       if state.has_been_read < src_len:
-        return self.Action.READ
+        force_action = self.Action.READ.value
       else:
-        return self.Action.WRITE
-    else:
-      # Sanity Check here:
-      if force_action is None:
-        force_action = self.Action.READ.value if state.has_been_read == 0 else force_action # No writing at the beginning.
-        force_action = self.Action.WRITE.value if state.has_been_read == src_len else force_action # No reading at the end.
-      # Compose inputs from 3 states
-      if self.policy_learning is not None:
-        encoder_state = state.encoder_state.output()
-        enc_dim = encoder_state.dim()
-        context_state = state.context_state.as_vector() if state.context_state else dy.zeros(*enc_dim)
-        output_embed = state.output_embed if state.output_embed else dy.zeros(*enc_dim)
-        input_state = dy.nobackprop(dy.concatenate([encoder_state, context_state, output_embed]))
-        # Sample / Calculate a single action
-        action = self.policy_learning.sample_action(input_state,
-                                                    predefined_actions=[force_action] if force_action is not None else None,
-                                                    argmax=(self.is_pretraining or not self.train))[0]
-      else:
-        action = force_action
-      assert action is not None
-      return self.Action(action)
-
-  def _select_next_word(self, ref, state, force_ref=False):
-    if self.policy_learning is None or force_ref:
-      return ref
-    else:
-      best_words, _ = self.best_k(state, 1)
-      return best_words[0]
+        force_action = self.Action.WRITE.value
     
-  def _select_ground_truth(self, state, trg):
-    if trg.sent_len() <= state.has_been_written:
-      return vocabs.Vocab.ES
+    # Sanity Check here:
+    if force_action is None:
+      force_action = self.Action.READ.value if state.has_been_read == 0 else force_action # No writing at the beginning.
+      force_action = self.Action.WRITE.value if state.has_been_read == src_len else force_action # No reading at the end.
+    
+    # Compose inputs from 3 states
+    if self.policy_network is not None:
+      encoder_state = state.encoder_state.output()
+      enc_dim = encoder_state.dim()
+      decoder_state = state.decoder_state.as_vector() if state.decoder_state is not None else dy.zeros(*enc_dim)
+      policy_input = dy.nobackprop(dy.concatenate([encoder_state, decoder_state]))
+      predefined_action = [force_action] if force_action is not None else None
+      # Sample / Calculate a single action
+      policy_action = self.policy_network.sample_action(policy_input,
+                                                        predefined_actions=predefined_action,
+                                                        argmax=(self.is_pretraining or not self.train))
+      policy_action.single_action()
     else:
-      return trg[state.has_been_written]
+      policy_action = PolicyAction(force_action)
+      
+    return policy_action
 
   @events.handle_xnmt_event
   def on_set_train(self, train):
@@ -227,29 +220,35 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     
   @events.handle_xnmt_event
   def on_start_sent(self, src_batch):
-    self.src = src_batch
-    self.actions = []
-    self.outputs = []
-
-  @events.handle_xnmt_event
-  def on_calc_reinforce_loss(self, trg, generator, generator_loss):
-    if self.policy_learning is None:
-      return None
-    reward, bleu, delay, instant_rewards = rewards.SimultaneousReward(self.src, trg, self.actions, self.outputs, self.trg_reader.vocab).calculate()
-    results = {}
-    reinforce_loss = self.policy_learning.calc_loss(reward, results)
-    try:
-      return reinforce_loss
-    finally:
-      if self.logger is not None:
-        keywords = {
-          "sim_inputs": [x[:x.len_unpadded()+1] for x in self.src],
-          "sim_actions": self.actions,
-          "sim_outputs": self.outputs,
-          "sim_bleu": bleu,
-          "sim_delay": delay,
-          "sim_instant_reward": instant_rewards,
-        }
-        keywords.update(results)
-        self.logger.create_sent_report(**keywords)
-
+    index = src_batch[0].idx
+    
+    if not hasattr(self, "last_index") or index != self.last_index:
+      self.src = src_batch
+      self.actions = []
+      self.outputs = []
+      self.decoder_states = []
+      self.model_states = []
+      self.last_index = index
+    
+#  @events.handle_xnmt_event
+#  def on_calc_reinforce_loss(self, trg, generator, generator_loss):
+#    if self.policy_learning is None:
+#      return None
+#    reward, bleu, delay, instant_rewards = rewards.SimultaneousReward(self.src, trg, self.actions, self.outputs, self.trg_reader.vocab).calculate()
+#    results = {}
+#    reinforce_loss = self.policy_learning.calc_loss(reward, results)
+#    try:
+#      return reinforce_loss
+#    finally:
+#      if self.logger is not None:
+#        keywords = {
+#          "sim_inputs": [x[:x.len_unpadded()+1] for x in self.src],
+#          "sim_actions": self.actions,
+#          "sim_outputs": self.outputs,
+#          "sim_bleu": bleu,
+#          "sim_delay": delay,
+#          "sim_instant_reward": instant_rewards,
+#        }
+#        keywords.update(results)
+#        self.logger.create_sent_report(**keywords)
+#
