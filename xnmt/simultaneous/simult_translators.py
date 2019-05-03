@@ -64,6 +64,11 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     self.policy_network = policy_network
     self.read_before_write = read_before_write
     
+    if self.read_before_write:
+      logger.info("Setting looking oracle to always true in SimultTranslator for 'read_before_write'")
+      self.policy_train_oracle = True
+      self.policy_test_oracle = True
+    
   def create_trajectories(self, src_batch, trg_batch, force_oracle=False):
     if len(self.actions) != 0:
       return
@@ -115,20 +120,24 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     
   def add_input(self, prev_word, state) -> DefaultTranslator.Output:
     src = self.src[0]
+    force_actions = []
     if type(src) == sent.CompoundSentence:
       src_sent = src.sents[0]
+      force_actions = src.sent[1].words
     else:
       src_sent = src
+
     if type(prev_word) == list:
       prev_word = prev_word[0]
       
     look_oracle = self.policy_train_oracle if self.train else self.policy_test_oracle
+    force_action = None
     # Reading until next write
     while True:
       if look_oracle:
-        force_action = src.sents[1][state.has_been_read + state.has_been_written]
-      else:
-        force_action = None
+        now_position = state.has_been_read + state.has_been_written
+        if now_position < len(force_actions):
+          force_action = force_actions[now_position]
       next_action = self._next_action(state, src.len_unpadded(), force_action)
       if next_action.content == self.Action.WRITE.value:
         state = state.write(prev_word, next_action)
@@ -158,6 +167,9 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
    
     if not from_oracle:
       force_action = defaultdict(lambda: None)
+      
+    if self.read_before_write:
+      force_action = [0] * src.len_unpadded() + [1] * ref.len_unpadded()
       
     current_state = current_state or self._initial_state(src)
     src_len = src.len_unpadded()
@@ -214,13 +226,6 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     return actions, outputs, decoder_states, model_states
 
   def _next_action(self, state, src_len, force_action=None) -> PolicyAction:
-    nopolicy_nooracle = force_action is None and self.policy_network is None
-    if self.read_before_write or nopolicy_nooracle:
-      if state.has_been_read < src_len:
-        force_action = self.Action.READ.value
-      else:
-        force_action = self.Action.WRITE.value
-    
     # Sanity Check here:
     if force_action is None:
       force_action = self.Action.READ.value if state.has_been_read == 0 else force_action # No writing at the beginning.
