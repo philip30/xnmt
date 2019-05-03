@@ -181,8 +181,8 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     src_len = src.len_unpadded()
 
     actions = []
-    outputs = []
     decoder_states = []
+    outputs = []
     model_states = [current_state]
 
     def stoping_criterions_met(state, trg, now_action):
@@ -207,18 +207,21 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
         current_state = current_state.read(self.src_encoding[current_state.has_been_read], policy_action)
       elif action == self.Action.WRITE.value:
         # Calculating losses
-        if force_decoding:
+        if ref is not None:
           if ref.len_unpadded() <= current_state.has_been_written:
-            ref_word = vocabs.Vocab.ES
+            prev_word = vocabs.Vocab.ES
+          elif current_state.has_been_written == 0:
+            prev_word = None
           else:
-            ref_word = ref[current_state.has_been_written]
+            prev_word = ref[current_state.has_been_written-1]
+          # Write
+          current_state = current_state.write(self.src_encoding, prev_word, policy_action)
         else:
-          ref_word = None
-        # Write
-        current_state = current_state.write(self.src_encoding, ref_word, policy_action)
+          # TODO implement if ref is None!
+          pass
         # The produced words
+        outputs.append(prev_word)
         decoder_states.append(current_state)
-        outputs.append(current_state.written_word)
       else:
         raise ValueError(action)
         

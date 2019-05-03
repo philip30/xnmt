@@ -76,15 +76,6 @@ class TestSimultaneousTranslation(unittest.TestCase):
     event_trigger.set_train(True)
     mle_loss = loss_calculators.MLELoss()
     mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
-  
-  def test_train_nll_all_read(self):
-    event_trigger.set_train(True)
-    mle_loss = loss_calculators.MLELoss()
-    mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
-    event_trigger.set_train(False)
-    self.model.generate(batchers.mark_as_batch([self.src_data[0]]), GreedySearch())
-
-  def test_simult_greedy(self):
     event_trigger.set_train(False)
     self.model.generate(batchers.mark_as_batch([self.src_data[0]]), GreedySearch())
 

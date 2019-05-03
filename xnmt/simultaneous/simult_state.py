@@ -39,7 +39,7 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
     return SimultaneousState(self.model, src_encoding, self.decoder_state,
                              has_been_read=self.has_been_read+1, has_been_written=self.has_been_written,
                              written_word=self.written_word, policy_action=policy_action, reset_attender=True,
-                             parent = self)
+                             parent=self)
   
   def write(self, src_encoding, word, policy_action):
     # Reset attender if there is a read action
@@ -57,13 +57,13 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
     else:
       decoder_state = self.model.decoder.add_input(self.decoder_state, word)
     decoder_state.attention = self.model.attender.calc_attention(decoder_state.as_vector())
-    decoder_state.context = self.model.attender.calc_context(None, decoder_state.attention)
+    decoder_state.context = self.model.attender.calc_context(decoder_state.as_vector(), decoder_state.attention)
     
     # Calc context for decoding
     return SimultaneousState(self.model, self.encoder_state, decoder_state,
                              has_been_read=self.has_been_read, has_been_written=self.has_been_written+1,
-                             written_word=word, policy_action=policy_action,
-                             reset_attender=reset_attender, parent=self)
+                             written_word=word, policy_action=policy_action, reset_attender=reset_attender,
+                             parent=self)
   
   def find_backward(self, field):
     now = self

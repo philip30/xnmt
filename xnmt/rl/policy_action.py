@@ -1,4 +1,6 @@
 
+import dynet as dy
+
 class PolicyAction(object):
   def __init__(self, content, log_likelihood=None, policy_input=None, mask=None):
     self._content = content
@@ -24,3 +26,7 @@ class PolicyAction(object):
   
   def single_action(self):
     self._content = self._content[0]
+
+  def __repr__(self):
+    ll = dy.exp(self.log_likelihood).npvalue() if self.log_likelihood is not None else None
+    return "({}, {})".format(repr(self.content), ll)
