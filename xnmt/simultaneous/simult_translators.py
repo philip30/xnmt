@@ -2,6 +2,7 @@ import dynet as dy
 
 from enum import Enum
 from collections import defaultdict
+from typing import Any, Union
 
 import xnmt.input_readers as input_readers
 import xnmt.modelparts.embedders as embedders
@@ -41,7 +42,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
                decoder: decoders.Decoder = bare(decoders.AutoRegressiveDecoder),
                inference: inferences.AutoRegressiveInference = bare(inferences.AutoRegressiveInference),
                truncate_dec_batches: bool = False,
-               policy_network: PolicyNetwork = None,
+               policy_network: Union[PolicyNetwork, Any] = None,
                max_generation=100,
                policy_train_oracle=False,
                policy_test_oracle=False,

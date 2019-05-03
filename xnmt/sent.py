@@ -228,7 +228,7 @@ class SimpleSentence(ReadableSentence):
                vocab: Optional[Vocab] = None,
                score: Optional[numbers.Real] = None,
                output_procs: Union[OutputProcessor, Sequence[OutputProcessor]] = [],
-               pad_token: numbers.Integral = Vocab.ES,
+               pad_token: numbers.Integral = Vocab.PAD,
                unpadded_sent: 'SimpleSentence' = None) -> None:
     super().__init__(idx=idx, score=score, output_procs=output_procs)
     self.pad_token = pad_token

@@ -23,10 +23,12 @@ class Vocab(Serializable):
 
   SS = 0
   ES = 1
+  PAD = 2
 
   SS_STR = "<s>"
   ES_STR = "</s>"
   UNK_STR = "<unk>"
+  PAD_STR = "<pad>"
 
   @serializable_init
   def __init__(self,
@@ -57,8 +59,8 @@ class Vocab(Serializable):
       vocab_file: file containing one word per line, and not containing ``<s>``, ``</s>``, ``<unk>``
       sentencepiece_vocab (bool): Set to ``True`` if ``vocab_file`` is the output of the sentencepiece tokenizer. Defaults to ``False``.
     """
-    vocab = [Vocab.SS_STR, Vocab.ES_STR]
-    reserved = {Vocab.SS_STR, Vocab.ES_STR, Vocab.UNK_STR}
+    vocab = [Vocab.SS_STR, Vocab.ES_STR, Vocab.PAD_STR]
+    reserved = {Vocab.SS_STR, Vocab.ES_STR, Vocab.UNK_STR, Vocab.PAD_STR}
     with open(vocab_file, encoding='utf-8') as f:
       for line in f:
         word = line.strip()
