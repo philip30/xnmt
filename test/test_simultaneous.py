@@ -88,7 +88,7 @@ class TestSimultaneousTranslation(unittest.TestCase):
 
   def test_simult_beam(self):
     event_trigger.set_train(False)
-    self.model.generate(batchers.mark_as_batch([self.src_data[0]]), BeamSearch())
+    self.model.generate(batchers.mark_as_batch([self.src_data[0]]), BeamSearch(beam_size=2))
    
 
 class TestSimultTranslationWithGivenAction(unittest.TestCase):

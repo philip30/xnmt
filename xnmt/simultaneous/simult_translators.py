@@ -2,7 +2,7 @@ import dynet as dy
 
 from enum import Enum
 from collections import defaultdict
-from typing import Any, Union
+from typing import Optional
 
 import xnmt.input_readers as input_readers
 import xnmt.modelparts.embedders as embedders
@@ -15,6 +15,7 @@ import xnmt.event_trigger as event_trigger
 import xnmt.vocabs as vocabs
 import xnmt.sent as sent
 import xnmt.losses as losses
+import xnmt.batcher as batcher
 
 from xnmt import logger
 from xnmt.models.base import PolicyConditionedModel
@@ -42,8 +43,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
                decoder: decoders.Decoder = bare(decoders.AutoRegressiveDecoder),
                inference: inferences.AutoRegressiveInference = bare(inferences.AutoRegressiveInference),
                truncate_dec_batches: bool = False,
-               policy_network: Union[PolicyNetwork, Any] = None,
-               max_generation=100,
+               policy_network: Optional[PolicyNetwork] = None,
                policy_train_oracle=False,
                policy_test_oracle=False,
                policy_sample=False,
@@ -58,7 +58,6 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
                      inference=inference,
                      truncate_dec_batches=truncate_dec_batches)
     PolicyConditionedModel.__init__(self)
-    self.max_generation = max_generation
     self.logger = logger
     self.policy_train_oracle = policy_train_oracle
     self.policy_test_oracle = policy_test_oracle
@@ -145,7 +144,14 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     encoder_state = self.encoder.initial_state()
     return SimultaneousState(self, encoder_state=encoder_state, decoder_state=None)
 
-  def create_trajectory(self, src, ref=None, current_state=None, from_oracle=True, force_decoding=True):
+  def create_trajectory(self,
+                        src: sent.Sentence,
+                        ref: sent.Sentence = None,
+                        current_state: Optional[SimultaneousState] = None,
+                        from_oracle: bool = True,
+                        force_decoding: bool = True,
+                        max_generation: int = -1):
+  
     if type(src) == sent.CompoundSentence:
       src, force_action = src.sents[0], src.sents[1].words
     else:
@@ -169,7 +175,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
       elif self.policy_network is None:
         return state.has_been_written >= trg.sent_len()
       else:
-        return state.has_been_written >= self.max_generation or \
+        return (max_generation != -1 and state.has_been_written >= max_generation) or \
                state.written_word == vocabs.Vocab.ES
 
     # Simultaneous greedy search
