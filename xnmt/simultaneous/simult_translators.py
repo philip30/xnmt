@@ -15,7 +15,6 @@ import xnmt.event_trigger as event_trigger
 import xnmt.vocabs as vocabs
 import xnmt.sent as sent
 import xnmt.losses as losses
-import xnmt.batcher as batcher
 
 from xnmt import logger
 from xnmt.models.base import PolicyConditionedModel
