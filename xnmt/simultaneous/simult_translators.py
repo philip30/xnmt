@@ -186,7 +186,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     model_states = [current_state]
 
     def stoping_criterions_met(state, trg, now_action):
-      look_oracle = now_action is not None and (self.policy_train_oracle if self.train else self.policy_test_oracle)
+      look_oracle = now_action is not None and from_oracle
       if look_oracle:
         return state.has_been_read + state.has_been_written >= len(force_action)
       elif self.policy_network is None:
@@ -194,20 +194,26 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
       else:
         return (max_generation != -1 and state.has_been_written >= max_generation) or \
                state.written_word == vocabs.Vocab.ES
-
+    
     # Simultaneous greedy search
     while not stoping_criterions_met(current_state, ref, force_action):
       actions_taken = current_state.has_been_read + current_state.has_been_written
-      defined_action = force_action[actions_taken] if force_action is not None else None
+      if force_action is not None and actions_taken < len(force_action):
+        defined_action = force_action[actions_taken]
+      else:
+        defined_action = None
+        
       # Define action based on state
       policy_action = self._next_action(current_state, src_len, defined_action)
       action = policy_action.content
+      
       if action == self.Action.READ.value:
         # Reading + Encoding
         current_state = current_state.read(self.src_encoding[current_state.has_been_read], policy_action)
+      
       elif action == self.Action.WRITE.value:
         # Calculating losses
-        if ref is not None:
+        if force_decoding:
           if ref.len_unpadded() <= current_state.has_been_written:
             prev_word = vocabs.Vocab.ES
           elif current_state.has_been_written == 0:
@@ -222,6 +228,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
         # The produced words
         outputs.append(prev_word)
         decoder_states.append(current_state)
+      
       else:
         raise ValueError(action)
         
