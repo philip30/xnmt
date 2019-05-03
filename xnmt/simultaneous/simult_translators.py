@@ -1,9 +1,9 @@
 import dynet as dy
 
 from enum import Enum
-from collections import defaultdict
 from typing import Optional
 
+import xnmt.batchers as batchers
 import xnmt.input_readers as input_readers
 import xnmt.modelparts.embedders as embedders
 import xnmt.modelparts.attenders as attenders
@@ -46,8 +46,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
                policy_train_oracle=False,
                policy_test_oracle=False,
                policy_sample=False,
-               read_before_write=False,
-               logger=None) -> None:
+               read_before_write=False) -> None:
     super().__init__(src_reader=src_reader,
                      trg_reader=trg_reader,
                      encoder=encoder,
@@ -57,7 +56,6 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
                      inference=inference,
                      truncate_dec_batches=truncate_dec_batches)
     PolicyConditionedModel.__init__(self)
-    self.logger = logger
     self.policy_train_oracle = policy_train_oracle
     self.policy_test_oracle = policy_test_oracle
     self.policy_sample = policy_sample
@@ -65,9 +63,9 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     self.read_before_write = read_before_write
     
     if self.read_before_write:
-      logger.info("Setting looking oracle to always true in SimultTranslator for 'read_before_write'")
-      self.policy_train_oracle = True
-      self.policy_test_oracle = True
+      logger.info("Setting looking oracle to always false in SimultTranslator for 'read_before_write'")
+      self.policy_train_oracle = False
+      self.policy_test_oracle = False
     
   def create_trajectories(self, src_batch, trg_batch, force_oracle=False):
     if len(self.actions) != 0:
@@ -83,10 +81,13 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
       self.outputs.append(outputs)
       self.decoder_states.append(decoder_states)
       self.model_states.append(model_states)
+      
+  def _is_action_forced(self):
+    return self.read_before_write
     
   def calc_nll(self, src_batch, trg_batch) -> losses.LossExpr:
     event_trigger.start_sent(src_batch)
-    self.create_trajectories(src_batch, trg_batch, force_oracle=True)
+    self.create_trajectories(src_batch, trg_batch, force_oracle=not self._is_action_forced())
     
     batch_loss = []
     for src, trg, decoder_state in zip(src_batch, trg_batch, self.decoder_states):
@@ -102,7 +103,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     assert self.policy_network is not None
   
     event_trigger.start_sent(src_batch)
-    self.create_trajectories(src_batch, trg_batch, force_oracle=True)
+    self.create_trajectories(src_batch, trg_batch, force_oracle=not self._is_action_forced())
   
     batch_loss = []
     for src, action, model_states in zip(src_batch, self.actions, self.model_states):
@@ -116,41 +117,52 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     total_loss = dy.concatenate_to_batch(batch_loss)
     total_units = [len(x) for x in self.actions]
     return losses.LossExpr(total_loss, total_units)
-    
-    
+  
   def add_input(self, prev_word, state) -> DefaultTranslator.Output:
     src = self.src[0]
-    force_actions = []
+    
+    force_actions = None
+    look_oracle = self.policy_train_oracle if self.train else self.policy_test_oracle
     if type(src) == sent.CompoundSentence:
-      src_sent = src.sents[0]
-      force_actions = src.sent[1].words
-    else:
-      src_sent = src
-
+      src, force_actions = src.sents[0], src.sents[1].words
+    force_actions = force_actions if look_oracle else None
+    
     if type(prev_word) == list:
       prev_word = prev_word[0]
-      
-    look_oracle = self.policy_train_oracle if self.train else self.policy_test_oracle
-    force_action = None
-    # Reading until next write
+ 
     while True:
+      force_action = None
+     
+      # If we look at the oracle, fill the value of force action accordingly
       if look_oracle:
         now_position = state.has_been_read + state.has_been_written
+        # Case when in the inference the produced sentence is longer than the reference.
+        # The number of enough reads have been taken, just need to write the output until the end.
         if now_position < len(force_actions):
           force_action = force_actions[now_position]
+        else:
+          force_action = self.Action.WRITE.value
+      
+      # Taking the next action
       next_action = self._next_action(state, src.len_unpadded(), force_action)
+      
       if next_action.content == self.Action.WRITE.value:
-        state = state.write(prev_word, next_action)
+        state = state.write(self.src_encoding, prev_word, next_action)
         break
+      elif next_action.content == self.Action.READ.value:
+        state = state.read(self.src_encoding[state.has_been_read], next_action)
       else:
-        state = state.read(src_sent, next_action)
-    # Write one output without reference
+        raise ValueError(next_action.content)
   
     return DefaultTranslator.Output(state, state.decoder_state.attention)
   
   def _initial_state(self, src):
-    encoder_state = self.encoder.initial_state()
-    return SimultaneousState(self, encoder_state=encoder_state, decoder_state=None)
+    if batchers.is_batched(src):
+      src = src[0]
+    if type(src) == sent.CompoundSentence:
+      src = src.sents[0]
+    self.src_encoding = self.encoder.transduce(self.src_embedder.embed_sent(src))
+    return SimultaneousState(self, encoder_state=None, decoder_state=None)
 
   def create_trajectory(self,
                         src: sent.Sentence,
@@ -159,18 +171,12 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
                         from_oracle: bool = True,
                         force_decoding: bool = True,
                         max_generation: int = -1):
-  
+    assert not from_oracle or type(src) == sent.CompoundSentence or self.read_before_write
+    force_action = None
     if type(src) == sent.CompoundSentence:
       src, force_action = src.sents[0], src.sents[1].words
-    else:
-      force_action = defaultdict(lambda: None)
-   
-    if not from_oracle:
-      force_action = defaultdict(lambda: None)
-      
-    if self.read_before_write:
-      force_action = [0] * src.len_unpadded() + [1] * ref.len_unpadded()
-      
+    force_action = force_action if from_oracle else None
+    
     current_state = current_state or self._initial_state(src)
     src_len = src.len_unpadded()
 
@@ -180,9 +186,9 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     model_states = [current_state]
 
     def stoping_criterions_met(state, trg, now_action):
-      look_oracle = self.policy_train_oracle if self.train else self.policy_test_oracle
+      look_oracle = now_action is not None and (self.policy_train_oracle if self.train else self.policy_test_oracle)
       if look_oracle:
-        return state.has_been_written + state.has_been_read >= len(now_action)
+        return state.has_been_read + state.has_been_written >= len(force_action)
       elif self.policy_network is None:
         return state.has_been_written >= trg.sent_len()
       else:
@@ -191,18 +197,14 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
 
     # Simultaneous greedy search
     while not stoping_criterions_met(current_state, ref, force_action):
-      if len(actions) < len(force_action) or type(force_action) == defaultdict:
-        defined_action = force_action[len(actions)]
-      else:
-        defined_action = None
-        logger.warning("Requesting more action than it should have!\n src-{}".format(src.idx))
-      
+      actions_taken = current_state.has_been_read + current_state.has_been_written
+      defined_action = force_action[actions_taken] if force_action is not None else None
       # Define action based on state
       policy_action = self._next_action(current_state, src_len, defined_action)
       action = policy_action.content
       if action == self.Action.READ.value:
         # Reading + Encoding
-        current_state = current_state.read(src, policy_action)
+        current_state = current_state.read(self.src_encoding[current_state.has_been_read], policy_action)
       elif action == self.Action.WRITE.value:
         # Calculating losses
         if force_decoding:
@@ -213,7 +215,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
         else:
           ref_word = None
         # Write
-        current_state = current_state.write(ref_word, policy_action)
+        current_state = current_state.write(self.src_encoding, ref_word, policy_action)
         # The produced words
         decoder_states.append(current_state)
         outputs.append(current_state.written_word)
@@ -231,10 +233,13 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
       force_action = self.Action.READ.value if state.has_been_read == 0 else force_action # No writing at the beginning.
       force_action = self.Action.WRITE.value if state.has_been_read == src_len else force_action # No reading at the end.
     
+    if self.read_before_write:
+      force_action = self.Action.READ.value if state.has_been_read < src_len else self.Action.WRITE.value
+     
     # Compose inputs from 3 states
     if self.policy_network is not None:
-      encoder_state = state.encoder_state.output()
-      enc_dim = encoder_state.dim()
+      enc_dim = self.src_encoding[0].dim()
+      encoder_state = state.encoder_state if state.encoder_state is not None else dy.zeros(*enc_dim)
       decoder_state = state.decoder_state.as_vector() if state.decoder_state is not None else dy.zeros(*enc_dim)
       policy_input = dy.nobackprop(dy.concatenate([encoder_state, decoder_state]))
       predefined_action = [force_action] if force_action is not None else None

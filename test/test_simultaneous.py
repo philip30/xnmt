@@ -62,7 +62,8 @@ class TestSimultaneousTranslation(unittest.TestCase):
                                     embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=self.output_vocab_size),
                                     bridge=NoBridge(dec_dim=layer_dim, dec_layers=1)),
       policy_train_oracle=False,
-      policy_test_oracle=False
+      policy_test_oracle=False,
+      read_before_write=True,
     )
     event_trigger.set_train(True)
     
@@ -78,9 +79,10 @@ class TestSimultaneousTranslation(unittest.TestCase):
   
   def test_train_nll_all_read(self):
     event_trigger.set_train(True)
-    self.model.read_before_write = True
     mle_loss = loss_calculators.MLELoss()
     mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
+    event_trigger.set_train(False)
+    self.model.generate(batchers.mark_as_batch([self.src_data[0]]), GreedySearch())
 
   def test_simult_greedy(self):
     event_trigger.set_train(False)
@@ -147,10 +149,26 @@ class TestSimultTranslationWithGivenAction(unittest.TestCase):
     
     pol_loss = loss_calculators.PolicyMLELoss()
     pol_loss.calc_loss(self.model, self.src[0], self.trg[0])
-  
+
+    event_trigger.set_train(False)
+    self.model.generate(batchers.mark_as_batch([self.src_data[0]]), GreedySearch())
+   
+  def test_train_mle_only(self):
+    self.model.policy_network = None
+    event_trigger.set_train(True)
+    mle_loss = loss_calculators.MLELoss()
+    mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
+    
+    event_trigger.set_train(False)
+    self.model.generate(batchers.mark_as_batch([self.src_data[0]]), GreedySearch())
+
   def test_composite(self):
+    event_trigger.set_train(True)
     composite_loss = loss_calculators.CompositeLoss([loss_calculators.MLELoss(), loss_calculators.PolicyMLELoss()])
     composite_loss.calc_loss(self.model, self.src[0], self.trg[0])
+    
+    event_trigger.set_train(False)
+    self.model.generate(batchers.mark_as_batch([self.src_data[0]]), GreedySearch())
     
 if __name__ == "__main__":
   unittest.main()
