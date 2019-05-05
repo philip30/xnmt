@@ -1,4 +1,5 @@
 import argparse
+import sys
 
 argparse = argparse.ArgumentParser()
 argparse.add_argument("f_sp_input")
@@ -9,6 +10,7 @@ args = argparse.parse_args()
 DELIMITER = "▁"
 
 def main():
+  exit_status = 0
   for line, (f_sp, e_sp, align) in enumerate(iter_input(args.f_sp_input, args.e_sp_input, args.align_file)):
     # Grouping piece together
     f_sp_word = []
@@ -16,21 +18,24 @@ def main():
       if DELIMITER in piece:
         f_sp_word.append([])
       f_sp_word[-1].append((piece, i))
-    
     e_sp_word = []
     for i, piece in enumerate(e_sp):
       if DELIMITER in piece:
         e_sp_word.append([])
       e_sp_word[-1].append((piece, i))
-    
     # Mapping piece
-    new_align = []
-    for f, e in align:
-      for _, fpiece in f_sp_word[f]:
-        for _, epiece in e_sp_word[e]:
-          new_align.append((fpiece, epiece))
-    new_align = sorted(new_align)
-    print(" ".join(["{}-{}".format(f, e) for f, e in new_align]))
+    try:
+      new_align = []
+      for f, e in align:
+        for _, fpiece in f_sp_word[f]:
+          for _, epiece in e_sp_word[e]:
+            new_align.append((fpiece, epiece))
+      new_align = sorted(new_align)
+      print(" ".join(["{}-{}".format(f, e) for f, e in new_align]))
+    except:
+      print("Error on line: {}".format(line+1), file=sys.stderr)
+      exit_status = 1
+  sys.exit(exit_status)
 
 def iter_input(f_sp_file, e_sp_file, align_file):
   with open(f_sp_file) as f_sp_fp, \

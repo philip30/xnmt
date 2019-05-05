@@ -15,6 +15,7 @@ import xnmt.event_trigger as event_trigger
 import xnmt.vocabs as vocabs
 import xnmt.sent as sent
 import xnmt.losses as losses
+import xnmt.transducers.base as transducers
 
 from xnmt import logger
 from xnmt.models.base import PolicyConditionedModel
@@ -37,7 +38,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
                src_reader: input_readers.InputReader,
                trg_reader: input_readers.InputReader,
                src_embedder: embedders.Embedder = bare(embedders.SimpleWordEmbedder),
-               encoder: recurrent.UniLSTMSeqTransducer = bare(recurrent.UniLSTMSeqTransducer),
+               encoder: transducers.SeqTransducer = bare(recurrent.UniLSTMSeqTransducer),
                attender: attenders.Attender = bare(attenders.MlpAttender),
                decoder: decoders.Decoder = bare(decoders.AutoRegressiveDecoder),
                inference: inferences.AutoRegressiveInference = bare(inferences.AutoRegressiveInference),
