@@ -5,6 +5,7 @@ argparse = argparse.ArgumentParser()
 argparse.add_argument("f_sp_input")
 argparse.add_argument("e_sp_input")
 argparse.add_argument("align_file")
+argparse.add_argument("--debug", action='store_true')
 args = argparse.parse_args()
 
 DELIMITER = "▁"
@@ -23,6 +24,12 @@ def main():
       if DELIMITER in piece:
         e_sp_word.append([])
       e_sp_word[-1].append((piece, i))
+
+    align = align_missings(len(f_sp_word), len(e_sp_word), align)
+
+    if args.debug:
+      debug(f_sp_word, e_sp_word, align)
+
     # Mapping piece
     try:
       new_align = []
@@ -49,5 +56,37 @@ def iter_input(f_sp_file, e_sp_file, align_file):
       align = [(int(f), int(e)) for f, e in align]
       yield f_sp, e_sp, align
 
+def split_alignment(align):
+  f_to_e = {}
+  e_to_f = {}
+  for f, e in align:
+    if f not in f_to_e:
+      f_to_e[f] = []
+    f_to_e[f].append(e)
+    if e not in e_to_f:
+      e_to_f[e] = []
+    e_to_f[e].append(f)
+  return f_to_e, e_to_f
+
+def align_missings(len_f, len_e, align):
+  f_to_e, e_to_f = split_alignment(align)
+  missing = []
+
+  for i in range(len_e-1, -1, -1):
+    if i not in e_to_f:
+      f_align = e_to_f[i+1] if i != len_e-1 else [len_f-1]
+      for f in f_align:
+        missing.append((f, i))
+      e_to_f[i] = f_align
+  return align + missing
+
+def debug(f_sp_word, e_sp_word, align):
+  f_to_e, e_to_f = split_alignment(align)
+  for i in range(len(e_sp_word)):
+    for f in e_to_f[i]:
+      print("Aligning {} with {}".format(e_sp_word[i], f_sp_word[f]), file=sys.stderr)
+
+  print(file=sys.stderr)
+        
 if __name__ == '__main__':
   main()
