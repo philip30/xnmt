@@ -3,22 +3,15 @@ import dynet as dy
 
 import xnmt.modelparts.transforms as transforms
 import xnmt.events as events
-import xnmt.transducers.recurrent as recurrent
+import xnmt.transducers.base as seq_transducer
 import xnmt.expression_seqs as expr_seq
+import xnmt.transducers.recurrent as recurrent
 
 from xnmt.rl.policy_action import PolicyAction
 from xnmt.persistence import Serializable, serializable_init, bare
 
 
-class PolicyNetwork(Serializable):
-
-  yaml_tag = '!PolicyNetwork'
-  @serializable_init
-  @events.register_xnmt_handler
-  def __init__(self, policy_network: transforms.Transform = bare(transforms.Linear)):
-    assert policy_network is not None
-    self.policy_network = policy_network
-
+class Policy(object):
   def sample_actions(self, states: expr_seq.ExpressionSequence, argmax=False, sample_pp=None, predefined_action=None):
     actions = []
     for i, (state, predef_act) in enumerate(zip(states, predefined_action)):
@@ -36,7 +29,7 @@ class PolicyNetwork(Serializable):
                         This predefined actions can be from the gold distribution or some probability priors.
                         It should be calculated from the outside.
     """
-    policy = dy.log_softmax(self.policy_network.transform(state))
+    policy = dy.log_softmax(self.input_state(state))
 
     # Select actions
     if predefined_actions is not None and len(predefined_actions) != 0:
@@ -53,26 +46,40 @@ class PolicyNetwork(Serializable):
       actions = sample_pp(actions)
     # Return
     return PolicyAction(actions, policy, state, mask)
+  
+  def input_state(self, state):
+    raise NotImplementedError()
 
 
-class RecurrentPolicyNetwork(PolicyNetwork):
+class PolicyNetwork(Serializable, Policy):
+
+  yaml_tag = '!PolicyNetwork'
+  @serializable_init
+  @events.register_xnmt_handler
+  def __init__(self, policy_network: transforms.Transform = bare(transforms.Linear)):
+    self.policy_network = policy_network
+
+  def input_state(self, state):
+    return self.policy_network.transform(state)
+
+
+class RecurrentPolicyNetwork(Serializable, Policy):
 
   yaml_tag = '!RecurrentPolicyNetwork'
   @serializable_init
   @events.register_xnmt_handler
   def __init__(self,
                policy_network: transforms.Transform = bare(transforms.Linear),
-               rnn: recurrent.BiLSTMSeqTransducer=bare(recurrent.BiLSTMSeqTransducer)):
-    super().__init__(policy_network)
+               rnn: seq_transducer.SeqTransducer = bare(recurrent.BiLSTMSeqTransducer)):
     self.rnn = rnn
+    self.policy_network = policy_network
+    
+  ### Warning do not use single sample_action normally here!
+  ### Please use sample_actions to sample for making sequetial decisions
 
   def sample_actions(self, states: expr_seq.ExpressionSequence, argmax=False, sample_pp=None, predefined_action=None):
-    encodings = self.rnn.transduce(states)
-    actions = []
-    for i, (state, predef_act) in enumerate(zip(encodings, predefined_action)):
-      mask = encodings.mask[i] if encodings.mask is not None else None
-      actions.append(super().sample_action(state, argmax, sample_pp, predefined_action, mask))
-    return actions
-
-  def sample_action(self, state, argmax=False, sample_pp=None, predefined_action=None, masks=None):
-    return ValueError("Should not use BidiRecurrent sample action")
+    states = self.rnn.transduce(states)
+    return super().sample_actions(states, argmax, sample_pp, predefined_action)
+    
+  def input_state(self, state):
+    return self.policy_network.transform(state)
