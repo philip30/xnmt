@@ -22,7 +22,7 @@ from xnmt.modelparts.attenders import MlpAttender
 from xnmt.batchers import SrcBatcher, InOrderBatcher
 from xnmt.modelparts.bridges import CopyBridge
 from xnmt.modelparts.decoders import AutoRegressiveDecoder
-from xnmt.modelparts.embedders import SimpleWordEmbedder
+from xnmt.modelparts.embedders import LookupEmbedder
 from xnmt.eval.tasks import LossEvalTask, AccuracyEvalTask
 from xnmt.experiments import Experiment
 from xnmt.inferences import AutoRegressiveInference
@@ -65,12 +65,12 @@ layer_dim = 512
 model = DefaultTranslator(
   src_reader=PlainTextReader(vocab=src_vocab),
   trg_reader=PlainTextReader(vocab=trg_vocab),
-  src_embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=len(src_vocab)),
+  src_embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=len(src_vocab)),
 
   encoder=BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim, layers=1),
   attender=MlpAttender(hidden_dim=layer_dim, state_dim=layer_dim, input_dim=layer_dim),
   decoder=AutoRegressiveDecoder(input_dim=layer_dim,
-                                embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=len(trg_vocab)),
+                                embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=len(trg_vocab)),
                                 rnn=UniLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim,
                                                          decoder_input_dim=layer_dim, yaml_path="decoder"),
                                 transform=AuxNonLinear(input_dim=layer_dim, output_dim=layer_dim,

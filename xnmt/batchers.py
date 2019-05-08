@@ -1,28 +1,28 @@
 import warnings
-from typing import Callable, List, Optional, Sequence, Tuple, Union
 import math
 import random
-from abc import ABC, abstractmethod
-from functools import lru_cache
 import numbers
-
 import numpy as np
 import dynet as dy
 
-from xnmt.persistence import serializable_init, Serializable
-from xnmt import expression_seqs
-from xnmt.transducers import recurrent
-from xnmt import sent
+from typing import Callable, Optional, Sequence, Tuple, Union, Any
 
-class Batch(ABC):
+import xnmt.expression_seqs as expression_seqs
+import xnmt.transducers.recurrent as recurrent
+import xnmt.sent as sent
+
+from xnmt.persistence import serializable_init, Serializable
+
+
+class Batch(object):
   """
   An abstract base class for minibatches of things.
   """
-  @abstractmethod
   def batch_size(self) -> int:
     raise NotImplementedError()
   def sent_len(self) -> int:
     raise NotImplementedError()
+
 
 class ListBatch(list, Batch):
   """
@@ -31,7 +31,7 @@ class ListBatch(list, Batch):
   This class behaves like a Python list, but adds semantics that the contents form a (mini)batch of things.
   An optional mask can be specified to indicate padded parts of the inputs.
   Should be treated as an immutable object.
- 
+
   Args:
     batch_elements: list of things
     mask: optional mask when  batch contains items of unequal size
@@ -142,12 +142,12 @@ class Mask(object):
       mask_exp = dy.inputTensor(self.np_arr[:,timestep:timestep+1].transpose(), batched=True)
     return dy.cmult(expr, mask_exp)
 
-  @lru_cache(maxsize=1)
-  def get_valid_position(self, transpose: bool = True) -> List[numbers.Integral]:
-    np_arr = self.np_arr
-    if transpose: np_arr = np_arr.transpose()
-    x = [np.nonzero(1-arr)[0] for arr in np_arr]
-    return x
+#  @lru_cache(maxsize=1)
+#  def get_valid_position(self, transpose: bool = True) -> List[numbers.Integral]:
+#    np_arr = self.np_arr
+#    if transpose: np_arr = np_arr.transpose()
+#    x = [np.nonzero(1-arr)[0] for arr in np_arr]
+#    return x
 
 
 class Batcher(object):
@@ -278,7 +278,7 @@ class Batcher(object):
 class InOrderBatcher(Batcher, Serializable):
   """
   A class to create batches in order of the original corpus, both across and within batches.
-  
+
   Args:
     batch_size: batch size
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
@@ -305,6 +305,7 @@ class InOrderBatcher(Batcher, Serializable):
     """
     order = list(range(len(src)))
     return self._pack_by_order(src, trg, order)
+
 
 class ShuffleBatcher(Batcher):
   """
@@ -333,6 +334,7 @@ class ShuffleBatcher(Batcher):
 
   def is_random(self) -> bool:
     return True
+
 
 class SortBatcher(Batcher):
   """
@@ -370,74 +372,12 @@ class SortBatcher(Batcher):
   def is_random(self) -> bool:
     return self.break_ties_randomly
 
-# Module level functions
-def mark_as_batch(data: Sequence, mask: Optional[Mask] = None) -> Batch:
-  """
-  Mark a sequence of items as batch
-
-  Args:
-    data: sequence of things
-    mask: optional mask
-
-  Returns: a batch of things
-  """
-  if isinstance(data, Batch) and mask is None:
-    ret = data
-  else:
-    ret = ListBatch(data, mask)
-  return ret
-
-def is_batched(data: Sequence) -> bool:
-  """
-  Check whether some data is batched.
-
-  Args:
-    data: data to check
-
-  Returns:
-    True iff data is batched.
-  """
-  return isinstance(data, Batch)
-
-def pad(batch: Sequence, pad_to_multiple: numbers.Integral = 1) -> Batch:
-  """
-  Apply padding to sentences in a batch.
-
-  Args:
-    batch: batch of sentences
-    pad_to_multiple: pad sentences so their length is a multiple of this integer.
-
-  Returns:
-    batch containing padded items and a corresponding batch mask.
-  """
-  if isinstance(list(batch)[0], sent.CompoundSentence):
-    ret = []
-    for compound_i in range(len(batch[0].sents)):
-      ret.append(
-        pad(tuple(inp.sents[compound_i] for inp in batch), pad_to_multiple=pad_to_multiple))
-    return CompoundBatch(*ret)
-  max_len = max(_len_or_zero(item) for item in batch)
-  if max_len % pad_to_multiple != 0:
-    max_len += pad_to_multiple - (max_len % pad_to_multiple)
-  min_len = min(_len_or_zero(item) for item in batch)
-  if min_len == max_len:
-    return ListBatch(batch, mask=None)
-  masks = np.zeros([len(batch), max_len])
-  for i, v in enumerate(batch):
-    for j in range(_len_or_zero(v), max_len):
-      masks[i,j] = 1.0
-  padded_items = [item.create_padded_sent(max_len - item.sent_len()) for item in batch]
-  return ListBatch(padded_items, mask=Mask(masks))
-
-def _len_or_zero(val):
-  return val.sent_len() if hasattr(val, 'sent_len') else len(val) if hasattr(val, '__len__') else 0
-
 class SrcBatcher(SortBatcher, Serializable):
   """
   A batcher that creates fixed-size batches, grouped by src len.
 
   Sentences inside each batch are sorted by reverse trg length.
-  
+
   Args:
     batch_size: batch size
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
@@ -453,12 +393,13 @@ class SrcBatcher(SortBatcher, Serializable):
     super().__init__(batch_size, sort_key=lambda x: x[0].sent_len(), granularity='sent',
                      break_ties_randomly=break_ties_randomly, pad_src_to_multiple=pad_src_to_multiple)
 
+
 class TrgBatcher(SortBatcher, Serializable):
   """
   A batcher that creates fixed-size batches, grouped by trg len.
 
   Sentences inside each batch are sorted by reverse trg length.
-  
+
   Args:
     batch_size: batch size
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
@@ -475,12 +416,13 @@ class TrgBatcher(SortBatcher, Serializable):
                      break_ties_randomly=break_ties_randomly,
                      pad_src_to_multiple=pad_src_to_multiple)
 
+
 class SrcTrgBatcher(SortBatcher, Serializable):
   """
   A batcher that creates fixed-size batches, grouped by src len, then trg len.
 
   Sentences inside each batch are sorted by reverse trg length.
-  
+
   Args:
     batch_size: batch size
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
@@ -497,12 +439,13 @@ class SrcTrgBatcher(SortBatcher, Serializable):
                      granularity='sent', break_ties_randomly=break_ties_randomly,
                      pad_src_to_multiple=pad_src_to_multiple)
 
+
 class TrgSrcBatcher(SortBatcher, Serializable):
   """
   A batcher that creates fixed-size batches, grouped by trg len, then src len.
 
   Sentences inside each batch are sorted by reverse trg length.
-  
+
   Args:
     batch_size: batch size
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
@@ -520,13 +463,14 @@ class TrgSrcBatcher(SortBatcher, Serializable):
                      break_ties_randomly=break_ties_randomly,
                      pad_src_to_multiple=pad_src_to_multiple)
 
+
 class SentShuffleBatcher(ShuffleBatcher, Serializable):
   """
 
   A batcher that creates fixed-size batches of random order.
 
   Sentences inside each batch are sorted by reverse trg length.
-  
+
   Args:
     batch_size: batch size
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
@@ -537,12 +481,13 @@ class SentShuffleBatcher(ShuffleBatcher, Serializable):
   def __init__(self, batch_size: numbers.Integral, pad_src_to_multiple: numbers.Integral = 1) -> None:
     super().__init__(batch_size, granularity='sent', pad_src_to_multiple=pad_src_to_multiple)
 
+
 class WordShuffleBatcher(ShuffleBatcher, Serializable):
   """
   A batcher that creates fixed-size batches, grouped by src len.
 
   Sentences inside each batch are sorted by reverse trg length.
-  
+
   Args:
     words_per_batch: number of src+trg words in each batch
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
@@ -552,6 +497,7 @@ class WordShuffleBatcher(ShuffleBatcher, Serializable):
   @serializable_init
   def __init__(self, words_per_batch: numbers.Integral, pad_src_to_multiple: numbers.Integral = 1) -> None:
     super().__init__(words_per_batch, granularity='word', pad_src_to_multiple=pad_src_to_multiple)
+
 
 class WordSortBatcher(SortBatcher):
   """
@@ -584,6 +530,7 @@ class WordSortBatcher(SortBatcher):
                      pad_src_to_multiple=pad_src_to_multiple)
     self.avg_batch_size = avg_batch_size
 
+
 class WordSrcBatcher(WordSortBatcher, Serializable):
   """
   A batcher that creates variable-sized batches with given average (src+trg) words per batch, grouped by src len.
@@ -612,6 +559,7 @@ class WordSrcBatcher(WordSortBatcher, Serializable):
     if self.avg_batch_size:
       self.batch_size = (sum([s.sent_len() for s in src]) + sum([s.sent_len() for s in trg])) / len(src) * self.avg_batch_size
     return super()._pack_by_order(src, trg, order)
+
 
 class WordTrgBatcher(WordSortBatcher, Serializable):
   """
@@ -642,6 +590,7 @@ class WordTrgBatcher(WordSortBatcher, Serializable):
       self.batch_size = (sum([s.sent_len() for s in src]) + sum([s.sent_len() for s in trg])) / len(src) * self.avg_batch_size
     return super()._pack_by_order(src, trg, order)
 
+
 class WordSrcTrgBatcher(WordSortBatcher, Serializable):
   """
   A batcher that creates variable-sized batches with given average number of src + trg words per batch, grouped by src len, then trg len.
@@ -671,6 +620,7 @@ class WordSrcTrgBatcher(WordSortBatcher, Serializable):
       self.batch_size = (sum([s.sent_len() for s in src]) + sum([s.sent_len() for s in trg])) / len(src) * self.avg_batch_size
     return super()._pack_by_order(src, trg, order)
 
+
 class WordTrgSrcBatcher(WordSortBatcher, Serializable):
   """
   A batcher that creates variable-sized batches with given average number of src + trg words per batch, grouped by trg len, then src len.
@@ -699,6 +649,93 @@ class WordTrgSrcBatcher(WordSortBatcher, Serializable):
     if self.avg_batch_size:
       self.batch_size = (sum([s.sent_len() for s in src]) + sum([s.sent_len() for s in trg])) / len(src) * self.avg_batch_size
     return super()._pack_by_order(src, trg, order)
+
+
+######################################
+#### Module level functions
+######################################
+
+def mark_as_batch(data: Sequence, mask: Optional[Mask] = None) -> Batch:
+  """
+  Mark a sequence of items as batch
+
+  Args:
+    data: sequence of things
+    mask: optional mask
+
+  Returns: a batch of things
+  """
+  if isinstance(data, Batch) and mask is None:
+    ret = data
+  else:
+    ret = ListBatch(data, mask)
+  return ret
+
+
+def is_batched(data: Any) -> bool:
+  """
+  Check whether some data is batched.
+
+  Args:
+    data: data to check
+
+  Returns:
+    True iff data is batched.
+  """
+  return isinstance(data, Batch)
+
+
+def pad(batch: Sequence, pad_to_multiple: numbers.Integral = 1) -> Batch:
+  """
+  Apply padding to sentences in a batch.
+
+  Args:
+    batch: batch of sentences
+    pad_to_multiple: pad sentences so their length is a multiple of this integer.
+
+  Returns:
+    batch containing padded items and a corresponding batch mask.
+  """
+  if isinstance(list(batch)[0], sent.CompoundSentence):
+    ret = []
+    for compound_i in range(len(batch[0].sents)):
+      ret.append(
+        pad(tuple(inp.sents[compound_i] for inp in batch), pad_to_multiple=pad_to_multiple))
+    return CompoundBatch(*ret)
+  max_len = max(_len_or_zero(item) for item in batch)
+  if max_len % pad_to_multiple != 0:
+    max_len += pad_to_multiple - (max_len % pad_to_multiple)
+  min_len = min(_len_or_zero(item) for item in batch)
+  if min_len == max_len:
+    return ListBatch(batch, mask=None)
+  masks = np.zeros([len(batch), max_len])
+  for i, v in enumerate(batch):
+    for j in range(_len_or_zero(v), max_len):
+      masks[i,j] = 1.0
+  padded_items = [item.create_padded_sent(max_len - item.sent_len()) for item in batch]
+  return ListBatch(padded_items, mask=Mask(masks))
+
+
+def pad_embedding(embeddings) -> expression_seqs.ExpressionSequence:
+  max_col = max(len(xs) for xs in embeddings)
+  p0 = dy.zeros(embeddings[0][0].dim()[0][0])
+  masks = np.zeros((len(embeddings), max_col), dtype=int)
+  modified = False
+  ret = []
+  for xs, mask in zip(embeddings, masks):
+    deficit = max_col - len(xs)
+    if deficit > 0:
+      xs = xs + ([p0] * deficit)
+      mask[-deficit:] = 1
+      modified = True
+    ret.append(dy.concatenate_cols(xs))
+  mask = Mask(masks) if modified else None
+  return expression_seqs.ExpressionSequence(expr_tensor=dy.concatenate_to_batch(ret), mask=mask)
+
+
+def _len_or_zero(val):
+  return val.sent_len() if hasattr(val, 'sent_len') else len(val) if hasattr(val, '__len__') else 0
+
 
 def truncate_batches(*xl: Union[dy.Expression, Batch, Mask, recurrent.UniLSTMState]) \
         -> Sequence[Union[dy.Expression, Batch, Mask, recurrent.UniLSTMState]]:

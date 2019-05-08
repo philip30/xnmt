@@ -146,11 +146,13 @@ def broadcast_factor(mask: batchers.Mask, tensor_expr: dy.Expression) -> numbers
   for d in tensor_expr.dim()[0]: tensor_expr_size *= d
   return tensor_expr_size / mask.np_arr.size
 
-def mask_reshape_size(mask: batchers.Mask, tensor_dim: tuple, time_first: bool = False) -> tuple:
+
+def mask_reshape_size(mask: batchers.Mask, tensor_dim: tuple, time_first: bool = False) -> List[int]:
   if time_first:
     return list(reversed(mask.np_arr.shape[1:])) + [1] * (len(tensor_dim[0]) - len(mask.np_arr.shape) + 1) + [mask.np_arr.shape[0]]
   else:
     return [1] * (len(tensor_dim[0]) - len(mask.np_arr.shape) + 1) + list(reversed(mask.np_arr.shape))
+
 
 def set_masked_to_mean(mask: batchers.Mask, tensor_expr: dy.Expression, time_first: bool = False) -> dy.Expression:
   """

@@ -42,6 +42,7 @@ class SearchStrategy(object):
     """
     raise NotImplementedError('generate_output must be implemented in SearchStrategy subclasses')
 
+
 class GreedySearch(Serializable, SearchStrategy):
   """
   Performs greedy search (aka beam search with beam size 1)
@@ -76,7 +77,7 @@ class GreedySearch(Serializable, SearchStrategy):
       word_id = word_id[0]
       word_score = word_score[0]
       current_state = current_output.state
-      
+
       if not type(word_id) == np.ndarray or len(word_id.shape) == 0:
         word_id = np.array([word_id])
         word_score = np.array([word_score])
@@ -85,7 +86,7 @@ class GreedySearch(Serializable, SearchStrategy):
         mask = [1 if not done[i] else 0 for i in range(len(done))]
         word_score = [s * m for (s, m) in zip(word_score, mask)]
         masks.append(mask)
-      
+
       # Packing outputs
       score.append(word_score)
       word_ids.append(word_id)
@@ -101,6 +102,7 @@ class GreedySearch(Serializable, SearchStrategy):
     words = np.stack(word_ids, axis=1)
     score = np.sum(score, axis=0)
     return [SearchOutput(words, attentions, score, states, masks)]
+
 
 class BeamSearch(Serializable, SearchStrategy):
   """

@@ -40,10 +40,10 @@ def framesig(sig, frame_len, frame_step, dither=1.0, preemph=0.97, remove_dc_off
   if wintype is 'povey':
     win = numpy.empty(frame_len)
     for i in range(frame_len):
-      win[i] = (0.5-0.5*numpy.cos(2*numpy.pi/(frame_len-1)*i))**0.85     
+      win[i] = (0.5-0.5*numpy.cos(2*numpy.pi/(frame_len-1)*i))**0.85
   else: # the hamming window
     win = numpy.hamming(frame_len)
-      
+
   if stride_trick:
     frames = rolling_window(padsignal, window=frame_len, step=frame_step)
   else:
@@ -52,7 +52,7 @@ def framesig(sig, frame_len, frame_step, dither=1.0, preemph=0.97, remove_dc_off
     indices = numpy.array(indices, dtype=numpy.int32)
     frames = padsignal[indices]
     win = numpy.tile(win, (numframes, 1))
-      
+
   frames = frames.astype(numpy.float32)
   raw_frames = numpy.zeros(frames.shape)
   for frm in range(frames.shape[0]):
@@ -142,7 +142,7 @@ def logpowspec(frames, NFFT, norm=1):
 def do_dither(signal, dither_value=1.0):
   signal += numpy.random.normal(size=signal.shape) * dither_value
   return signal
-    
+
 def do_remove_dc_offset(signal):
   signal -= numpy.mean(signal)
   return signal

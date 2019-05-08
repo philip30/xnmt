@@ -12,12 +12,12 @@ lattice: !Experiment
       - examples/output/fisher_dev.es.xlat
       specs: !LatticeFromPlfExtractor {}
   model: !DefaultTranslator
-    src_embedder: !SimpleWordEmbedder {}
+    src_embedder: !LookupEmbedder {}
     encoder: !BiLatticeLSTMTransducer
       layers: 2
     attender: !LatticeBiasedMlpAttender {}
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder {}
+      embedder: !LookupEmbedder {}
       rnn: !UniLSTMSeqTransducer
         layers: 1
       transform: !AuxNonLinear

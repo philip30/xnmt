@@ -43,7 +43,7 @@ class DefaultTranslator(AutoRegressiveTranslator, Serializable, Reportable):
   def __init__(self,
                src_reader: input_readers.InputReader,
                trg_reader: input_readers.InputReader,
-               src_embedder: embedders.Embedder = bare(embedders.SimpleWordEmbedder),
+               src_embedder: embedders.Embedder = bare(embedders.LookupEmbedder),
                encoder: transducers_base.SeqTransducer = bare(recurrent.BiLSTMSeqTransducer),
                attender: attenders.Attender = bare(attenders.MlpAttender),
                decoder: decoders.Decoder = bare(decoders.AutoRegressiveDecoder),
@@ -72,20 +72,18 @@ class DefaultTranslator(AutoRegressiveTranslator, Serializable, Reportable):
     ss = batchers.mark_as_batch([vocabs.Vocab.SS] * src.batch_size()) if batchers.is_batched(src) else vocabs.Vocab.SS
     initial_state = self.decoder.initial_state(final_state, ss)
     return initial_state
-  
+
   def eog_symbol(self):
     return self.decoder.eog_symbol()
-  
+
   def finish_generating(self, output, dec_state):
     return self.decoder.finish_generating(output, dec_state)
 
   def calc_nll(self,
                src: Union[batchers.Batch, sent.Sentence],
                trg: Union[batchers.Batch, sent.Sentence]) -> LossExpr:
-    if not batchers.is_batched(src):
-      src = batchers.mark_as_batch([src])
-      trg = batchers.mark_as_batch([trg])
-    if isinstance(src, batchers.CompoundBatch): src = src.batches[0]
+    if isinstance(src, batchers.CompoundBatch):
+      src = src.batches[0]
     # Encode the sentence
     initial_state = self._initial_state(src)
 
@@ -106,7 +104,7 @@ class DefaultTranslator(AutoRegressiveTranslator, Serializable, Reportable):
     input_word = None
     for i in range(seq_len):
       ref_word = self._select_ref_words(trg, i, truncate_masked=self.truncate_dec_batches)
-      
+
       if input_word is not None:
         dec_state = self.decoder.add_input(dec_state, input_word)
       rnn_output = dec_state.as_vector()
@@ -153,14 +151,13 @@ class DefaultTranslator(AutoRegressiveTranslator, Serializable, Reportable):
     if src.batch_size() != 1:
       raise NotImplementedError("batched decoding not implemented for DefaultTranslator. "
                                 "Specify inference batcher with batch size 1.")
-    event_trigger.start_sent(src)
     if isinstance(src, batchers.CompoundBatch):
       src = src.batches[0]
     search_outputs = search_strategy.generate_output(self,
                                                      self._initial_state(src),
                                                      src_length=src.sent_len())
     return search_outputs
-  
+
   def generate(self,
                src: batchers.Batch,
                search_strategy: search_strategies.SearchStrategy) -> Sequence[sent.Sentence]:
@@ -173,6 +170,7 @@ class DefaultTranslator(AutoRegressiveTranslator, Serializable, Reportable):
       A list of search outputs including scores, etc.
     """
     assert src.batch_size() == 1
+    event_trigger.start_sent(src)
     search_outputs = self.generate_search_output(src, search_strategy)
     if isinstance(src, batchers.CompoundBatch): src = src.batches[0]
     sorted_outputs = sorted(search_outputs, key=lambda x: x.score[0], reverse=True)
@@ -187,7 +185,7 @@ class DefaultTranslator(AutoRegressiveTranslator, Serializable, Reportable):
         outputs.append(out_sent)
       else:
         outputs.append(sent.NbestSentence(base_sent=out_sent, nbest_id=src[0].idx))
-    
+
     if self.is_reporting():
       attentions = np.concatenate([x.npvalue() for x in attentions], axis=1)
       self.report_sent_info({"attentions": attentions,
@@ -195,7 +193,7 @@ class DefaultTranslator(AutoRegressiveTranslator, Serializable, Reportable):
                              "output": outputs[0]})
 
     return outputs
-  
+
   def _emit_translation(self, src, output_actions, score):
     return sent.SimpleSentence(idx=src[0].idx,
                                words=output_actions,
@@ -220,11 +218,11 @@ class DefaultTranslator(AutoRegressiveTranslator, Serializable, Reportable):
 
   def sample(self, state: decoders.AutoRegressiveDecoderState, n: numbers.Integral, temperature: float = 1.0):
     return self.decoder.sample(state, n, temperature)
-  
+
 
 class TreeTranslator(DefaultTranslator, Serializable):
   yaml_tag = "!TreeTranslator"
-  
+
   def _emit_translation(self, src, output_actions, score):
     return sent.DepTreeRNNGSequenceSentence(idx=src[0].idx,
                                             score=score,
@@ -233,5 +231,5 @@ class TreeTranslator(DefaultTranslator, Serializable):
                                             nt_vocab=getattr(self.trg_reader, "nt_vocab", None),
                                             edge_vocab=getattr(self.trg_reader, "edge_vocab", None),
                                             output_procs=self.trg_reader.output_procs)
-  
-  
+
+

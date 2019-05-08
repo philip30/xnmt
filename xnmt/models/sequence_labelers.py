@@ -4,7 +4,7 @@ import numbers
 import dynet as dy
 import numpy as np
 
-from xnmt import batchers, event_trigger, events, inferences, input_readers, reports, sent, vocabs
+from xnmt import batchers, events, inferences, input_readers, reports, sent, vocabs, event_trigger
 from xnmt.modelparts import attenders, embedders, scorers, transforms
 from xnmt.models import base as models
 from xnmt.transducers import recurrent, base as transducers
@@ -34,7 +34,7 @@ class SeqLabeler(models.ConditionedModel, models.GeneratorModel, Serializable, r
   def __init__(self,
                src_reader: input_readers.InputReader,
                trg_reader: input_readers.InputReader,
-               src_embedder: embedders.Embedder = bare(embedders.SimpleWordEmbedder),
+               src_embedder: embedders.Embedder = bare(embedders.LookupEmbedder),
                encoder: transducers.SeqTransducer = bare(recurrent.BiLSTMSeqTransducer),
                transform: transforms.Transform = bare(transforms.NonLinear),
                scorer: scorers.Scorer = bare(scorers.Softmax),
@@ -53,7 +53,6 @@ class SeqLabeler(models.ConditionedModel, models.GeneratorModel, Serializable, r
     return [{".src_embedder.emb_dim", ".encoder.input_dim"},]
 
   def _encode_src(self, src: Union[sent.Sentence, batchers.Batch]) -> tuple:
-    event_trigger.start_sent(src)
     embeddings = self.src_embedder.embed_sent(src)
     encodings = self.encoder.transduce(embeddings)
     encodings_tensor = encodings.as_tensor()
@@ -63,9 +62,6 @@ class SeqLabeler(models.ConditionedModel, models.GeneratorModel, Serializable, r
     return batch_size, encodings, outputs, seq_len
 
   def calc_nll(self, src: Union[batchers.Batch, sent.Sentence], trg: Union[batchers.Batch, sent.Sentence]):
-    if not batchers.is_batched(src):
-      src = batchers.mark_as_batch([src])
-      trg = batchers.mark_as_batch([trg])
     batch_size, encodings, outputs, seq_len = self._encode_src(src)
 
     if trg.sent_len() != seq_len:
@@ -98,12 +94,9 @@ class SeqLabeler(models.ConditionedModel, models.GeneratorModel, Serializable, r
         trg.mask = np.pad(old_mask.np_arr, pad_width=((0, 0), (0, pad_len)), mode="constant", constant_values=1)
     return trg
 
-  def generate(self,
-               src: batchers.Batch,
-               normalize_scores: bool = False) -> Sequence[sent.ReadableSentence]:
-    if not batchers.is_batched(src):
-      src = batchers.mark_as_batch([src])
+  def generate(self, src: batchers.Batch, normalize_scores: bool = False, *args, **kwargs) -> Sequence[sent.ReadableSentence]:
     assert src.batch_size() == 1, "batch size > 1 not properly tested"
+    event_trigger.start_sent(src)
 
     batch_size, encodings, outputs, seq_len = self._encode_src(src)
 

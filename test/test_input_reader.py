@@ -8,7 +8,7 @@ class TestInputReader(unittest.TestCase):
   def test_one_file_multiple_readers(self):
     vocab = vocabs.Vocab(vocab_file="examples/data/head.en.vocab")
     cr = input_readers.CompoundReader(readers=[input_readers.PlainTextReader(vocab),
-                                               input_readers.PlainTextReader(read_sent_len=True)])
+                                               input_readers.LengthTextReader()])
     en_sents = list(cr.read_sents(filename="examples/data/head.en"))
     self.assertEqual(len(en_sents), 10)
     self.assertIsInstance(en_sents[0], sent.CompoundSentence)

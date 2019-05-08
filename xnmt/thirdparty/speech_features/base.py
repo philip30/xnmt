@@ -35,7 +35,7 @@ def mfcc(signal,samplerate=16000,winlen=0.025,winstep=0.01,numcep=13,
 
 
 def fbank(signal,samplerate=16000,winlen=0.025,winstep=0.01,
-          nfilt=40,nfft=512,lowfreq=0,highfreq=None,dither=1.0,remove_dc_offset=True, preemph=0.97, 
+          nfilt=40,nfft=512,lowfreq=0,highfreq=None,dither=1.0,remove_dc_offset=True, preemph=0.97,
           wintype='hamming'):
   """Compute Mel-filterbank energy features from an audio signal.
 
@@ -49,7 +49,7 @@ def fbank(signal,samplerate=16000,winlen=0.025,winstep=0.01,
   :param highfreq: highest band edge of mel filters. In Hz, default is samplerate/2
   :param preemph: apply preemphasis filter with preemph as coefficient. 0 is no filter. Default is 0.97.
   :param winfunc: the analysis window to apply to each frame. By default no window is applied. You can use numpy window functions here e.g. winfunc=numpy.hamming
-   winfunc=lambda x:numpy.ones((x,))   
+   winfunc=lambda x:numpy.ones((x,))
   :returns: 2 values. The first is a numpy array of size (NUMFRAMES by nfilt) containing features. Each row holds 1 feature vector. The
       second return value is the energy in each frame (total energy, unwindowed)
   """
@@ -122,7 +122,7 @@ def get_filterbanks(nfilt=26,nfft=512,samplerate=16000,lowfreq=0,highfreq=None):
   lowmel = hz2mel(lowfreq)
   highmel = hz2mel(highfreq)
 
-  # check kaldi/src/feat/Mel-computations.h    
+  # check kaldi/src/feat/Mel-computations.h
   fbank = numpy.zeros([nfilt,nfft//2+1])
   mel_freq_delta = (highmel-lowmel)/(nfilt+1)
   for j in range(0,nfilt):
@@ -179,7 +179,7 @@ def get_mean_std(y, axis=0):
   # unit Variance
   standard_deviation = sequence.std(axis=axis)
   standard_deviation = numpy.maximum(standard_deviation, numpy.finfo(numpy.float32).eps)
-  
+
   return mean, standard_deviation
 
 def normalize(y, mean, standard_deviation):

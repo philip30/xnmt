@@ -6,7 +6,7 @@ from xnmt.modelparts.attenders import MlpAttender
 from xnmt import batchers, event_trigger, events
 from xnmt.modelparts.bridges import CopyBridge
 from xnmt.modelparts.decoders import AutoRegressiveDecoder
-from xnmt.modelparts.embedders import SimpleWordEmbedder
+from xnmt.modelparts.embedders import LookupEmbedder
 from xnmt.input_readers import PlainTextReader
 from xnmt.transducers.recurrent import UniLSTMSeqTransducer, BiLSTMSeqTransducer
 from xnmt.param_collections import ParamManager
@@ -27,11 +27,11 @@ class TestFreeDecodingLoss(unittest.TestCase):
     self.model = DefaultTranslator(
       src_reader=PlainTextReader(vocab=src_vocab),
       trg_reader=PlainTextReader(vocab=trg_vocab),
-      src_embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+      src_embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
       encoder=BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim),
       attender=MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
       decoder=AutoRegressiveDecoder(input_dim=layer_dim,
-                                embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+                                embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
                                 rnn=UniLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim, decoder_input_dim=layer_dim, yaml_path="model.decoder.rnn"),
                                 transform=NonLinear(input_dim=layer_dim*2, output_dim=layer_dim),
                                 scorer=Softmax(input_dim=layer_dim, vocab_size=100),

@@ -1,14 +1,26 @@
 import numbers
+import functools
+import collections
+
 from typing import Any, Optional, Union
-import io
 
 import numpy as np
 import dynet as dy
 
+import xnmt.param_initializers as pinit
+import xnmt.sent as sent
+import xnmt.vocabs as vocabs
+import xnmt.input_readers as input_readers
+import xnmt.batchers as batchers
+import xnmt.events as events
+import xnmt.expression_seqs as expression_seqs
+import xnmt.modelparts.transforms as transforms
+import xnmt.param_collections as param_collections
+import xnmt.seq_composer as seq_composer
+
 from xnmt import logger
-from xnmt import batchers, events, expression_seqs, input_readers, param_collections, param_initializers, sent, vocabs
-from xnmt.modelparts import transforms
 from xnmt.persistence import bare, Path, Ref, Serializable, serializable_init
+
 
 class Embedder(object):
   """
@@ -41,17 +53,33 @@ class Embedder(object):
     """
     # single mode
     if not batchers.is_batched(x):
-      embeddings = [self.embed(word) for word in x]
+      expr = expression_seqs.ExpressionSequence(expr_list=[self.embed(word) for word in x])
     # minibatch mode
-    else:
+    elif type(self) == LookupEmbedder:
       embeddings = []
-      seq_len = x.sent_len()
-      for single_sent in x: assert single_sent.sent_len()==seq_len
-      for word_i in range(seq_len):
+      for word_i in range(x.sent_len()):
         batch = batchers.mark_as_batch([single_sent[word_i] for single_sent in x])
         embeddings.append(self.embed(batch))
+      expr = expression_seqs.ExpressionSequence(expr_list=embeddings, mask=x.mask)
+    else:
+      assert type(x[0]) == sent.SegmentedSentence, "Need to use CharFromWordTextReader for non standard embeddings."
+      embeddings = []
+      all_embeddings = []
+      for sentence in x:
+        embedding = []
+        for i in range(sentence.len_unpadded()):
+          embed_word = self.embed(sentence.words[i])
+          embedding.append(embed_word)
+          all_embeddings.append(embed_word)
+        embeddings.append(embedding)
+      # Useful when using dy.autobatch
+      dy.forward(all_embeddings)
+      all_embeddings.clear()
+      # Pad the results
+      expr = batchers.pad_embedding(embeddings)
 
-    return expression_seqs.ExpressionSequence(expr_list=embeddings, mask=x.mask if batchers.is_batched(x) else None)
+    return expr
+
 
   def choose_vocab(self,
                    vocab: vocabs.Vocab,
@@ -124,174 +152,247 @@ class Embedder(object):
                        f"Please set vocab_size or vocab explicitly.")
 
 
-class DenseWordEmbedder(Embedder, transforms.Linear, Serializable):
+class WordEmbedder(Embedder):
   """
   Word embeddings via full matrix.
 
   Args:
     emb_dim: embedding dimension
     weight_noise: apply Gaussian noise with given standard deviation to embeddings
-    word_dropout: drop out word types with a certain probability, sampling word types on a per-sentence level, see https://arxiv.org/abs/1512.05287
     fix_norm: fix the norm of word vectors to be radius r, see https://arxiv.org/abs/1710.01329
-    param_init: how to initialize weight matrices
-    bias_init: how to initialize bias vectors
-    vocab_size: vocab size or None
-    vocab: vocab or None
-    yaml_path: Path of this embedder in the component hierarchy. Automatically set by the YAML deserializer.
-    src_reader: A reader for the source side. Automatically set by the YAML deserializer.
-    trg_reader: A reader for the target side. Automatically set by the YAML deserializer.
   """
-  yaml_tag = "!DenseWordEmbedder"
 
   @events.register_xnmt_handler
-  @serializable_init
   def __init__(self,
-               emb_dim: numbers.Integral = Ref("exp_global.default_layer_dim"),
-               weight_noise: numbers.Real = Ref("exp_global.weight_noise", default=0.0),
-               word_dropout: numbers.Real = 0.0,
-               fix_norm: Optional[numbers.Real] = None,
-               param_init: param_initializers.ParamInitializer = Ref("exp_global.param_init", default=bare(
-                 param_initializers.GlorotInitializer)),
-               bias_init: param_initializers.ParamInitializer = Ref("exp_global.bias_init",
-                                                                    default=bare(param_initializers.ZeroInitializer)),
-               vocab_size: Optional[numbers.Integral] = None,
-               vocab: Optional[vocabs.Vocab] = None,
-               yaml_path: Path = '',
-               src_reader: Optional[input_readers.InputReader] = Ref("model.src_reader", default=None),
-               trg_reader: Optional[input_readers.InputReader] = Ref("model.trg_reader", default=None)) -> None:
+               emb_dim: int,
+               weight_noise: float,
+               fix_norm: Optional[float] = None):
     self.fix_norm = fix_norm
     self.weight_noise = weight_noise
-    self.word_dropout = word_dropout
     self.emb_dim = emb_dim
-    param_collection = param_collections.ParamManager.my_params(self)
-    self.vocab_size = self.choose_vocab_size(vocab_size, vocab, yaml_path, src_reader, trg_reader)
-    self.save_processed_arg("vocab_size", self.vocab_size)
-    self.embeddings = param_collection.add_parameters((self.vocab_size, self.emb_dim), init=param_init.initializer((self.vocab_size, self.emb_dim), is_lookup=True))
-    self.bias = param_collection.add_parameters((self.vocab_size,), init=bias_init.initializer((self.vocab_size,)))
-
-  @events.handle_xnmt_event
-  def on_start_sent(self, *args, **kwargs) -> None:
-    self.word_id_mask = None
+    self.train = True
 
   @events.handle_xnmt_event
   def on_set_train(self, val: bool) -> None:
     self.train = val
 
   def embed(self, x: Union[batchers.Batch, numbers.Integral]) -> dy.Expression:
-    if self.train and self.word_dropout > 0.0 and self.word_id_mask is None:
-      batch_size = x.batch_size() if batchers.is_batched(x) else 1
-      self.word_id_mask = [set(np.random.choice(self.vocab_size, int(self.vocab_size * self.word_dropout), replace=False)) for _ in range(batch_size)]
-    emb_e = dy.parameter(self.embeddings)
-    # single mode
-    if not batchers.is_batched(x):
-      if self.train and self.word_id_mask and x in self.word_id_mask[0]:
-        ret = dy.zeros((self.emb_dim,))
-      else:
-        ret = dy.pick(emb_e, index=x)
-        if self.fix_norm is not None:
-          ret = dy.cdiv(ret, dy.l2_norm(ret))
-          if self.fix_norm != 1:
-            ret *= self.fix_norm
-    # minibatch mode
-    else:
-      ret = dy.pick_batch(emb_e, x)
-      if self.fix_norm is not None:
-        ret = dy.cdiv(ret, dy.l2_norm(ret))
-        if self.fix_norm != 1:
-          ret *= self.fix_norm
-      if self.train and self.word_id_mask and any(x[i] in self.word_id_mask[i] for i in range(x.batch_size())):
-        dropout_mask = dy.inputTensor(np.transpose([[0.0]*self.emb_dim if x[i] in self.word_id_mask[i] else [1.0]*self.emb_dim for i in range(x.batch_size())]), batched=True)
-        ret = dy.cmult(ret, dropout_mask)
+    """
+    Embed a single word in a sentence.
+    :param x: A word id.
+    :return: Embedded word.
+    """
+    ret = self._embed_word(x, batchers.is_batched(x))
+    ## Applying Fix normalization
+    if self.fix_norm is not None:
+      ret = dy.cdiv(ret, dy.l2_norm(ret)) * self.fix_norm
+    ## Weight noise only when training
     if self.train and self.weight_noise > 0.0:
       ret = dy.noise(ret, self.weight_noise)
     return ret
 
-  def transform(self, input_expr: dy.Expression) -> dy.Expression:
-    W1 = dy.parameter(self.embeddings)
-    b1 = dy.parameter(self.bias)
-    return dy.affine_transform([b1, W1, input_expr])
+  def _embed_word(self, word, is_batched):
+    raise NotImplementedError()
 
 
-class SimpleWordEmbedder(Embedder, Serializable):
-  """
-  Simple word embeddings via lookup.
+class LookupEmbedder(WordEmbedder, transforms.Linear, Serializable):
 
-  Args:
-    emb_dim: embedding dimension
-    weight_noise: apply Gaussian noise with given standard deviation to embeddings
-    word_dropout: drop out word types with a certain probability, sampling word types on a per-sentence level, see https://arxiv.org/abs/1512.05287
-    fix_norm: fix the norm of word vectors to be radius r, see https://arxiv.org/abs/1710.01329
-    param_init: how to initialize lookup matrices
-    vocab_size: vocab size or None
-    vocab: vocab or None
-    yaml_path: Path of this embedder in the component hierarchy. Automatically set by the YAML deserializer.
-    src_reader: A reader for the source side. Automatically set by the YAML deserializer.
-    trg_reader: A reader for the target side. Automatically set by the YAML deserializer.
-  """
+  yaml_tag = '!LookupEmbedder'
 
-  yaml_tag = '!SimpleWordEmbedder'
-
-  @events.register_xnmt_handler
   @serializable_init
   def __init__(self,
-               emb_dim: numbers.Integral = Ref("exp_global.default_layer_dim"),
-               weight_noise: numbers.Real = Ref("exp_global.weight_noise", default=0.0),
-               word_dropout: numbers.Real = 0.0,
-               fix_norm: Optional[numbers.Real] = None,
-               param_init: param_initializers.ParamInitializer = Ref("exp_global.param_init", default=bare(
-                 param_initializers.GlorotInitializer)),
-               vocab_size: Optional[numbers.Integral] = None,
+               emb_dim: int = Ref("exp_global.default_layer_dim"),
+               vocab_size: Optional[int] = None,
                vocab: Optional[vocabs.Vocab] = None,
-               yaml_path: Path = Path(),
+               yaml_path: Path = Path(''),
                src_reader: Optional[input_readers.InputReader] = Ref("model.src_reader", default=None),
-               trg_reader: Optional[input_readers.InputReader] = Ref("model.trg_reader", default=None)) -> None:
-    self.emb_dim = emb_dim
-    self.weight_noise = weight_noise
-    self.word_dropout = word_dropout
-    self.fix_norm = fix_norm
-    self.word_id_mask = None
-    self.train = False
-    param_collection = param_collections.ParamManager.my_params(self)
+               trg_reader: Optional[input_readers.InputReader] = Ref("model.trg_reader", default=None),
+               is_dense: bool = False,
+               param_init: pinit.ParamInitializer= bare(pinit.GlorotInitializer),
+               bias_init: pinit.ParamInitializer = bare(pinit.ZeroInitializer),
+               init_fastext: Optional[str] = None,
+               weight_noise: float = Ref("exp_global.weight_noise", default=0.0),
+               *args, **kwargs):
+    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, *args, **kwargs)
+    # Embedding Parameters
+    pcol = param_collections.ParamManager.my_params(self)
     self.vocab_size = self.choose_vocab_size(vocab_size, vocab, yaml_path, src_reader, trg_reader)
-    self.save_processed_arg("vocab_size", self.vocab_size)
-    self.embeddings = param_collection.add_lookup_parameters((self.vocab_size, self.emb_dim),
-                             init=param_init.initializer((self.vocab_size, self.emb_dim), is_lookup=True))
+    emb_mtr_dim = (self.vocab_size, self.emb_dim)
 
-  @events.handle_xnmt_event
-  def on_set_train(self, val: bool) -> None:
-    self.train = val
+    if init_fastext is not None:
+      logger.info("Setting Dense to False because of init_fastext")
+      is_dense = False
 
-  @events.handle_xnmt_event
-  def on_start_sent(self, *args, **kwargs) -> None:
-    self.word_id_mask = None
-
-  def embed(self, x: Union[numbers.Integral, batchers.Batch]) -> dy.Expression:
-    if self.train and self.word_dropout > 0.0 and self.word_id_mask is None:
-      batch_size = x.batch_size() if batchers.is_batched(x) else 1
-      self.word_id_mask = [set(np.random.choice(self.vocab_size, int(self.vocab_size * self.word_dropout), replace=False)) for _ in range(batch_size)]
-    # single mode
-    if not batchers.is_batched(x):
-      if self.train and self.word_id_mask and x in self.word_id_mask[0]:
-        ret = dy.zeros((self.emb_dim,))
+    if not is_dense:
+      if init_fastext is not None:
+        self.embeddings = pcol.lookup_parameters_from_numpy(self._read_fasttext_embeddings(vocab, init_fastext))
       else:
-        ret = self.embeddings[x]
-        if self.fix_norm is not None:
-          ret = dy.cdiv(ret, dy.l2_norm(ret))
-          if self.fix_norm != 1:
-            ret *= self.fix_norm
-    # minibatch mode
+        self.embeddings = pcol.add_lookup_parameters(emb_mtr_dim, init=param_init.initializer(emb_mtr_dim,  is_lookup=True))
     else:
-      ret = self.embeddings.batch(x)
-      if self.fix_norm is not None:
-        ret = dy.cdiv(ret, dy.l2_norm(ret))
-        if self.fix_norm != 1:
-          ret *= self.fix_norm
-      if self.train and self.word_id_mask and any(x[i] in self.word_id_mask[i] for i in range(x.batch_size())):
-        dropout_mask = dy.inputTensor(np.transpose([[0.0]*self.emb_dim if x[i] in self.word_id_mask[i] else [1.0]*self.emb_dim for i in range(x.batch_size())]), batched=True)
-        ret = dy.cmult(ret, dropout_mask)
-    if self.train and self.weight_noise > 0.0:
-      ret = dy.noise(ret, self.weight_noise)
-    return ret
+      self.embeddings = pcol.add_parameters(emb_mtr_dim, init=param_init.initializer(emb_mtr_dim, is_lookup=True))
+      self.bias = pcol.add_parameters((self.vocab_size,), init=bias_init.initializer((self.vocab_size,)))
+
+    # Model States
+    self.is_dense = is_dense
+    self.train = False
+    self.save_processed_arg("vocab_size", self.vocab_size)
+
+  def _embed_word(self, word, is_batched):
+    if is_batched:
+      embedding = dy.pick_batch(self.embeddings, word) if self.is_dense else self.embeddings.batch(word)
+    else:
+      embedding = dy.pick(self.embeddings, index=word) if self.is_dense else self.embeddings[word]
+    return embedding
+
+  def transform(self, input_expr: dy.Expression) -> dy.Expression:
+    if self.is_dense:
+      w = dy.parameter(self.embeddings)
+      b = dy.parameter(self.bias)
+    else:
+      raise NotImplementedError("Non dense embedder transform is not implemented yet.")
+
+    return dy.affine_transform([b, w, input_expr])
+
+  def _read_fasttext_embeddings(self, vocab: vocabs.Vocab, init_fastext):
+    """
+    Reads FastText embeddings from a file. Also prints stats about the loaded embeddings for sanity checking.
+
+    Args:
+      vocab: a `Vocab` object containing the vocabulary for the experiment
+      embeddings_file_handle: A file handle on the embeddings file. The embeddings must be in FastText text
+                              format.
+    Returns:
+      tuple: A tuple of (total number of embeddings read, # embeddings that match vocabulary words, # vocabulary words
+     without a matching embedding, embeddings array).
+    """
+    with open(init_fastext, encoding='utf-8') as embeddings_file_handle:
+      _, dimension = next(embeddings_file_handle).split()
+      if int(dimension) != self.emb_dim:
+        raise Exception(f"An embedding size of {self.emb_dim} was specified, but the pretrained embeddings have size {dimension}")
+
+      # Poor man's Glorot initializer for missing embeddings
+      bound = np.sqrt(6/(self.vocab_size + self.emb_dim))
+
+      total_embs = 0
+      in_vocab = 0
+      missing = 0
+
+      embeddings = np.empty((self.vocab_size, self.emb_dim), dtype='float')
+      found = np.zeros(self.vocab_size, dtype='bool_')
+
+      for line in embeddings_file_handle:
+        total_embs += 1
+        word, vals = line.strip().split(' ', 1)
+        if word in vocab.w2i:
+          in_vocab += 1
+          index = vocab.w2i[word]
+          embeddings[index] = np.fromstring(vals, sep=" ")
+          found[index] = True
+
+      for i in range(self.vocab_size):
+        if not found[i]:
+          missing += 1
+          embeddings[i] = np.random.uniform(-bound, bound, self.emb_dim)
+
+      logger.info(f"{in_vocab} vocabulary matches out of {total_embs} total embeddings; "
+                  f"{missing} vocabulary words without a pretrained embedding out of {self.vocab_size}")
+
+    return embeddings
+
+
+class BagOfWordsEmbedder(WordEmbedder, Serializable):
+
+  yaml_tag = '!BagOfWordsEmbedder'
+  ONE_MB = 1000 * 1024
+
+  @serializable_init
+  def __init__(self,
+               emb_dim = Ref("exp_global.default_layer_dim"),
+               ngram_vocab: vocabs.Vocab = None,
+               word_vocab: Optional[vocabs.Vocab] = Ref("model.src_reader.vocab", default=None),
+               char_vocab: Optional[vocabs.Vocab] = Ref("model.src_reader.char_vocab", default=None),
+               ngram_size: int = 1,
+               transform: Optional[transforms.Transform] = None,
+               include_lower_ngrams: bool = True,
+               weight_noise: float = Ref("exp_global.weight_noise", default=0.0),
+               *args,**kwargs):
+    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, *args, **kwargs)
+    self.transform = self.add_serializable_component("transform", transform,
+                                                     lambda: transforms.NonLinear(input_dim=len(ngram_vocab),
+                                                                                  output_dim=emb_dim,
+                                                                                  activation='relu'))
+    self.word_vocab = word_vocab
+    self.char_vocab = char_vocab
+    self.ngram_vocab = ngram_vocab
+    self.ngram_size = ngram_size
+    self.include_lower_ngrams = include_lower_ngrams
+
+  @functools.lru_cache(maxsize=ONE_MB)
+  def to_ngram_stats(self, word):
+    word_vector = collections.defaultdict(int)
+
+    if self.word_vocab is not None:
+      chars = self.word_vocab[word]
+    elif self.char_vocab is not None:
+      chars = "".join([self.char_vocab[c] for c in word])
+    else:
+      raise ValueError("Either word vocab or char vocab should not be None")
+
+    # This offset is used to generate bag-of-words for a specific ngrams only
+    # For example 3-grams which is used in some papers
+    offset = self.ngram_size-1 if not self.include_lower_ngrams else 0
+
+    # Fill in word_vecs
+    for i in range(len(chars)):
+      for j in range(i+offset, min(i+self.ngram_size, len(chars))):
+        word_vector[chars[i:j+1]] += 1
+
+    return word_vector
+
+  def _embed_word(self, segmented_word, is_batched):
+    if self.word_vocab is not None:
+      ngram_stats = self.to_ngram_stats(segmented_word.word)
+    elif self.char_vocab is not None:
+      ngram_stats = self.to_ngram_stats(segmented_word.chars)
+    else:
+      raise ValueError("Either word vocab or char vocab should not be None")
+
+    not_in = [key for key in ngram_stats.keys() if key not in self.ngram_vocab.w2i]
+    for key in not_in:
+      ngram_stats.pop(key)
+
+    if len(ngram_stats) > 0:
+      ngrams = [self.ngram_vocab.convert(ngram) for ngram in ngram_stats.keys()]
+      counts = list(ngram_stats.values())
+    else:
+      ngrams = [self.ngram_vocab.UNK]
+      counts = [1]
+
+    input_tensor = dy.sparse_inputTensor([ngrams], counts, (self.ngram_vocab.vocab_size(),))
+    # Note: If one wants to use CHARAGRAM embeddings, use NonLinear with Relu.
+    return self.transform.transform(input_tensor)
+
+
+class CharCompositionEmbedder(LookupEmbedder, Serializable):
+
+  yaml_tag = '!CharCompositionEmbedder'
+
+  @serializable_init
+  def __init__(self,
+               char_vocab: Optional[vocabs.CharVocab] = Ref("model.src_reader.char_vocab", default=None),
+               vocab_size: Optional[int] = None,
+               emb_dim: int = Ref("exp_global.default_layer_dim"),
+               weight_noise: float = Ref("exp_global.weight_noise", default=0.0),
+               composer: seq_composer.SequenceComposer = bare(seq_composer.SumComposer),
+               *args, **kwargs):
+    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, vocab=char_vocab, vocab_size=vocab_size,
+                     *args, **kwargs)
+    self.composer = composer
+
+  def _embed_word(self, word: sent.SegmentedWord, is_batched: bool = False):
+    char_embeds = [LookupEmbedder._embed_word(self, x, False) for x in word.chars]
+    return self.composer.compose(char_embeds)
+
 
 class NoopEmbedder(Embedder, Serializable):
   """
@@ -320,9 +421,7 @@ class NoopEmbedder(Embedder, Serializable):
       if not batched:
         return expression_seqs.LazyNumpyExpressionSequence(lazy_data=x.get_array())
       else:
-        return expression_seqs.LazyNumpyExpressionSequence(lazy_data=batchers.mark_as_batch(
-                                           [s for s in x]),
-                                           mask=x.mask)
+        return expression_seqs.LazyNumpyExpressionSequence(lazy_data=batchers.mark_as_batch([s for s in x]), mask=x.mask)
     else:
       if not batched:
         embeddings = [self.embed(word) for word in x]
@@ -333,97 +432,6 @@ class NoopEmbedder(Embedder, Serializable):
       return expression_seqs.ExpressionSequence(expr_list=embeddings, mask=x.mask)
 
 
-class PretrainedSimpleWordEmbedder(SimpleWordEmbedder, Serializable):
-  """
-  Simple word embeddings via lookup. Initial pretrained embeddings must be supplied in FastText text format.
-
-  Args:
-    filename: Filename for the pretrained embeddings
-    emb_dim: embedding dimension; if None, use exp_global.default_layer_dim
-    weight_noise: apply Gaussian noise with given standard deviation to embeddings; if ``None``, use exp_global.weight_noise
-    word_dropout: drop out word types with a certain probability, sampling word types on a per-sentence level, see https://arxiv.org/abs/1512.05287
-    fix_norm: fix the norm of word vectors to be radius r, see https://arxiv.org/abs/1710.01329
-    vocab: vocab or None
-    yaml_path: Path of this embedder in the component hierarchy. Automatically set by the YAML deserializer.
-    src_reader: A reader for the source side. Automatically set by the YAML deserializer.
-    trg_reader: A reader for the target side. Automatically set by the YAML deserializer.
-"""
-
-  yaml_tag = '!PretrainedSimpleWordEmbedder'
-
-  @events.register_xnmt_handler
-  @serializable_init
-  def __init__(self,
-               filename: str,
-               emb_dim: numbers.Integral = Ref("exp_global.default_layer_dim"),
-               weight_noise: numbers.Real = Ref("exp_global.weight_noise", default=0.0),
-               word_dropout: numbers.Real = 0.0,
-               fix_norm: Optional[numbers.Real] = None,
-               vocab: Optional[vocabs.Vocab] = None,
-               yaml_path: Path = Path(),
-               src_reader: Optional[input_readers.InputReader] = Ref("model.src_reader", default=None),
-               trg_reader: Optional[input_readers.InputReader] = Ref("model.trg_reader", default=None)) -> None:
-    self.emb_dim = emb_dim
-    self.weight_noise = weight_noise
-    self.word_dropout = word_dropout
-    self.word_id_mask = None
-    self.train = False
-    self.fix_norm = fix_norm
-    self.pretrained_filename = filename
-    param_collection = param_collections.ParamManager.my_params(self)
-    self.vocab = self.choose_vocab(vocab, yaml_path, src_reader, trg_reader)
-    self.vocab_size = len(vocab)
-    self.save_processed_arg("vocab", self.vocab)
-    with open(self.pretrained_filename, encoding='utf-8') as embeddings_file:
-      total_embs, in_vocab, missing, initial_embeddings = self._read_fasttext_embeddings(vocab, embeddings_file)
-    self.embeddings = param_collection.lookup_parameters_from_numpy(initial_embeddings)
-
-    logger.info(f"{in_vocab} vocabulary matches out of {total_embs} total embeddings; "
-                f"{missing} vocabulary words without a pretrained embedding out of {self.vocab_size}")
-
-  def _read_fasttext_embeddings(self, vocab: vocabs.Vocab, embeddings_file_handle: io.IOBase) -> tuple:
-    """
-    Reads FastText embeddings from a file. Also prints stats about the loaded embeddings for sanity checking.
-
-    Args:
-      vocab: a `Vocab` object containing the vocabulary for the experiment
-      embeddings_file_handle: A file handle on the embeddings file. The embeddings must be in FastText text
-                              format.
-    Returns:
-      tuple: A tuple of (total number of embeddings read, # embeddings that match vocabulary words, # vocabulary words
-     without a matching embedding, embeddings array).
-    """
-    _, dimension = next(embeddings_file_handle).split()
-    if int(dimension) != self.emb_dim:
-      raise Exception(f"An embedding size of {self.emb_dim} was specified, but the pretrained embeddings have size {dimension}")
-
-    # Poor man's Glorot initializer for missing embeddings
-    bound = np.sqrt(6/(self.vocab_size + self.emb_dim))
-
-    total_embs = 0
-    in_vocab = 0
-    missing = 0
-
-    embeddings = np.empty((self.vocab_size, self.emb_dim), dtype='float')
-    found = np.zeros(self.vocab_size, dtype='bool_')
-
-    for line in embeddings_file_handle:
-      total_embs += 1
-      word, vals = line.strip().split(' ', 1)
-      if word in vocab.w2i:
-        in_vocab += 1
-        index = vocab.w2i[word]
-        embeddings[index] = np.fromstring(vals, sep=" ")
-        found[index] = True
-
-    for i in range(self.vocab_size):
-      if not found[i]:
-        missing += 1
-        embeddings[i] = np.random.uniform(-bound, bound, self.emb_dim)
-
-    return total_embs, in_vocab, missing, embeddings
-
-
 class PositionEmbedder(Embedder, Serializable):
 
   yaml_tag = '!PositionEmbedder'
@@ -432,9 +440,7 @@ class PositionEmbedder(Embedder, Serializable):
   def __init__(self,
                max_pos: numbers.Integral,
                emb_dim: numbers.Integral = Ref("exp_global.default_layer_dim"),
-               param_init: param_initializers.ParamInitializer = Ref("exp_global.param_init",
-                                                                     default=bare(param_initializers.GlorotInitializer))) \
-          -> None:
+               param_init: pinit.ParamInitializer = Ref("exp_global.param_init", default=bare(pinit.GlorotInitializer))):
     """
     max_pos: largest embedded position
     emb_dim: embedding size
@@ -443,7 +449,6 @@ class PositionEmbedder(Embedder, Serializable):
     self.max_pos = max_pos
     self.emb_dim = emb_dim
     param_collection = param_collections.ParamManager.my_params(self)
-    param_init = param_init
     dim = (self.emb_dim, max_pos)
     self.embeddings = param_collection.add_parameters(dim, init=param_init.initializer(dim, is_lookup=True))
 
@@ -453,29 +458,3 @@ class PositionEmbedder(Embedder, Serializable):
     return expression_seqs.ExpressionSequence(expr_tensor=embeddings, mask=None)
 
 
-class GraphEmbedder(Embedder, Serializable):
-  yaml_tag = '!GraphEmbedder'
-  
-  @serializable_init
-  def __init__(self,
-               emb_dim: numbers.Integral = Ref("exp_global.default_layer_dim"),
-               value_embedder: SimpleWordEmbedder = None,
-               node_embedder: SimpleWordEmbedder = None,
-               edge_embedder: SimpleWordEmbedder = None,
-               graph_reader: Optional[input_readers.GraphReader]= Ref("model.src_reader", default=None)) -> None:
-    fields = ["value", "node", "edge"]
-    for field, field_init in zip(fields, [value_embedder, node_embedder, edge_embedder]):
-      vocab = getattr(graph_reader, "{}_vocab".format(field))
-      if vocab is not None:
-        field_name = "{}_embedder".format(field)
-        setattr(self, field_name, self.add_serializable_component(field_name,
-                                                                  field_init,
-                                                                  lambda: SimpleWordEmbedder(emb_dim=emb_dim,
-                                                                                             vocab=vocab)))
- 
-  def embed_sent(self, graph_sent: sent.GraphSentence) -> expression_seqs.ExpressionSequence:
-    raise NotImplementedError("Complete the graph embedder!")
-
-  def embed(self, graph):
-    raise NotImplementedError("Complete the graph embedder!")
-  

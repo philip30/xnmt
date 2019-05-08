@@ -16,11 +16,11 @@ class PolicyGradientLoss(Serializable, Reportable):
 
   Every time sample_action is called, the actions and the softmax are being recorded and then the network can be trained by passing the reward
   to the calc_loss function.
-  
+
   Depending on the passed flags, currently it supports the calculation of additional losses of:
   - baseline: Linear regression that predicts future reward from the current input state
   - conf_penalty: The confidence penalty loss. Good when policy network are too confident.
-  
+
   Args:
     sample: The number of samples being drawn from the policy network.
     use_baseline: Whether to turn on baseline reward discounting or not.
@@ -46,7 +46,7 @@ class PolicyGradientLoss(Serializable, Reportable):
     assert len(policy_reward) == len(self.states), "There should be a reward for every action taken"
     batch_size = self.states[0].dim()[1]
     loss = {}
-    
+
     # Calculate the baseline loss of the reinforce loss for each timestep:
     # b = W_b * s + b_b
     # R = r - b
@@ -68,7 +68,7 @@ class PolicyGradientLoss(Serializable, Reportable):
         units += 1
       baseline_loss.append(dy.sum_batches(dy.squared_distance(r_p, r_r)))
     loss["rl_baseline"] = losses.LossExpr(dy.esum(baseline_loss), units)
-    
+
     # Z Normalization
     # R = R - mean(R) / std(R)
     rewards = dy.concatenate(rewards, d=0)
@@ -82,7 +82,7 @@ class PolicyGradientLoss(Serializable, Reportable):
     # Calculate Confidence Penalty
     if self.confidence_penalty:
       loss["rl_confpen"] = self.confidence_penalty.calc_loss(self.policy_lls)
-    
+
     # Calculate Reinforce Loss
     # L = - sum([R-b] * pi_ll)
     reinf_loss = []

@@ -1,7 +1,7 @@
 # Implements SwitchOut, a data augmentation strategy for NMT
 # RAML corrupts target side only, while SwitchOut corrupts both source and target
-# https://arxiv.org/pdf/1808.07512.pdf 
-switchout: !Experiment 
+# https://arxiv.org/pdf/1808.07512.pdf
+switchout: !Experiment
   # global parameters shared throughout the experiment
   exp_global: !ExpGlobal
     # {EXP_DIR} is a placeholder for the directory in which the config file lies.
@@ -18,7 +18,7 @@ switchout: !Experiment
     trg_reader: !RamlTextReader
       vocab: !Vocab {vocab_file: examples/data/head.en.vocab}
       tau: 0.8
-    src_embedder: !SimpleWordEmbedder
+    src_embedder: !LookupEmbedder
       emb_dim: 512
     encoder: !BiLSTMSeqTransducer
       layers: 1
@@ -27,7 +27,7 @@ switchout: !Experiment
       state_dim: 512
       input_dim: 512
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
+      embedder: !LookupEmbedder
         emb_dim: 512
       rnn: !UniLSTMSeqTransducer
         layers: 1

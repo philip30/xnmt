@@ -3,11 +3,13 @@ import numbers
 
 from xnmt.settings import settings
 
-from xnmt import logger, param_collections, param_initializers, preproc
+import xnmt.preproc as preprocs
+from xnmt import logger, param_collections, param_initializers
 from xnmt.eval import metrics, tasks as eval_tasks
 from xnmt.models import base as models_base
 from xnmt.train import regimens
 from xnmt.persistence import serializable_init, Serializable, bare
+
 
 class ExpGlobal(Serializable):
   """
@@ -59,6 +61,7 @@ class ExpGlobal(Serializable):
     self.loss_comb_method = loss_comb_method
     self.placeholders = placeholders
 
+
 class Experiment(Serializable):
   """
   A default experiment that performs preprocessing, training, and evaluation.
@@ -83,7 +86,7 @@ class Experiment(Serializable):
   def __init__(self,
                name: str,
                exp_global: Optional[ExpGlobal] = bare(ExpGlobal),
-               preproc: Optional[preproc.PreprocRunner] = None,
+               preproc: Optional[preprocs.PreprocRunner] = None,
                model: Optional[models_base.TrainableModel] = None,
                train: Optional[regimens.TrainingRegimen] = None,
                evaluate: Optional[List[eval_tasks.EvalTask]] = None,

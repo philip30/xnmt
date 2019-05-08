@@ -8,14 +8,14 @@ class Scalar(Serializable):
   """
   Scalar class for hyper parameter that support 1 value serialization.
   This class is actually a base class and does not have any different with simple python float/int.
-  
+
   Args:
     initial: The value being hold by the scalar.
     times_updated: Is the epoch number.
   """
 
   yaml_tag = "!Scalar"
-  
+
   @serializable_init
   @register_xnmt_handler
   def __init__(self, initial: numbers.Real = 0.0, times_updated: numbers.Integral = 0) -> None:
@@ -28,7 +28,7 @@ class Scalar(Serializable):
     self.value = self.get_curr_value()
     self.times_updated += 1
     self.save_processed_arg("times_updated", self.times_updated)
- 
+
   def get_curr_value(self) -> numbers.Real:
     return self.initial
 
@@ -55,9 +55,9 @@ class DefinedSequence(Scalar, Serializable):
   """
   Class that represents a fixed defined sequence from config files.
   If update has been made more than the length of the sequence, the last element of the sequence will be returned instead
-  
+
   x = DefinedSequence([0.1, 0.5, 1])
-  
+
   # Epoch 1: 0.1
   # Epoch 2: 0.5
   # Epoch 3: 1
@@ -68,7 +68,7 @@ class DefinedSequence(Scalar, Serializable):
     sequence: A list of numbers
     times_updated: The epoch number
   """
-  
+
   yaml_tag = "!DefinedSequence"
 
   @serializable_init

@@ -35,7 +35,7 @@ def BLEUwithForget(words, ref, act):
 
     bleus.append(bb[1])   # try true BLEU
     truebleus.append(bb[1])
-  
+
   # print 'Latency BLEU', lbn
   bleus = [0] + bleus  # use TRUE BLEU
   bleus = numpy.array(bleus)

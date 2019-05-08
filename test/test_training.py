@@ -7,7 +7,7 @@ from xnmt.modelparts.attenders import MlpAttender, DotAttender
 from xnmt.batchers import mark_as_batch, Mask, SrcBatcher
 from xnmt.modelparts.bridges import CopyBridge
 from xnmt.modelparts.decoders import AutoRegressiveDecoder
-from xnmt.modelparts.embedders import SimpleWordEmbedder
+from xnmt.modelparts.embedders import LookupEmbedder
 from xnmt.eval.tasks import LossEvalTask
 import xnmt.events
 from xnmt.input_readers import PlainTextReader
@@ -77,11 +77,11 @@ class TestTruncatedBatchTraining(unittest.TestCase):
     model = DefaultTranslator(
       src_reader=self.src_reader,
       trg_reader=self.trg_reader,
-      src_embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+      src_embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
       encoder=BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim),
       attender=MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
       decoder=AutoRegressiveDecoder(input_dim=layer_dim,
-                                embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+                                embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
                                 rnn=UniLSTMSeqTransducer(input_dim=layer_dim,
                                                                hidden_dim=layer_dim,
                                                                decoder_input_dim=layer_dim,
@@ -98,11 +98,11 @@ class TestTruncatedBatchTraining(unittest.TestCase):
     model = DefaultTranslator(
       src_reader=self.src_reader,
       trg_reader=self.trg_reader,
-      src_embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+      src_embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
       encoder=PyramidalLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim, layers=3),
       attender=MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
       decoder=AutoRegressiveDecoder(input_dim=layer_dim,
-                                embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+                                embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
                                 rnn=UniLSTMSeqTransducer(input_dim=layer_dim,
                                                                hidden_dim=layer_dim,
                                                                decoder_input_dim=layer_dim,
@@ -119,11 +119,11 @@ class TestTruncatedBatchTraining(unittest.TestCase):
     model = DefaultTranslator(
       src_reader=self.src_reader,
       trg_reader=self.trg_reader,
-      src_embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+      src_embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
       encoder=BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim, layers=3),
       attender=MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
       decoder=AutoRegressiveDecoder(input_dim=layer_dim,
-                                embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+                                embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
                                 rnn=UniLSTMSeqTransducer(input_dim=layer_dim,
                                                                hidden_dim=layer_dim,
                                                                decoder_input_dim=layer_dim,
@@ -140,11 +140,11 @@ class TestTruncatedBatchTraining(unittest.TestCase):
     model = DefaultTranslator(
       src_reader=self.src_reader,
       trg_reader=self.trg_reader,
-      src_embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+      src_embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
       encoder=BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim),
       attender=DotAttender(),
       decoder=AutoRegressiveDecoder(input_dim=layer_dim,
-                                embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+                                embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
                                 rnn=UniLSTMSeqTransducer(input_dim=layer_dim,
                                                                hidden_dim=layer_dim,
                                                                decoder_input_dim=layer_dim,
@@ -214,11 +214,11 @@ class TestBatchTraining(unittest.TestCase):
     model = DefaultTranslator(
       src_reader=self.src_reader,
       trg_reader=self.trg_reader,
-      src_embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+      src_embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
       encoder=BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim),
       attender=MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
       decoder=AutoRegressiveDecoder(input_dim=layer_dim,
-                                embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+                                embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
                                 rnn=UniLSTMSeqTransducer(input_dim=layer_dim,
                                                                hidden_dim=layer_dim,
                                                                decoder_input_dim=layer_dim,
@@ -235,11 +235,11 @@ class TestBatchTraining(unittest.TestCase):
     model = DefaultTranslator(
       src_reader=self.src_reader,
       trg_reader=self.trg_reader,
-      src_embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+      src_embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
       encoder=PyramidalLSTMSeqTransducer(layers=3, input_dim=layer_dim, hidden_dim=layer_dim),
       attender=MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
       decoder=AutoRegressiveDecoder(input_dim=layer_dim,
-                                embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+                                embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
                                 rnn=UniLSTMSeqTransducer(input_dim=layer_dim,
                                                                hidden_dim=layer_dim,
                                                                decoder_input_dim=layer_dim,
@@ -256,11 +256,11 @@ class TestBatchTraining(unittest.TestCase):
     model = DefaultTranslator(
       src_reader=self.src_reader,
       trg_reader=self.trg_reader,
-      src_embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+      src_embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
       encoder=BiLSTMSeqTransducer(layers=3, input_dim=layer_dim, hidden_dim=layer_dim),
       attender=MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
       decoder=AutoRegressiveDecoder(input_dim=layer_dim,
-                                embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+                                embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
                                 rnn=UniLSTMSeqTransducer(input_dim=layer_dim,
                                                                hidden_dim=layer_dim,
                                                                decoder_input_dim=layer_dim,
@@ -288,12 +288,12 @@ class TestTrainDevLoss(unittest.TestCase):
     train_args['loss_calculator'] = MLELoss()
     train_args['model'] = DefaultTranslator(src_reader=PlainTextReader(vocab=Vocab(vocab_file="examples/data/head.ja.vocab")),
                                             trg_reader=PlainTextReader(vocab=Vocab(vocab_file="examples/data/head.en.vocab")),
-                                            src_embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+                                            src_embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
                                             encoder=BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim),
                                             attender=MlpAttender(input_dim=layer_dim, state_dim=layer_dim,
                                                                  hidden_dim=layer_dim),
                                             decoder=AutoRegressiveDecoder(input_dim=layer_dim,
-                                                                      embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+                                                                      embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
                                                                       rnn=UniLSTMSeqTransducer(input_dim=layer_dim,
                                                                                                      hidden_dim=layer_dim,
                                                                                                      decoder_input_dim=layer_dim,
@@ -330,14 +330,14 @@ class TestOverfitting(unittest.TestCase):
     train_args['loss_calculator'] = MLELoss()
     train_args['model'] = DefaultTranslator(src_reader=PlainTextReader(vocab=Vocab(vocab_file="examples/data/head.ja.vocab")),
                                             trg_reader=PlainTextReader(vocab=Vocab(vocab_file="examples/data/head.en.vocab")),
-                                            src_embedder=SimpleWordEmbedder(vocab_size=100, emb_dim=layer_dim),
+                                            src_embedder=LookupEmbedder(vocab_size=100, emb_dim=layer_dim),
                                             encoder=BiLSTMSeqTransducer(input_dim=layer_dim,
                                                                         hidden_dim=layer_dim),
                                             attender=MlpAttender(input_dim=layer_dim,
                                                                  state_dim=layer_dim,
                                                                  hidden_dim=layer_dim),
                                             decoder=AutoRegressiveDecoder(input_dim=layer_dim,
-                                                                      embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=100),
+                                                                      embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
                                                                       rnn=UniLSTMSeqTransducer(input_dim=layer_dim,
                                                                                                      hidden_dim=layer_dim,
                                                                                                      decoder_input_dim=layer_dim,

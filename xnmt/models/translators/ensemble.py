@@ -1,4 +1,5 @@
 import dynet as dy
+import numpy as np
 import numbers
 
 from typing import Sequence, Optional, Union
@@ -11,6 +12,7 @@ import xnmt.batchers as batchers
 import xnmt.sent as sent
 import xnmt.search_strategies as search_strategies
 import xnmt.modelparts.scorers as scorers
+import xnmt.losses as losses
 
 from xnmt.persistence import Serializable, bare, serializable_init
 
@@ -68,8 +70,15 @@ class EnsembleTranslator(AutoRegressiveTranslator, Serializable):
   def set_trg_vocab(self, trg_vocab: Optional[vocabs.Vocab] = None) -> None:
     self._proxy.set_trg_vocab(trg_vocab=trg_vocab)
 
-  def calc_nll(self, src: Union[batchers.Batch, sent.Sentence], trg: Union[batchers.Batch, sent.Sentence]) -> dy.Expression:
-    return dy.average([model.calc_nll(src, trg) for model in self.models])
+  def calc_nll(self, src: Union[batchers.Batch, sent.Sentence], trg: Union[batchers.Batch, sent.Sentence]) -> losses.LossExpr:
+    loss_values = [model.calc_nll(src, trg).loss_value() for model in self.models]
+    ret_expr = []
+    ret_units = []
+    for loss_expr, unit in loss_values:
+      ret_expr.append(loss_expr)
+      ret_units.append(unit)
+
+    return losses.LossExpr(dy.esum(ret_expr), np.sum(ret_units))
 
   def generate(self,
                src: batchers.Batch,

@@ -13,17 +13,14 @@ exp1-pretrain-model: !Experiment
       vocab: !Vocab {vocab_file: examples/data/head.ja.vocab}
     trg_reader: !PlainTextReader
       vocab: !Vocab {vocab_file: examples/data/head.en.vocab}
-    src_embedder: !SimpleWordEmbedder
+    src_embedder: !LookupEmbedder
       emb_dim: 64
     encoder: !BiLSTMSeqTransducer
       layers: 2
       input_dim: 64
-    attender: !MlpAttender
-      state_dim: 64
-      hidden_dim: 64
-      input_dim: 64
+    attender: !MlpAttender {}
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
+      embedder: !LookupEmbedder
         emb_dim: 64
       rnn: !UniLSTMSeqTransducer
         layers: 1
@@ -56,6 +53,8 @@ exp2-finetune-minrisk: !LoadSerialized
   filename: examples/models/exp1-pretrain-model.mod
   path: ''
   overwrite:
+  - path: train.status
+    val: null
   - path: train.loss_calculator
     val: !MinRiskLoss
       alpha: 0.005

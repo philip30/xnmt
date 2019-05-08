@@ -86,13 +86,13 @@ class LossEvalTask(EvalTask, Serializable):
 
         loss_expr = self.loss_calculator.calc_loss(self.model, src, trg)
         loss, loss_value = loss_expr.compute(comb_method=self.loss_comb_method)
-        
+
         for k, (value, unit) in loss_value.items():
           loss_maps[k] += value
           loss_wrds[k] += unit
-        
+
     loss_stats = {k: loss_maps[k]/loss_wrds[k] for k in loss_maps.keys()}
-    
+
     return metrics.LossScore(sum(loss_stats.values()),
                              loss_stats=loss_stats,
                              num_ref_words=ref_words_cnt,

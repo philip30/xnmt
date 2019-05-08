@@ -59,7 +59,7 @@ class TrainLossTracker(object):
     for loss_name, (loss_value, units) in loss_data.items():
       self.epoch_words[loss_name] += units
       self.epoch_loss[loss_name] += loss_value
-      
+
     self.epoch_words["__TRG__"] += self.count_trg_words(trg)
 
     sent_num_not_report = self.training_task.training_state.sents_since_start - self.last_report_sents_since_start

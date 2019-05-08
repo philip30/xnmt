@@ -33,7 +33,7 @@
       hidden_dim: 64
       input_dim: 64
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
+      embedder: !LookupEmbedder
         emb_dim: 64
       rnn: !UniLSTMSeqTransducer
         layers: 1

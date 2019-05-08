@@ -13,21 +13,21 @@ class HyperNode(object):
   def __init__(self, value: Any, node_id: int):
     self._value = value
     self._node_id = node_id
-    
+
   @property
   def value(self):
     return self._value
-  
+
   @property
   def node_id(self):
     return self._node_id
-  
+
   def reversed(self):
     return self
-  
+
   def feature_str(self):
     return ""
-  
+
   def __repr__(self):
     return "Node({}, {})".format(self.node_id, str(self.value))
 
@@ -48,7 +48,7 @@ class HyperEdge(object):
     self._node_to = tuple(node_to)
     self._features = tuple(features) if features is not None else features
     self._label = label
-    
+
   @property
   def node_from(self):
     return self._node_from
@@ -56,15 +56,15 @@ class HyperEdge(object):
   @property
   def node_to(self):
     return self._node_to
-  
+
   @property
   def features(self):
     return self._features
-  
+
   @property
   def label(self):
     return self._label
-  
+
   def __repr__(self):
     return "Edge({} -> {})".format(self.node_from,
                                    str([child for child in self.node_to]))
@@ -92,7 +92,7 @@ class HyperGraph(object):
       rev_edge_list.append(HyperEdge(edge.node_to[0], [edge.node_from], edge.features, edge.label))
     node_list = {node_id: node.reversed() for node_id, node in self._node_list.items()}
     return HyperGraph(rev_edge_list, node_list)
-  
+
   # If hypergraph is immutable, we can cache the topological sort of the graph
   @functools.lru_cache(maxsize=1)
   def topo_sort(self):
@@ -116,10 +116,10 @@ class HyperGraph(object):
 
   def predecessors(self, node_id, with_edge=False):
     return self._with_edge(self._pred_list.get(node_id, []), with_edge)
-    
+
   def sucessors(self, node_id, with_edge=False):
     return self._with_edge(self._succ_list.get(node_id, []), with_edge)
-    
+
   def _with_edge(self, lst, with_edge):
     if with_edge:
       return lst
@@ -130,7 +130,7 @@ class HyperGraph(object):
   @functools.lru_cache(maxsize=1)
   def leaves(self):
     return sorted([x for x in self._pred_list if x not in self._succ_list])
-  
+
   # Roots are nodes who have 0 predecessors
   @functools.lru_cache(maxsize=1)
   def roots(self):
@@ -151,21 +151,21 @@ class HyperGraph(object):
   @property
   def len_nodes(self):
     return len(self._node_list)
-  
+
   @property
   def len_edges(self):
     return len(self._edge_list)
- 
+
   @functools.lru_cache(maxsize=1)
   def sorted_nodes(self):
     return sorted(self._node_list.values(), key=lambda x:x.node_id)
-  
+
   def iter_nodes(self):
     return iter(self.sorted_nodes())
-  
+
   def iter_edges(self):
     return iter(self._edge_list)
- 
+
   def __repr__(self):
     lst = []
     for node in self._node_list.values():
@@ -173,7 +173,7 @@ class HyperGraph(object):
     for edge in self._edge_list:
       lst.append(repr(edge))
     return "\n".join(lst)
-  
+
   def __getitem__(self, node_id):
     return self._node_list[node_id]
 

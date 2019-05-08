@@ -20,13 +20,13 @@ class SimultLogger(Serializable, reports.Reporter):
     self.src_vocab = src_vocab
     self.trg_vocab = trg_vocab
     self.logger = logging.getLogger("simult")
-    
+
     if report_path is not None:
       utils.make_parent_dir(report_path)
       stream = open(report_path, "w")
     else:
       stream = sys.stderr
-    
+
     self.logger.addHandler(logging.StreamHandler(stream))
     self.logger.setLevel("INFO")
 
@@ -44,7 +44,7 @@ class SimultLogger(Serializable, reports.Reporter):
                          sim_instant_reward,
                          **kwargs):
     length = [len(x) for x in sim_actions]
-   
+
     def repack(arr):
       ret = []
       start = 0
@@ -56,11 +56,11 @@ class SimultLogger(Serializable, reports.Reporter):
           start += length[i]
           ret.append(arr[start:])
       return ret
-    
+
     pg_rewards = repack(pg_rewards)
     pg_policy_ll = repack(pg_policy_ll)
-  
-  
+
+
     for i, (input, actions, outputs) in enumerate(zip(sim_inputs, sim_actions, sim_outputs)):
       src = [str(i) + ":" + self.src_vocab[x] for i, x in enumerate(input)]
       out = [str(i) + ":" + self.trg_vocab[x] for i, x in enumerate(outputs)]
@@ -72,7 +72,7 @@ class SimultLogger(Serializable, reports.Reporter):
       for action, reward, ll in zip(actions, pg_rewards[i], pg_policy_ll[i]):
         ll = np.exp(ll.npvalue()[action]) * 100
         reward = reward.value()
-        
+
         if action == 0:
           box.read("f{:d}".format(now_read), "R/{:.0f}/{:.4f}".format(ll, reward))
           now_read += 1
@@ -82,15 +82,15 @@ class SimultLogger(Serializable, reports.Reporter):
         if box.is_full():
           box.print(self.logger)
           box = Box()
-      
+
       if not box.is_full():
         box.print(self.logger)
       self.logger.info("BLEU: {}".format(sim_bleu[i]))
       self.logger.info("Delay: {}".format(sim_delay[i]))
       self.logger.info("Instant Reward: {}".format(sim_instant_reward[i]))
       self.logger.info("________")
-      
-      
+
+
 class Box:
   def __init__(self, row=1000, col=30):
     self.row = row
@@ -101,22 +101,22 @@ class Box:
     self.srcs = [""]
     self.outs = []
     self.ptr = [1,1]
-    
+
   def read(self, src, msg="R"):
     self.total_read += 1
     self.srcs.append(str(src))
     self.buffer[self.ptr[0]][self.ptr[1]] = msg
     self.ptr[1] += 1
-    
+
   def write(self, out, msg="W"):
     self.total_write += 1
     self.outs.append(str(out))
     self.buffer[self.ptr[0]][self.ptr[1]] = msg
     self.ptr[0] += 1
-    
+
   def is_full(self):
     return self.total_read >= self.col or self.total_write >= self.row
-  
+
   def print(self, logger):
     self.srcs += [""]
     self.outs += [""]
@@ -132,7 +132,7 @@ class Box:
     for buffer in self.buffer:
       logger.info(str_format.format(*buffer))
     logger.info("_")
-    
-  
-    
-    
+
+
+
+

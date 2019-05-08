@@ -15,8 +15,7 @@ import xnmt.transducers.recurrent as rec
 import xnmt.batchers as batchers
 import xnmt.sent as sent
 import xnmt.input_readers as input_readers
-import xnmt.transducers.char_compose.segmenting_composer as segment_composer
-import xnmt.losses as losses
+import xnmt.seq_composer as seq_composer
 
 from xnmt.persistence import bare, Ref, Path
 
@@ -24,7 +23,7 @@ from xnmt.persistence import bare, Ref, Path
 # RNNG Decoder state
 class RNNGDecoderState(decoders.DecoderState):
   """A state holding all the information needed for RNNGDecoder
-  
+
   Args:
     parser_state
     stack
@@ -52,32 +51,32 @@ class RNNGDecoderState(decoders.DecoderState):
   def num_open_nt(self): return self._num_open_nt
   @property
   def finish_generating(self): return self._finish_generating
-  
+
 
 class RNNGStackState(object):
   def __init__(self, stack_content, stack_action=sent.RNNGAction.Type.NONE):
     self._content = stack_content
     self._action = stack_action
-    
+
   def add_input(self, x):
     return RNNGStackState(self._content.add_input(x), self._action)
-  
+
   def output(self):
     return self._content.output()
-  
+
   @property
   def action(self):
     return self._action
-  
+
 
 class RNNGDecoder(decoders.Decoder, persistence.Serializable):
   yaml_tag = "!RNNGDecoder"
   RNNG_ACTION_SIZE = 6
-  
+
   @persistence.serializable_init
   def __init__(self,
-               input_dim: numbers.Integral = Ref("exp_global.default_layer_dim"),
-               head_composer: segment_composer.SequenceComposer = bare(segment_composer.DyerHeadComposer),
+               input_dim: int = Ref("exp_global.default_layer_dim"),
+               head_composer: seq_composer.SequenceComposer = bare(seq_composer.DyerHeadComposer),
                rnn: rec.UniLSTMSeqTransducer = None,
                bridge: bridges.Bridge = bare(bridges.NoBridge),
                nt_embedder: embedders.Embedder = None,
@@ -97,17 +96,17 @@ class RNNGDecoder(decoders.Decoder, persistence.Serializable):
     self.bridge = bridge
     self.head_composer = head_composer
     self.nt_embedder = self.add_serializable_component("nt_embedder", nt_embedder,
-                                                       lambda: embedders.SimpleWordEmbedder(
+                                                       lambda: embedders.LookupEmbedder(
                                                          emb_dim=self.input_dim,
                                                          vocab_size=len(graph_reader.node_vocab)
                                                        ))
     self.edge_embedder = self.add_serializable_component("edge_embedder", edge_embedder,
-                                                         lambda: embedders.SimpleWordEmbedder(
+                                                         lambda: embedders.LookupEmbedder(
                                                            emb_dim=self.input_dim,
                                                            vocab_size=len(graph_reader.edge_vocab)
                                                          ))
     self.term_embedder = self.add_serializable_component("term_embedder", term_embedder,
-                                                         lambda: embedders.SimpleWordEmbedder(
+                                                         lambda: embedders.LookupEmbedder(
                                                            emb_dim=self.input_dim,
                                                            vocab_size=len(graph_reader.value_vocab)
                                                          ))
@@ -134,7 +133,7 @@ class RNNGDecoder(decoders.Decoder, persistence.Serializable):
     self.ban_actions = ban_actions
     self.max_open_nt = max_open_nt
     self.shift_from_enc = shift_from_enc
-  
+
   ### Decoder Interface
   def initial_state(self, enc_final_states, ss_expr):
     rnn_state = self.rnn.initial_state()
@@ -144,7 +143,7 @@ class RNNGDecoder(decoders.Decoder, persistence.Serializable):
     assert ss_expr.batch_size() == 1, "Currently, RNNG could not handle batch size > 1 in training and testing.\n" \
                                       "Please consider using autobatching."
     return RNNGDecoderState(stack=[RNNGStackState(rnn_state)], context=None)
- 
+
   def add_input(self, dec_state: RNNGDecoderState, actions: List[sent.RNNGAction]):
     action = actions[0] if batchers.is_batched(actions) else actions
     action_type = action.action_type
@@ -172,7 +171,7 @@ class RNNGDecoder(decoders.Decoder, persistence.Serializable):
       return dec_state
     else:
       raise  NotImplementedError("Unimplemented for action word:", action)
-  
+
   def calc_loss(self, dec_state, ref_action):
     state = self._calc_transform(dec_state)
     action_batch = batchers.mark_as_batch([x.action_type.value for x in ref_action])
@@ -191,7 +190,7 @@ class RNNGDecoder(decoders.Decoder, persistence.Serializable):
       loss += self.edge_scorer.calc_loss(state, edge_batch)
     # Total Loss
     return loss
-  
+
   def best_k(self, dec_state, k, normalize_scores=False):
     final_state = self._calc_transform(dec_state)
     # p(a)
@@ -235,7 +234,7 @@ class RNNGDecoder(decoders.Decoder, persistence.Serializable):
     else:
       best_action = sent.RNNGAction(action_type)
       return [best_action], [best_score]
-  
+
   def _find_best_k(self, action_type, logprob, k, action_cond_prob):
     best_k = logprob.argsort()[max(-k, -len(logprob)+1):][::-1]
     actions = []
@@ -244,7 +243,7 @@ class RNNGDecoder(decoders.Decoder, persistence.Serializable):
       actions.append(sent.RNNGAction(action_type=action_type, action_content=item))
       scores.append(action_cond_prob + logprob[item])
     return actions, scores
-    
+
   def sample(self, dec_state, n, temperature=1.0):
     raise NotImplementedError("Implement this function!")
 
@@ -278,14 +277,14 @@ class RNNGDecoder(decoders.Decoder, persistence.Serializable):
                             word_read=dec_state.word_read+inc_read,
                             num_open_nt=dec_state.num_open_nt,
                             finish_generating=finish_generating)
-  
+
   def _perform_reduce(self, dec_state, is_left, edge_id):
     children = dec_state.stack[-2:]
     if is_left: children = reversed(children)
     children = [child.output() for child in children]
     edge_embedding = self.edge_embedder.embed(batchers.mark_as_batch([edge_id]))
     children.append(edge_embedding)
-    x_i = self.head_composer.transduce(children)
+    x_i = self.head_composer.compose(children)
     h_i = dec_state.stack[-3].add_input(x_i)
     stack_i = dec_state.stack[:-2] + [RNNGStackState(h_i)]
     return RNNGDecoderState(stack=stack_i,
@@ -293,7 +292,7 @@ class RNNGDecoder(decoders.Decoder, persistence.Serializable):
                             word_read=dec_state.word_read,
                             num_open_nt=dec_state.num_open_nt,
                             finish_generating=dec_state.finish_generating)
-    
+
   def _perform_nt(self, dec_state, nt_id):
     x_i = self.nt_embedder.embed(nt_id)
     h_i = dec_state.stack[-1].add_input(x_i)
@@ -303,7 +302,7 @@ class RNNGDecoder(decoders.Decoder, persistence.Serializable):
                             word_read=dec_state.word_read,
                             num_open_nt=dec_state.num_open_nt+1,
                             finish_generating=dec_state.finish_generating)
-  
+
   def _perform_reduce_nt(self, dec_state):
     num_pop = 0
     while dec_state.stack[-(num_pop+1)].action != sent.RNNGAction.Type.REDUCE_NT:
@@ -329,4 +328,4 @@ class RNNGDecoder(decoders.Decoder, persistence.Serializable):
             len(dec_state.stack) == 2,
             gen_finish]
     return [all(done)]
- 
+

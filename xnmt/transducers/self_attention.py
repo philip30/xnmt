@@ -79,7 +79,7 @@ class MultiHeadAttentionSeqTransducer(transducers.SeqTransducer, Serializable):
     q = bq + x * Wq
     k = bk + x * Wk
     v = bv + x * Wv
-    
+
     # Split to batches [(length, head_dim) x batch * num_heads] tensor
     q, k, v = [dy.reshape(x, (x_len, self.head_dim), batch_size=x_batch * self.num_heads) for x in (q,k,v)]
 

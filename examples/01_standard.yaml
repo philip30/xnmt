@@ -1,4 +1,4 @@
-# A standard setup, specifying model architecture, training parameters, 
+# A standard setup, specifying model architecture, training parameters,
 # and evaluation of the trained model
 !Experiment # 'standard' is the name given to the experiment
   name: standard # every experiment needs a name
@@ -16,7 +16,7 @@
       vocab: !Vocab {vocab_file: examples/data/head.ja.vocab}
     trg_reader: !PlainTextReader
       vocab: !Vocab {vocab_file: examples/data/head.en.vocab}
-    src_embedder: !SimpleWordEmbedder
+    src_embedder: !LookupEmbedder
       emb_dim: 512
     encoder: !BiLSTMSeqTransducer
       layers: 1
@@ -25,7 +25,7 @@
       state_dim: 512
       input_dim: 512
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
+      embedder: !LookupEmbedder
         emb_dim: 512
       rnn: !UniLSTMSeqTransducer
         layers: 1

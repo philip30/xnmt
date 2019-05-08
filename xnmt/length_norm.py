@@ -16,7 +16,7 @@ class LengthNormalization(object):
                           src_length: Optional[int] = None) -> Sequence[float]:
     """
     Apply normalization step to completed hypotheses after search and return the normalized scores.
-    
+
     Args:
       completed_hyps: list of completed Hypothesis objects, will be normalized in-place
       src_length: length of source sequence (None if not given)

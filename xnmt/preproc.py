@@ -444,13 +444,13 @@ class SentencepieceTokenizer(Tokenizer, Serializable):
         self.overwrite):
       # This calls sentencepiece. It's pretty verbose
       spm.SentencePieceTrainer.Train(' '.join(self.sentpiece_train_args))
-    
+
     self.sentpiece_processor = spm.SentencePieceProcessor()
     self.sentpiece_processor.Load('%s.model' % self.model_prefix)
 
     self.sentpiece_encode = self.sentpiece_processor.EncodeAsPieces if self.output_format == 'piece' else self.sentpiece_processor.EncodeAsIds
 
-  
+
   def tokenize(self, sent: str) -> str:
     """Tokenizes a single sentence into pieces."""
     if self.sentpiece_processor is None:

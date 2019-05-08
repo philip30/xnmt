@@ -4,7 +4,7 @@ lm: !Experiment
   model: !LanguageModel
     src_reader: !PlainTextReader
       vocab: !Vocab {vocab_file: examples/data/head.en.vocab}
-    src_embedder: !SimpleWordEmbedder {}
+    src_embedder: !LookupEmbedder {}
     rnn: !UniLSTMSeqTransducer
       layers: 1
     scorer: !Softmax

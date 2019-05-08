@@ -1,7 +1,6 @@
 from typing import List, Optional, Sequence, Union
 import numbers
 import collections
-import functools
 
 import dynet as dy
 import numpy as np
@@ -21,6 +20,18 @@ class LossCalculator(object):
                 model: 'model_base.ConditionedModel',
                 src: Union[sent.Sentence, 'batchers.Batch'],
                 trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
+    if not batchers.is_batched(src):
+      src = batchers.mark_as_batch([src])
+    if not batchers.is_batched(trg):
+      trg = batchers.mark_as_batch([trg])
+
+    event_trigger.start_sent(src)
+    return self._perform_calc_loss(model, src, trg)
+
+  def _perform_calc_loss(self,
+                         model: 'model_base.ConditionedModel',
+                         src: Union[sent.Sentence, 'batchers.Batch'],
+                         trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
     raise NotImplementedError()
 
 
@@ -33,24 +44,28 @@ class MLELoss(Serializable, LossCalculator):
   def __init__(self) -> None:
     pass
 
-  def calc_loss(self,
-                model: 'model_base.ConditionedModel',
-                src: Union[sent.Sentence, 'batchers.Batch'],
-                trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
+  def _perform_calc_loss(self,
+                         model: 'model_base.ConditionedModel',
+                         src: Union[sent.Sentence, 'batchers.Batch'],
+                         trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
     loss = model.calc_nll(src, trg)
     return losses.FactoredLossExpr({"mle": loss})
 
 
 class PolicyMLELoss(Serializable, LossCalculator):
   yaml_tag = "!PolicyMLELoss"
-  
+
   @serializable_init
-  def __init__(self): pass
-  
-  def calc_loss(self,
-                model: 'model_base.PolicyConditionedModel',
-                src: Union[sent.Sentence, 'batchers.Batch'],
-                trg: Union[sent.Sentence, 'batchers.Batch']):
+  def __init__(self, model='model_base.PolicyConditionedModel'):
+    self.model = model
+
+  def _perform_calc_loss(self,
+                         model: 'model_base.ConditionedModel',
+                         src: Union[sent.Sentence, 'batchers.Batch'],
+                         trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
+    if self.model is None:
+      model = self.model
+
     return losses.FactoredLossExpr({"policy_mle": model.calc_policy_nll(src, trg)})
 
 
@@ -58,7 +73,7 @@ class GlobalFertilityLoss(Serializable, LossCalculator):
   """
   A fertility loss according to Cohn+, 2016.
   Incorporating Structural Alignment Biases into an Attentional Neural Translation Model
-  
+
   https://arxiv.org/pdf/1601.01085.pdf
   """
   yaml_tag = '!GlobalFertilityLoss'
@@ -66,13 +81,13 @@ class GlobalFertilityLoss(Serializable, LossCalculator):
   def __init__(self) -> None:
     pass
 
-  def calc_loss(self,
-                model: 'model_base.ConditionedModel',
-                src: Union[sent.Sentence, 'batchers.Batch'],
-                trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
+  def _perform_calc_loss(self,
+                         model: 'model_base.ConditionedModel',
+                         src: Union[sent.Sentence, 'batchers.Batch'],
+                         trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
     assert hasattr(model, "attender") and hasattr(model.attender, "attention_vecs"), \
            "Must be called after MLELoss with models that have attender."
-    
+
     masked_attn = model.attender.attention_vecs
     if trg.mask is not None:
       trg_mask = 1-(trg.mask.np_arr.transpose())
@@ -96,13 +111,14 @@ class CompositeLoss(Serializable, LossCalculator):
       self.loss_weight = loss_weight
     assert len(self.loss_weight) == len(losses)
 
-  def calc_loss(self,
-                model: 'model_base.ConditionedModel',
-                src: Union[sent.Sentence, 'batchers.Batch'],
-                trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
+
+  def _perform_calc_loss(self,
+                         model: 'model_base.ConditionedModel',
+                         src: Union[sent.Sentence, 'batchers.Batch'],
+                         trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
     total_loss = {}
     for i, (loss, weight) in enumerate(zip(self.losses, self.loss_weight)):
-      total_loss[str(i)] = loss.calc_loss(model, src, trg) * weight
+      total_loss[str(i)] = loss._perform_calc_loss(model, src, trg) * weight
     return losses.FactoredLossExpr(total_loss)
 
 
@@ -110,7 +126,7 @@ class ReinforceLoss(Serializable, LossCalculator):
   """
   Reinforce Loss according to Ranzato+, 2015.
   SEQUENCE LEVEL TRAINING WITH RECURRENT NEURAL NETWORKS.
-  
+
   (This is not the MIXER algorithm)
 
   https://arxiv.org/pdf/1511.06732.pdf
@@ -129,13 +145,13 @@ class ReinforceLoss(Serializable, LossCalculator):
     self.baseline = self.add_serializable_component("baseline", baseline,
                                                     lambda: transforms.Linear(input_dim=decoder_hidden_dim, output_dim=1))
 
-  def calc_loss(self,
-                model: 'model_base.ConditionedModel',
-                src: Union[sent.Sentence, 'batchers.Batch'],
-                trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
+  def _perform_calc_loss(self,
+                         model: 'model_base.ConditionedModel',
+                         src: Union[sent.Sentence, 'batchers.Batch'],
+                         trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
     search_outputs = model.generate_search_output(src, self.search_strategy)
     sign = -1 if self.inv_eval else 1
-    
+
     # TODO: Fix units
     total_loss = collections.defaultdict(int)
     for search_output in search_outputs:
@@ -157,7 +173,7 @@ class ReinforceLoss(Serializable, LossCalculator):
         logsoft = model.decoder.scorer.calc_log_probs(state.as_vector())
         loss_i = dy.cmult(logsoft, reward - bs_score)
         cur_losses.append(dy.cmult(loss_i, dy.inputTensor(mask, batched=True)))
-        
+
       total_loss["polc_loss"] += dy.sum_elems(dy.esum(cur_losses))
       total_loss["base_loss"] += dy.sum_elems(dy.esum(baseline_loss))
     units = [t.len_unpadded() for t in trg]
@@ -182,10 +198,10 @@ class MinRiskLoss(Serializable, LossCalculator):
     self.unique_sample = unique_sample
     self.search_strategy = search_strategy
 
-  def calc_loss(self,
-                model: 'model_base.ConditionedModel',
-                src: Union[sent.Sentence, 'batchers.Batch'],
-                trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
+  def _perform_calc_loss(self,
+                         model: 'model_base.ConditionedModel',
+                         src: Union[sent.Sentence, 'batchers.Batch'],
+                         trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
     batch_size = trg.batch_size()
     uniques = [set() for _ in range(batch_size)]
     deltas = []
@@ -229,79 +245,32 @@ class MinRiskLoss(Serializable, LossCalculator):
     return losses.FactoredLossExpr({"risk": losses.LossExpr(risk, units)})
 
 
-class FeedbackLoss(Serializable, LossCalculator):
-  """
-  A loss that first calculates a standard loss function, then feeds it back to the
-  model using the model.additional_loss function.
-
-  Args:
-    child_loss: The loss that will be fed back to the model
-    repeat: Repeat the process multiple times and use the sum of the losses. This is
-            useful when there is some non-determinism (such as sampling in the encoder, etc.)
-  """
-  yaml_tag = '!FeedbackLoss'
-  @serializable_init
-  def __init__(self,
-               child_loss: LossCalculator = bare(MLELoss),
-               repeat: numbers.Integral = 1) -> None:
-    self.child_loss = child_loss
-    self.repeat = repeat
-
-  def calc_loss(self,
-                model: 'model_base.ConditionedModel',
-                src: Union[sent.Sentence, 'batcher.Batch'],
-                trg: Union[sent.Sentence, 'batcher.Batch']) -> losses.FactoredLossExpr:
-    loss_builder = []
-    for _ in range(self.repeat):
-      standard_loss = self.child_loss.calc_loss(model, src, trg)
-      additional_loss = event_trigger.calc_reinforce_loss(trg, model, standard_loss)
-      loss_builder.append(standard_loss + additional_loss)
-
-    return functools.reduce(lambda x, y: x+y, loss_builder)
-  
-
-class PolicyReinforceLoss(Serializable, LossCalculator):
-  yaml_tag = "!PolicyReinforceLoss"
-  @serializable_init
-  def __init__(self, freeze_normal_loss = False, num_sample=1):
-    self.freeze_normal_loss = freeze_normal_loss
-    self.num_sample = 1
-    
-  def calc_loss(self, model, src, trg):
-    standard_loss = model.calc_nll(src, trg)
-    # Calculate all losses
-    loss_builder = losses.FactoredLossExpr()
-    if not self.freeze_normal_loss:
-      loss_builder.add_loss("standard", standard_loss)
-    for i in range(self.num_sample):
-      loss = event_trigger.calc_reinforce_loss(trg, model, standard_loss)
-      loss_builder.add_factored_loss_expr(loss)
-    return loss_builder
-
- 
-class ConfidencePenaltyLoss(Serializable):
-  """
-  The confidence penalty.
-  part of: https://arxiv.org/pdf/1701.06548.pdf
-  
-  Calculate the -entropy for the given (batched policy).
-  Entropy is used as an additional loss so that it will penalize a too confident network.
-  """
- 
-  yaml_tag = "!ConfidencePenaltyLoss"
-
-  @serializable_init
-  def __init__(self): pass
-
-  def calc_loss(self, model, src, trg) -> losses.LossExpr:
-    neg_entropy = []
-    units = np.zeros(policy[0].dim()[1])
-    for i, ll in enumerate(policy):
-      if self.valid_pos[i] is not None:
-        ll = dy.pick_batch_elems(ll, self.valid_pos[i])
-        units[self.valid_pos[i]] += 1
-      else:
-        units += 1
-      loss = dy.sum_batches(dy.sum_elems(dy.cmult(dy.exp(ll), ll)))
-      neg_entropy.append(dy.sum_batches(loss))
-    return losses.LossExpr(dy.esum(neg_entropy), units)
+#class ConfidencePenaltyLoss(Serializable):
+#  """
+#  The confidence penalty.
+#  part of: https://arxiv.org/pdf/1701.06548.pdf
+#
+#  Calculate the -entropy for the given (batched policy).
+#  Entropy is used as an additional loss so that it will penalize a too confident network.
+#  """
+#
+#  yaml_tag = "!ConfidencePenaltyLoss"
+#
+#  @serializable_init
+#  def __init__(self, softmax): pass
+#
+#  def _perform_calc_loss(self,
+#                         model: 'model_base.ConditionedModel',
+#                         src: Union[sent.Sentence, 'batchers.Batch'],
+#                         trg: Union[sent.Sentence, 'batchers.Batch']) -> losses.FactoredLossExpr:
+#    neg_entropy = []
+#    units = np.zeros(policy[0].dim()[1])
+#    for i, ll in enumerate(policy):
+#      if self.valid_pos[i] is not None:
+#        ll = dy.pick_batch_elems(ll, self.valid_pos[i])
+#        units[self.valid_pos[i]] += 1
+#      else:
+#        units += 1
+#      loss = dy.sum_batches(dy.sum_elems(dy.cmult(dy.exp(ll), ll)))
+#      neg_entropy.append(dy.sum_batches(loss))
+#    return losses.LossExpr(dy.esum(neg_entropy), units)

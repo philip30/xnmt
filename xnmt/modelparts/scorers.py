@@ -74,7 +74,7 @@ class Scorer(object):
   def calc_log_probs(self, x: dy.Expression) -> dy.Expression:
     """
     Calculate the log probability of a decision
-    
+
     log(calc_prob()) == calc_log_prob()
 
     Both functions exist because it might help save memory.
@@ -161,7 +161,7 @@ class Softmax(Scorer, Serializable):
                                                             lambda: output_projector or transforms.Linear(
                                                               input_dim=self.input_dim, output_dim=self.output_dim,
                                                               param_init=param_init, bias_init=bias_init))
-  
+
   def calc_scores(self, x: dy.Expression) -> dy.Expression:
     return self.output_projector.transform(x)
 
@@ -189,7 +189,7 @@ class Softmax(Scorer, Serializable):
     for word in samples:
       r.append((word, dy.pick(scores_expr, word)))
     return r
-  
+
   def can_loss_be_derived_from_scores(self):
     """
     This method can be used to determine whether dy.pickneglogsoftmax can be used to quickly calculate the loss value.
@@ -216,7 +216,7 @@ class Softmax(Scorer, Serializable):
       if self.label_smoothing > 0:
         ls_loss = -dy.mean_elems(log_prob)
         loss = ((1 - self.label_smoothing) * loss) + (self.label_smoothing * ls_loss)
-    
+
     return loss
 
   def calc_probs(self, x: dy.Expression) -> dy.Expression:
@@ -244,7 +244,7 @@ class LexiconSoftmax(Softmax, Serializable):
       lexicon_alpha: smoothing constant for bias method
       lexicon_type: Either bias or linear method
     """
-  
+
   yaml_tag = '!LexiconSoftmax'
 
   @serializable_init
@@ -270,7 +270,7 @@ class LexiconSoftmax(Softmax, Serializable):
     self.input_dim = input_dim
     self.output_dim = self._choose_vocab_size(vocab_size, vocab, trg_reader)
     self.label_smoothing = label_smoothing
-  
+
     self.output_projector = self.add_serializable_component("output_projector", output_projector,
                                                             lambda: output_projector or transforms.Linear(
                                                               input_dim=self.input_dim, output_dim=self.output_dim,
@@ -283,7 +283,7 @@ class LexiconSoftmax(Softmax, Serializable):
     self.lexicon_file = lexicon_file
     self.lexicon_type = lexicon_type
     self.lexicon_alpha = lexicon_alpha
-    
+
     assert lexicon_type in ["bias", "linear"], "Lexicon type can be either 'bias' or 'linear' only!"
     # Reference to other parts of the model
     self.src_vocab = src_vocab
@@ -295,7 +295,7 @@ class LexiconSoftmax(Softmax, Serializable):
     self.lexicon_prob = None
     self.coeff = None
     self.dict_prob = None
-    
+
   def load_lexicon(self):
     logger.info("Loading lexicon from file: " + self.lexicon_file)
     lexicon = [{} for _ in range(len(self.src_vocab))]
@@ -327,38 +327,38 @@ class LexiconSoftmax(Softmax, Serializable):
   def on_new_epoch(self, *args, **kwargs):
     if self.lexicon is None:
       self.lexicon = self.load_lexicon()
-  
+
   @handle_xnmt_event
   def on_start_sent(self, src):
     self.coeff = None
     self.dict_prob = None
-    
+
     batch_size = src.batch_size()
     col_size = src.sent_len()
-  
+
     idxs = [(x, j, i) for i in range(batch_size) for j in range(col_size) for x in self.lexicon[src[i][j]].keys()]
     idxs = tuple(map(list, list(zip(*idxs))))
-  
+
     values = [x for i in range(batch_size) for j in range(col_size) for x in self.lexicon[src[i][j]].values()]
     dim = len(self.trg_vocab), col_size, batch_size
     self.lexicon_prob = dy.nobackprop(dy.sparse_inputTensor(idxs, values, dim, batched=True))
-  
+
   def calc_scores(self, x: dy.Expression) -> dy.Expression:
     model_score = self.output_projector.transform(x)
     if self.lexicon_type == 'bias':
       model_score += dy.sum_dim(dy.log(self.calculate_dict_prob(x) + self.lexicon_alpha), [1])
     return model_score
-  
+
   def calculate_coeff(self, x):
     if self.coeff is None:
       self.coeff = dy.logistic(self.coef_predictor.transform(x))
     return self.coeff
-  
+
   def calculate_dict_prob(self, x):
     if self.dict_prob is None:
       self.dict_prob = self.lexicon_prob * self.attender.calc_attention(x)
     return self.dict_prob
-  
+
   def calc_probs(self, x: dy.Expression) -> dy.Expression:
     model_score = dy.softmax(self.calc_scores(x))
     if self.lexicon_type == 'linear':

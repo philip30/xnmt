@@ -107,7 +107,7 @@ def main(overwrite_args: Optional[Sequence[str]] = None) -> None:
         raise e
       finally:
         tee.unset_out_file()
-    
+
 def print_results(results: Sequence[Tuple[str,Sequence[metrics.EvalScore]]]):
   print("")
   print("{:<30}|{:<40}".format("Experiment", " Final Scores"))

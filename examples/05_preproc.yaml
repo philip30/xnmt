@@ -82,7 +82,7 @@
     trg_reader: !PlainTextReader
       vocab: !Vocab
         vocab_file: examples/preproc/train.vocab.en
-    src_embedder: !SimpleWordEmbedder
+    src_embedder: !LookupEmbedder
       emb_dim: 512
     encoder: !BiLSTMSeqTransducer
       layers: 1
@@ -91,7 +91,7 @@
       state_dim: 512
       input_dim: 512
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
+      embedder: !LookupEmbedder
         emb_dim: 512
       rnn: !UniLSTMSeqTransducer
         layers: 1

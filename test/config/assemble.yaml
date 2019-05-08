@@ -7,7 +7,7 @@ exp1-pretrain1: !Experiment
       vocab: !Vocab {vocab_file: examples/data/head.ja.vocab}
     trg_reader: !PlainTextReader
       vocab: !Vocab {vocab_file: examples/data/head.en.vocab}
-    src_embedder: !SimpleWordEmbedder
+    src_embedder: !LookupEmbedder
       emb_dim: 64
     encoder: !BiLSTMSeqTransducer
       layers: 2
@@ -17,8 +17,8 @@ exp1-pretrain1: !Experiment
       hidden_dim: 64
       input_dim: 64
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
-        emb_dim: 64
+      embedder: !LookupEmbedder
+        emb_d:%im: 64
       rnn: !UniLSTMSeqTransducer
         layers: 1
         hidden_dim: 64
@@ -39,7 +39,7 @@ exp2-pretrain2: !Experiment
       vocab: !Vocab {vocab_file: examples/data/head.ja.vocab}
     trg_reader: !PlainTextReader
       vocab: !Vocab {vocab_file: examples/data/head.en.vocab}
-    src_embedder: !SimpleWordEmbedder
+    src_embedder: !LookupEmbedder
       emb_dim: 64
     encoder: !BiLSTMSeqTransducer
       layers: 2
@@ -49,7 +49,7 @@ exp2-pretrain2: !Experiment
       hidden_dim: 64
       input_dim: 64
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
+      embedder: !LookupEmbedder
         emb_dim: 64
       rnn: !UniLSTMSeqTransducer
         layers: 1
@@ -104,7 +104,7 @@ exp4-assemble: !Experiment
       vocab: !Vocab {vocab_file: examples/data/head.en.vocab}
     trg_reader: !PlainTextReader
       vocab: !Vocab {vocab_file: examples/data/head.ja.vocab}
-    src_embedder: !SimpleWordEmbedder
+    src_embedder: !LookupEmbedder
       emb_dim: 64
     encoder: !ModularSeqTransducer
       modules:
@@ -119,7 +119,7 @@ exp4-assemble: !Experiment
       hidden_dim: 64
       input_dim: 64
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
+      embedder: !LookupEmbedder
         emb_dim: 64
       rnn: !UniLSTMSeqTransducer
         layers: 1

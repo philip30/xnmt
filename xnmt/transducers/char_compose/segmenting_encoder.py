@@ -2,21 +2,24 @@ import numpy as np
 import dynet as dy
 
 from typing import List
-from enum import Enum
 
+import xnmt.batchers as batchers
+import xnmt.transducers.base as transducers_base
+import xnmt.transducers.recurrent as recurrent
+import xnmt.rl.policy_network as network
+import xnmt.rl.policy_priors as prior
+import xnmt.persistence as persistence
+import xnmt.expression_seqs as expr_seq
+import xnmt.events as events
+import xnmt.reports as reports
+import xnmt.models.base as model_base
+
+from xnmt.rl.policy_action import PolicyAction
+from xnmt.persistence import bare
 from xnmt import logger
-from xnmt.batchers import Mask
-from xnmt.events import register_xnmt_handler, handle_xnmt_event
-from xnmt.expression_seqs import ExpressionSequence
-from xnmt.persistence import serializable_init, Serializable, bare
-from xnmt.transducers.base import SeqTransducer, FinalTransducerState, IdentitySeqTransducer
-from xnmt.losses import FactoredLossExpr
-from xnmt.transducers.char_compose.priors import GoldInputPrior
-from xnmt.reports import Reportable
-from xnmt.transducers.recurrent import BiLSTMSeqTransducer
-from xnmt.transducers.char_compose.segmenting_composer import SeqTransducerComposer, VocabBasedComposer
 
-class SegmentingSeqTransducer(SeqTransducer, Serializable, Reportable):
+class SegmentingSeqTransducer(transducers_base.SeqTransducer, persistence.Serializable,
+                              reports.Reportable, model_base.PolicyConditionedModel):
   """
   A transducer that perform composition on smaller units (characters) into bigger units (words).
   This transducer will predict/use the segmentation discrete actions to compose the inputs.
@@ -31,7 +34,7 @@ class SegmentingSeqTransducer(SeqTransducer, Serializable, Reportable):
   To learn the segmentation, please define the policy_learning. Please see rl/policy_learning.py
   To partly defined some segmentation using priors or gold input and learn from it, use the EpsilonGreedy with the proper priors. Please see priors.py.
   To sample from the policy instead doing argmax when doing inference please turn on the sample_during_search
-  
+
   ** LEARNING
   By default it will use the policy gradient function to learn the network. The reward is composed by:
 
@@ -47,210 +50,73 @@ class SegmentingSeqTransducer(SeqTransducer, Serializable, Reportable):
   """
   yaml_tag = '!SegmentingSeqTransducer'
 
-  @register_xnmt_handler
-  @serializable_init
+  @events.register_xnmt_handler
+  @persistence.serializable_init
   def __init__(self,
-               embed_encoder=bare(IdentitySeqTransducer),
-               segment_composer=bare(SeqTransducerComposer),
-               final_transducer=bare(BiLSTMSeqTransducer),
-               policy_learning=None,
-               length_prior=None,
-               eps_greedy=None,
-               sample_during_search=False,
-               reporter=None):
+               embed_encoder: transducers_base.SeqTransducer = bare(transducers_base.IdentitySeqTransducer),
+               segment_composer: SequenceComposer = bare(SeqTransducerComposer),
+               final_transducer: recurrent.BiLSTMSeqTransducer = bare(recurrent.BiLSTMSeqTransducer),
+               policy_network: network.PolicyNetwork = None,
+               policy_prior: prior.PolicyPrior = None,
+               train_policy_oracle: bool=True,
+               test_policy_oracle: bool=True):
+    policy_network = self.add_serializable_component("policy_network", policy_network, lambda: policy_network)
+    model_base.PolicyConditionedModel.__init__(policy_network, train_policy_oracle, test_policy_oracle)
+
     self.embed_encoder = self.add_serializable_component("embed_encoder", embed_encoder, lambda: embed_encoder)
     self.segment_composer = self.add_serializable_component("segment_composer", segment_composer, lambda: segment_composer)
     self.final_transducer = self.add_serializable_component("final_transducer", final_transducer, lambda: final_transducer)
-    self.policy_learning = self.add_serializable_component("policy_learning", policy_learning, lambda: policy_learning) if policy_learning is not None else None
-    self.length_prior = self.add_serializable_component("length_prior", length_prior, lambda: length_prior) if length_prior is not None else None
-    self.eps_greedy = self.add_serializable_component("eps_greedy", eps_greedy, lambda: eps_greedy) if eps_greedy is not None else None
-    self.sample_during_search = sample_during_search
-    self.reporter = reporter
     self.no_char_embed = issubclass(segment_composer.__class__, VocabBasedComposer)
-    # Others
-    self.segmenting_action = None
-    self.compose_output = None
-    self.segment_actions = None
-    self.seg_size_unpadded = None
-    self.src_sent = None
-    self.reward = None
-    self.train = None
+    self.policy_prior = self.policy_prior
 
-  def shared_params(self):
-    return [{".embed_encoder.hidden_dim",".policy_learning.policy_network.input_dim"},
-            {".embed_encoder.hidden_dim",".policy_learning.baseline.input_dim"},
-            {".segment_composer.hidden_dim", ".final_transducer.input_dim"}]
+  def transduce(self, embed_sent: expr_seq.ExpressionSequence) -> List[expr_seq.ExpressionSequence]:
+    self.create_trajectories(embed_sent, force_oracle=False)
+    actions = [np.nonzero(a.content) for a in self.actions]
+    actions = [[a for a in actions[i] if a < self.src_sents[i].len_unpadded()] for i in range(len(actions))]
 
-  def transduce(self, embed_sent: ExpressionSequence) -> List[ExpressionSequence]:
-    batch_size = embed_sent[0].dim()[1]
-    actions = self.sample_segmentation(embed_sent, batch_size)
+    # Create sentence embedding
+    outputs = []
     embeddings = dy.concatenate(embed_sent.expr_list, d=1)
-    embeddings.value()
-    #
-    composed_words = []
-    for i in range(batch_size):
+    for i in range(self.src_sents.batch_size()):
       sequence = dy.pick_batch_elem(embeddings, i)
-      # For each sampled segmentations
+      src = self.src_sents[i]
       lower_bound = 0
+      output = []
       for j, upper_bound in enumerate(actions[i]):
-        if self.no_char_embed:
-          char_sequence = []
-        else:
-          char_sequence = dy.pick_range(sequence, lower_bound, upper_bound+1, 1)
-        composed_words.append((char_sequence, i, j, lower_bound, upper_bound+1))
+        char_sequence = dy.pick_range(sequence, lower_bound, upper_bound+1, 1) if self.no_char_embed else None
+        output.append(self.segment_composer.compose_single(char_sequence, src, lower_bound, upper_bound+1))
         lower_bound = upper_bound+1
-    outputs = self.segment_composer.compose(composed_words, batch_size)
-    # Padding + return
-    try:
-      if self.length_prior:
-        seg_size_unpadded = [len(outputs[i]) for i in range(batch_size)]
-      sampled_sentence, segment_mask = self.pad(outputs)
-      expr_seq = ExpressionSequence(expr_tensor=dy.concatenate_to_batch(sampled_sentence), mask=segment_mask)
-      return self.final_transducer.transduce(expr_seq)
-    finally:
-      if self.length_prior:
-        self.seg_size_unpadded = seg_size_unpadded
-      self.compose_output = outputs
-      self.segment_actions = actions
-      if not self.train and self.is_reporting():
-        if len(actions) == 1: # Support only AccuracyEvalTask
-          self.report_sent_info({"segment_actions": actions})
+      outputs.append(output)
 
-  @handle_xnmt_event
-  def on_calc_reinforce_loss(self, trg, generator, generator_loss):
-    # Not learning policy return None
-    if self.policy_learning is None:
-      return None
-   
-    # R = log(P(E|F))
-    reward = dy.nobackprop(sum([x.loss_value()[0] for x in generator_loss.expr_factors.values()]))
-    
-    # R += log(P_poisson(F, u))
-    if self.length_prior is not None:
-      reward += dy.nobackprop(self.length_prior.log_ll(self.seg_size_unpadded))
-    
-    # Packing up
-    reward_tensor = [reward] * self.src_sent.sent_len()
 
-    return self.policy_learning.calc_loss(reward_tensor)
+    outputs = pad_output()
 
-  @handle_xnmt_event
-  def on_start_sent(self, src):
-    self.src_sent = src
-    self.segmenting_action = self.SegmentingAction.NONE
+    return self.final_transducer.transduce(outputs)
 
-  @handle_xnmt_event
-  def on_set_train(self, train):
-    self.train = train
-  
-  def get_final_states(self) -> List[FinalTransducerState]:
-    return self.final_transducer.get_final_states()
-  
-  def sample_segmentation(self, embed_sent, batch_size):
-    if self.policy_learning is None: # Not Learning any policy
-      if self.eps_greedy is not None:
-        self.segmenting_action = self.SegmentingAction.PURE_SAMPLE
-        actions = self.sample_from_prior()
-      else:
-        self.segmenting_action = self.SegmentingAction.GOLD
-        actions = self.sample_from_gold()
-    else: # Learning policy, with defined action or not
-      predefined_actions = None
-      seq_len = len(embed_sent)
-      if self.eps_greedy and self.eps_greedy.is_triggered():
-        self.segmenting_action = self.SegmentingAction.POLICY_SAMPLE
-        predefined_actions = self.sparse_to_dense(self.sample_from_prior(), seq_len)
-      else:
-        self.segmenting_action = self.SegmentingAction.POLICY
-      embed_encode = self.embed_encoder.transduce(embed_sent)
-      actions = self.sample_from_policy(embed_encode, batch_size, predefined_actions)
-    return actions
+  def create_trajectories(self, src_embedding: expr_seq.ExpressionSequence, force_oracle=False):
+    if len(self.actions) != 0:
+      return
 
-  def sample_from_policy(self, encodings, batch_size, predefined_actions=None):
-    from_argmax = not self.train and not self.sample_during_search
-    actions = [[] for _ in range(batch_size)]
-    mask = encodings.mask.np_arr if encodings.mask else None
-    # Callback to ensure all samples are ended with </s> being segmented
-    def ensure_end_segment(sample_batch, position):
-      for i in range(len(sample_batch)):
-        last_eos = self.src_sent[i].len_unpadded()
-        if position >= last_eos:
-          sample_batch[i] = 1
-      return sample_batch
-    # Loop through all items in the sequence
-    valid_pos = self.src_sent.mask.get_valid_position() if self.src_sent.mask is not None else None
-    for position, encoding in enumerate(encodings):
-      # Sample from softmax if we have no predefined action
-      predefined = predefined_actions[position] if predefined_actions is not None else None
-      action = self.policy_learning.sample_action(encoding,
-                                                  argmax=from_argmax,
-                                                  sample_pp=lambda x: ensure_end_segment(x, position),
-                                                  predefined_actions=predefined,
-                                                  valid_pos=valid_pos[position] if valid_pos is not None else None)
-      # Appending the "1" position if it has valid flags
-      for i in np.nonzero(action)[0]:
-        if mask is None or mask[i][position] == 0:
-          actions[i].append(position)
-    return actions
- 
-  def sample_from_gold(self):
-    return [sent.segment for sent in self.src_sent]
+    from_oracle = self.policy_train_oracle if self.train else self.policy_test_oracle
+    from_oracle = from_oracle or force_oracle
 
-  def sample_from_prior(self):
-    prior = self.eps_greedy.get_prior()
-    batch_size = self.src_sent.batch_size()
-    length_size = self.src_sent.sent_len()
-    samples = prior.sample(batch_size, length_size)
-    if issubclass(prior.__class__, GoldInputPrior):
-      # Exception when the action is taken directly from the input
-      actions = samples
+    if from_oracle:
+      force_actions = [src.segment for src in self.src_sents]
+    elif self.policy_prior is not None:
+      force_actions = self.policy_prior.sample(self.src_sents.batch_size(), self.src_sents.sent_len())
     else:
-      actions = []
-      for src_sent, sample in zip(self.src_sent, samples):
-        current, action = 0, []
-        src_len = src_sent.len_unpadded()
-        for j in range(len(sample)):
-          current += sample[j]
-          if current >= src_len:
-            break
-          action.append(current)
-        if len(action) == 0 or action[-1] != src_len:
-          action.append(src_len)
-        actions.append(action)
-    return actions
+      force_actions = [None] * self.src_sents.batch_size()
 
-  def sparse_to_dense(self, actions, length):
-    try:
-      from xnmt.cython import xnmt_cython
-    except:
-      logger.error("BLEU evaluate fast requires xnmt cython installation step."
-                   "please check the documentation.")
-      raise RuntimeError()
-    batch_dense = []
-    for batch_action in actions:
-      batch_dense.append(xnmt_cython.dense_from_sparse(batch_action, length))
-    return np.array(batch_dense).transpose()
+    if self.policy_network is None:
+      sample = np.asarray(force_actions).transpose()
+      for i in range(self.src_sents.sent_len()):
+        self.actions.append(PolicyAction(sample[i]))
+    else:
+      for i in range(self.src_sents.sent_len()):
+        mask = src_embedding.mask[i] if src_embedding.mask is not None else None
+        policy_action = self.policy_network.sample_actions(src_embedding[i], force_actions[i], mask)
+        self.actions.append(policy_action)
 
-  def pad(self, outputs):
-    # Padding
-    max_col = max(len(xs) for xs in outputs)
-    p0 = dy.vecInput(outputs[0][0].dim()[0][0])
-    masks = np.zeros((len(outputs), max_col), dtype=int)
-    modified = False
-    ret = []
-    for xs, mask in zip(outputs, masks):
-      deficit = max_col - len(xs)
-      if deficit > 0:
-        xs.extend([p0 for _ in range(deficit)])
-        mask[-deficit:] = 1
-        modified = True
-      ret.append(dy.concatenate_cols(xs))
-    mask = Mask(masks) if modified else None
-    return ret, mask
-  
-  class SegmentingAction(Enum):
-    GOLD = 0
-    POLICY = 1
-    POLICY_SAMPLE = 2
-    PURE_SAMPLE = 3
-    NONE = 100
+  def get_final_states(self) -> List[transducers_base.FinalTransducerState]:
+    return self.final_transducer.get_final_states()
+

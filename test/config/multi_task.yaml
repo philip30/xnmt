@@ -24,7 +24,7 @@ exp1-multi_task_exp: !Experiment
           vocab: !Vocab
             _xnmt_id: trg_vocab
             vocab_file: examples/data/head.en.vocab
-        src_embedder: !SimpleWordEmbedder
+        src_embedder: !LookupEmbedder
           emb_dim: 64
           vocab: !Ref {name: src_vocab}
         encoder: !BiLSTMSeqTransducer # the encoder shares parameters between tasks
@@ -35,7 +35,7 @@ exp1-multi_task_exp: !Experiment
           hidden_dim: 64
           input_dim: 64
         decoder: !AutoRegressiveDecoder
-          embedder: !SimpleWordEmbedder
+          embedder: !LookupEmbedder
             emb_dim: 64
             vocab: !Ref {name: trg_vocab}
           rnn: !UniLSTMSeqTransducer
@@ -64,7 +64,7 @@ exp1-multi_task_exp: !Experiment
           vocab: !Ref {name: src_vocab}
         trg_reader: !PlainTextReader
           vocab: !Ref {name: trg_vocab}
-        src_embedder: !SimpleWordEmbedder
+        src_embedder: !LookupEmbedder
           emb_dim: 64
           vocab: !Ref {name: src_vocab}
         encoder: !Ref { name: first_task_encoder }
@@ -73,7 +73,7 @@ exp1-multi_task_exp: !Experiment
           hidden_dim: 64
           input_dim: 64
         decoder: !AutoRegressiveDecoder
-          embedder: !SimpleWordEmbedder
+          embedder: !LookupEmbedder
             emb_dim: 64
             vocab: !Ref {name: trg_vocab}
           rnn: !UniLSTMSeqTransducer

@@ -29,7 +29,7 @@ class LanguageModel(models.ConditionedModel, Serializable):
   @serializable_init
   def __init__(self,
                src_reader:input_readers.InputReader,
-               src_embedder: embedders.Embedder=bare(embedders.SimpleWordEmbedder),
+               src_embedder: embedders.Embedder=bare(embedders.LookupEmbedder),
                rnn:transducers.SeqTransducer=bare(recurrent.UniLSTMSeqTransducer),
                transform: transforms.Transform=bare(transforms.NonLinear),
                scorer: scorers.Scorer=bare(scorers.Softmax)) -> None:
@@ -44,13 +44,9 @@ class LanguageModel(models.ConditionedModel, Serializable):
 
   def calc_nll(self, src: Union[batchers.Batch, sent.Sentence], trg: Union[batchers.Batch, sent.Sentence]) \
           -> dy.Expression:
-    if not batchers.is_batched(src):
-      src = batchers.ListBatch([src])
-
     src_inputs = batchers.ListBatch([s[:-1] for s in src], mask=batchers.Mask(src.mask.np_arr[:, :-1]) if src.mask else None)
     src_targets = batchers.ListBatch([s[1:] for s in src], mask=batchers.Mask(src.mask.np_arr[:, 1:]) if src.mask else None)
 
-    event_trigger.start_sent(src)
     embeddings = self.src_embedder.embed_sent(src_inputs)
     encodings = self.rnn.transduce(embeddings)
     encodings_tensor = encodings.as_tensor()

@@ -14,16 +14,14 @@
       alpha: 0.1
       vocab: !Vocab
         vocab_file: examples/data/big-ja.vocab
-        sentencepiece_vocab: True
       model_file: examples/data/big-ja.model
     trg_reader: !SentencePieceTextReader
       sample_train: True
       alpha: 0.1
       vocab: !Vocab
         vocab_file: examples/data/big-en.vocab
-        sentencepiece_vocab: True
       model_file: examples/data/big-en.model
-    src_embedder: !SimpleWordEmbedder
+    src_embedder: !LookupEmbedder
       emb_dim: 512
     encoder: !BiLSTMSeqTransducer
       layers: 1
@@ -32,7 +30,7 @@
       state_dim: 512
       input_dim: 512
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
+      embedder: !LookupEmbedder
         emb_dim: 512
       rnn: !UniLSTMSeqTransducer
         layers: 1

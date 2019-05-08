@@ -62,7 +62,7 @@ class Reportable(object):
   @register_xnmt_handler
   def __init__(self) -> None:
     pass
-  
+
   def report_sent_info(self, sent_info: Dict[str, Any]) -> None:
     """
     Add key/value pairs belonging to the current sentence for reporting.

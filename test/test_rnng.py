@@ -9,12 +9,12 @@ import dynet as dy
 
 import xnmt.input_readers as input_readers
 import xnmt.events
-import xnmt.transducers.char_compose.segmenting_composer as composer
+import xnmt.seq_composer as composer
 
 from xnmt.modelparts.attenders import MlpAttender
 from xnmt.modelparts.bridges import NoBridge
 from xnmt.modelparts.decoders.rnng import RNNGDecoder
-from xnmt.modelparts.embedders import SimpleWordEmbedder
+from xnmt.modelparts.embedders import LookupEmbedder
 from xnmt import batchers, event_trigger
 from xnmt.param_collections import ParamManager
 from xnmt.transducers.recurrent import UniLSTMSeqTransducer
@@ -58,7 +58,7 @@ class TestGraphToGraph(unittest.TestCase):
     self.model = DefaultTranslator(
       src_reader=self.src_reader,
       trg_reader=self.trg_reader,
-      src_embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=len(value_vocab)),
+      src_embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=len(value_vocab)),
       encoder=IdentitySeqTransducer(),
       attender=MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
       decoder=RNNGDecoder(input_dim=layer_dim,
@@ -77,6 +77,7 @@ class TestGraphToGraph(unittest.TestCase):
   
   def test_train_nll(self):
     event_trigger.set_train(True)
+    event_trigger.start_sent(self.src[0])
     mle_loss = MLELoss()
     mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
 

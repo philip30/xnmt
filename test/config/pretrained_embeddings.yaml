@@ -7,7 +7,7 @@ pretrained_emb: !Experiment
       vocab: !Vocab {vocab_file: examples/data/head.ja.vocab}
     trg_reader: !PlainTextReader
       vocab: !Vocab {vocab_file: examples/data/head.en.vocab}
-    src_embedder: !PretrainedSimpleWordEmbedder
+    src_embedder: !PretrainedLookupEmbedder
       filename: examples/data/wiki.ja.vec.small
       emb_dim: 300
       vocab: !Ref {path: model.src_reader.vocab}
@@ -18,7 +18,7 @@ pretrained_emb: !Experiment
       state_dim: 512
       input_dim: 512
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
+      embedder: !LookupEmbedder
         emb_dim: 512
   train: !SimpleTrainingRegimen
     run_for_epochs: 2

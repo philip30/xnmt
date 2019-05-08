@@ -10,7 +10,7 @@ from xnmt.settings import settings
 import dynet as dy
 
 from xnmt import batchers, event_trigger
-from xnmt import events, logger, losses, loss_calculators, output, reports, search_strategies, sent, utils
+from xnmt import events, logger, losses, loss_calculators, output_processors, reports, search_strategies, sent, utils
 from xnmt.models import base as models
 from xnmt.persistence import serializable_init, Serializable, bare
 
@@ -184,6 +184,7 @@ class Inference(object):
     ref_batch = ref_batches[0]
     src_len = src_batch.sent_len()
 
+    # TODO(philip30): This if is nonsense
     if max_src_len is None or src_len <= max_src_len is not None and src_len > max_src_len:
       with utils.ReportOnException({"src": src_batch, "graph": utils.print_cg_conditional}):
         dy.renew_cg(immediate_compute=settings.IMMEDIATE_COMPUTE, check_validity=settings.CHECK_VALIDITY)
@@ -340,15 +341,18 @@ class IndependentOutputInference(Inference, Serializable):
   yaml_tag = "!IndependentOutputInference"
 
   @serializable_init
-  def __init__(self, src_file: Optional[str] = None, trg_file: Optional[str] = None, ref_file: Optional[str] = None,
+  def __init__(self,
+               src_file: Optional[str] = None, trg_file: Optional[str] = None, ref_file: Optional[str] = None,
                max_src_len: Optional[int] = None, max_num_sents: Optional[int] = None,
-               post_process: Union[None, str, output.OutputProcessor, Sequence[output.OutputProcessor]] = None,
+               post_process: Union[None, str, output_processors.OutputProcessor, Sequence[output_processors.OutputProcessor]] = None,
                mode: str = "onebest",
                batcher: batchers.InOrderBatcher = bare(batchers.InOrderBatcher, batch_size=1),
-               reporter: Union[None, reports.Reporter, Sequence[reports.Reporter]] = None):
+               reporter: Union[None, reports.Reporter, Sequence[reports.Reporter]] = None,
+               loss_calculator: loss_calculators.LossCalculator = bare(loss_calculators.MLELoss)):
     super().__init__(src_file=src_file, trg_file=trg_file, ref_file=ref_file, max_src_len=max_src_len,
                      max_num_sents=max_num_sents, mode=mode, batcher=batcher, reporter=reporter)
-    self.post_processor = output.OutputProcessor.get_output_processor(post_process) or None
+    self.post_processor = output_processors.OutputProcessor.get_output_processor(post_process) or None
+    self.loss_calculator = loss_calculator
 
   def generate_one(self,
                    generator: 'models.GeneratorModel',
@@ -360,7 +364,7 @@ class IndependentOutputInference(Inference, Serializable):
                          generator: 'models.GeneratorModel',
                          src: sent.Sentence,
                          ref: sent.Sentence) -> losses.FactoredLossExpr:
-    loss_expr = loss_calculators.MLELoss().calc_loss(generator, src, ref)
+    loss_expr = self.loss_calculator.calc_loss(generator, src, ref)
     return loss_expr
 
 class AutoRegressiveInference(Inference, Serializable):
@@ -395,16 +399,18 @@ class AutoRegressiveInference(Inference, Serializable):
                ref_file: Optional[str] = None,
                max_src_len: Optional[int] = None,
                max_num_sents: Optional[int] = None,
-               post_process: Union[str, output.OutputProcessor, Sequence[output.OutputProcessor]] = [],
+               post_process: Union[str, output_processors.OutputProcessor, Sequence[output_processors.OutputProcessor]] = [],
                search_strategy: search_strategies.SearchStrategy = bare(search_strategies.BeamSearch),
                mode: str = "onebest",
                batcher: batchers.InOrderBatcher = bare(batchers.InOrderBatcher, batch_size=1),
-               reporter: Union[None, reports.Reporter, Sequence[reports.Reporter]] = None) -> None:
+               reporter: Union[None, reports.Reporter, Sequence[reports.Reporter]] = None,
+               loss_calculator: loss_calculators.LossCalculator = bare(loss_calculators.MLELoss)) -> None:
     super().__init__(src_file=src_file, trg_file=trg_file, ref_file=ref_file, max_src_len=max_src_len,
                      max_num_sents=max_num_sents, mode=mode, batcher=batcher, reporter=reporter)
 
-    self.post_processor = output.OutputProcessor.get_output_processor(post_process) or None
+    self.post_processor = output_processors.OutputProcessor.get_output_processor(post_process) or None
     self.search_strategy = search_strategy
+    self.loss_calculator = loss_calculator
 
   def generate_one(self,
                    generator: 'models.GeneratorModel',
@@ -416,7 +422,7 @@ class AutoRegressiveInference(Inference, Serializable):
                          generator: 'models.GeneratorModel',
                          src: sent.Sentence,
                          ref: sent.Sentence) -> losses.FactoredLossExpr:
-    loss_expr = loss_calculators.MLELoss().calc_loss(generator, src, ref)
+    loss_expr = self.loss_calculator.calc_loss(generator, src, ref)
     return loss_expr
 
 class CascadeInference(Inference, Serializable):

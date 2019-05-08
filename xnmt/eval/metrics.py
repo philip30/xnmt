@@ -1000,7 +1000,7 @@ class SegmentationFMeasureEvaluator(SentenceLevelEvaluator, Serializable):
     ref_seg = [len(x) for x in ref]
     hyp_sum = sum(hyp_seg)
     ref_sum = sum(ref_seg)
-  
+
     assert hyp_sum == ref_sum, \
            "Bad Line {} != {}: \n{}\n{}".format(hyp_sum, ref_sum, " ".join(hyp), " ".join(ref))
 
@@ -1034,7 +1034,7 @@ class RNNGParseFMeasureEvaluator(SentenceLevelEvaluator, Serializable):
     super().__init__(write_sentence_scores=write_sentence_scores)
     self.ignore_word_in_gen = ignore_word_in_gen
     self.gleu_evalutor = GLEUEvaluator()
-  
+
   def evaluate_one_sent(self, ref:Sequence[str], hyp:Sequence[str]):
     if self.ignore_word_in_gen:
       for i in range(len(ref)):
@@ -1043,6 +1043,6 @@ class RNNGParseFMeasureEvaluator(SentenceLevelEvaluator, Serializable):
       for i in range(len(hyp)):
         if hyp[i].startswith("GEN"):
           hyp[i] = "SHIFT"
-    
+
     return self.gleu_evalutor.evaluate_one_sent(ref, hyp)
- 
+

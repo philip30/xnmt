@@ -5,6 +5,7 @@ import numpy as np
 
 from xnmt import batchers
 
+
 class ExpressionSequence(object):
   """A class to represent a sequence of expressions.
 
@@ -148,6 +149,7 @@ class ExpressionSequence(object):
     else:
       return tuple(list(self[0].dim()[0]) + [len(self)]), self[0].dim()[1]
 
+
 class LazyNumpyExpressionSequence(ExpressionSequence):
   """
   This is initialized via numpy arrays, and dynet expressions are only created
@@ -188,6 +190,7 @@ class LazyNumpyExpressionSequence(ExpressionSequence):
       array = np.concatenate([d.get_array().reshape(d.get_array().shape + (1,)) for d in self.lazy_data], axis=2)
       self.expr_tensor = dy.inputTensor(array, batched=batchers.is_batched(self.lazy_data))
     return super(LazyNumpyExpressionSequence, self).as_tensor()
+
 
 class ReversedExpressionSequence(ExpressionSequence):
   """
@@ -234,16 +237,3 @@ class ReversedExpressionSequence(ExpressionSequence):
 
   def has_tensor(self) -> bool:
     return self.expr_tensor is not None
-
-
-class CompoundSeqExpression(object):
-  """ A class that represent a list of Expression Sequence. """
-
-  def __init__(self, exprseq_list):
-    self.exprseq_list = exprseq_list
-
-  def __iter__(self):
-    return iter(self.exprseq_list)
-
-  def __getitem__(self, idx):
-    return self.exprseq_list[idx]

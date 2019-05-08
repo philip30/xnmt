@@ -13,7 +13,7 @@ from xnmt.persistence import serializable_init, Serializable, bare, Ref
 
 class AutoRegressiveDecoderState(DecoderState):
   """A state holding all the information needed for AutoRegressiveDecoder
-  
+
   Args:
     rnn_state: a DyNet RNN state
     context: a DyNet expression
@@ -24,15 +24,15 @@ class AutoRegressiveDecoderState(DecoderState):
 
   def as_vector(self):
     return self.rnn_state.output()
-  
+
   @property
   def rnn_state(self):
     return self._rnn_state
-  
+
   @property
   def context(self):
     return self._context
-  
+
   @context.setter
   def context(self, value):
     self._context = value
@@ -57,7 +57,7 @@ class AutoRegressiveDecoder(Decoder, Serializable):
   @serializable_init
   def __init__(self,
                input_dim: numbers.Integral = Ref("exp_global.default_layer_dim"),
-               embedder: embedders.Embedder = bare(embedders.SimpleWordEmbedder),
+               embedder: embedders.Embedder = bare(embedders.LookupEmbedder),
                input_feeding: bool = True,
                bridge: bridges.Bridge = bare(bridges.CopyBridge),
                rnn: recurrent.UniLSTMSeqTransducer = bare(recurrent.UniLSTMSeqTransducer),
@@ -143,7 +143,7 @@ class AutoRegressiveDecoder(Decoder, Serializable):
 
   def eog_symbol(self):
     return vocabs.Vocab.ES
-  
+
   def finish_generating(self, output, dec_state):
     eog_symbol = self.eog_symbol()
     if type(output) == np.ndarray or type(output) == list:

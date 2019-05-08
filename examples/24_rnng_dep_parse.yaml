@@ -6,7 +6,7 @@ dep_parse: !Experiment
     dropout: 0.3
   # model architecture
   model: !TreeTranslator
-    src_embedder: !DenseWordEmbedder {}
+    src_embedder: !LookupEmbedder {is_dense: True}
     src_reader: !PlainTextReader
       vocab: !Vocab {vocab_file: examples/data/head.en.vocab}
     trg_reader: !CoNLLToRNNGActionsReader

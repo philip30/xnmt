@@ -104,6 +104,7 @@ class XnmtOptimizer(object):
       req_max = self.rolling_stats.average + 4*self.rolling_stats.stddev
       return not (req_min < log_norm < req_max)
 
+
 class SimpleSGDTrainer(XnmtOptimizer, Serializable):
   """
   Stochastic gradient descent trainer
@@ -122,6 +123,7 @@ class SimpleSGDTrainer(XnmtOptimizer, Serializable):
   def __init__(self, e0: numbers.Real = 0.1, skip_noisy: bool = False) -> None:
     super().__init__(optimizer=dy.SimpleSGDTrainer(ParamManager.global_collection(), e0),
                      skip_noisy=skip_noisy)
+
 
 class MomentumSGDTrainer(XnmtOptimizer, Serializable):
   """
@@ -143,6 +145,7 @@ class MomentumSGDTrainer(XnmtOptimizer, Serializable):
     super().__init__(optimizer=dy.MomentumSGDTrainer(ParamManager.global_collection(), e0, mom),
                      skip_noisy=skip_noisy)
 
+
 class AdagradTrainer(XnmtOptimizer, Serializable):
   """
   Adagrad optimizer
@@ -163,6 +166,7 @@ class AdagradTrainer(XnmtOptimizer, Serializable):
     super().__init__(optimizer=dy.AdagradTrainer(ParamManager.global_collection(), e0, eps=eps),
                      skip_noisy=skip_noisy)
 
+
 class AdadeltaTrainer(XnmtOptimizer, Serializable):
   """
   AdaDelta optimizer
@@ -182,6 +186,7 @@ class AdadeltaTrainer(XnmtOptimizer, Serializable):
   def __init__(self, eps: numbers.Real = 1e-6, rho: numbers.Real = 0.95, skip_noisy: bool = False) -> None:
     super().__init__(optimizer=dy.AdadeltaTrainer(ParamManager.global_collection(), eps, rho),
                      skip_noisy=skip_noisy)
+
 
 class AdamTrainer(XnmtOptimizer, Serializable):
   """
@@ -209,6 +214,7 @@ class AdamTrainer(XnmtOptimizer, Serializable):
                skip_noisy: bool = False) -> None:
     super().__init__(optimizer=dy.AdamTrainer(ParamManager.global_collection(), alpha, beta_1, beta_2, eps),
                      skip_noisy=skip_noisy)
+
 
 class NoamTrainer(XnmtOptimizer, Serializable):
   """
@@ -261,7 +267,6 @@ class NoamTrainer(XnmtOptimizer, Serializable):
       logger.info('  Steps=%d, learning_rate=%.2e' % (self.steps, self.optimizer.learning_rate))
 
 
-
 class DummyTrainer(XnmtOptimizer, Serializable):
   """
   A dummy trainer that does not perform any parameter updates.
@@ -293,3 +298,4 @@ class DummyTrainer(XnmtOptimizer, Serializable):
   @learning_rate.setter
   def learning_rate(self, value):
     pass
+

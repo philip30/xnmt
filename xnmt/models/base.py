@@ -3,6 +3,8 @@ from typing import Optional, Sequence, Union
 import numpy as np
 import dynet as dy
 
+import xnmt.events as events
+
 from xnmt import batchers, input_readers, sent, vocabs
 from xnmt.losses import LossExpr
 from xnmt.persistence import Serializable, serializable_init
@@ -74,19 +76,39 @@ class ConditionedModel(TrainableModel):
       A (possibly batched) expression representing the loss.
     """
     raise NotImplementedError("must be implemented by subclasses")
-  
+
+
 class PolicyConditionedModel(object):
-  def __init__(self, *args, **kwargs):
+  def __init__(self, policy_network, policy_train_oracle, policy_test_oracle):
+    self.policy_network = policy_network
+    self.policy_train_oracle = policy_train_oracle
+    self.policy_test_oracle = policy_test_oracle
+    # Model state
     self.actions = []
-    self.outputs = []
-    self.decoder_states = []
-    self.model_states = []
-  
-  def calc_policy_nll(self, src, trg):
+    self.train = True
+    self.src_sents = None
+
+  def calc_policy_nll(self, src, trg, parent_model):
     raise NotImplementedError("must be implemented by subclasses")
 
-  def create_trajectories(self, src_batch, trg_batch):
-    raise NotImplementedError("must be implemented by subclasses")
+  def create_trajectories(self, *args, **kwargs):
+    raise NotImplementedError("Must be implemented by subclasses")
+
+  def create_trajectory(self, src, trg, current_state=None, from_oracle=False, force_decoding=True, parent_model=None):
+    raise NotImplementedError("Must be implemented by subclasses")
+
+  def reset_policy_states(self):
+    self.actions.clear()
+
+  @events.handle_xnmt_event
+  def on_start_sent(self, src_batch):
+    self.reset_policy_states()
+    self.src_sents = src_batch
+
+  @events.handle_xnmt_event
+  def on_set_train(self, train):
+    self.train = train
+
 
 class GeneratorModel(object):
   """

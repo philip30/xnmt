@@ -7,9 +7,8 @@ strings.
 
 from typing import List, Union
 
-import xnmt.sent as sent
 import xnmt.vocabs as vocabs
-from xnmt.persistence import Serializable, serializable_init, Ref, Path
+from xnmt.persistence import Serializable, serializable_init
 
 class OutputProcessor(object):
   def process(self, s: str) -> str:
@@ -41,6 +40,7 @@ class OutputProcessor(object):
     else:
       return spec
 
+
 class PlainTextOutputProcessor(OutputProcessor, Serializable):
   """
   This output processor does nothing and exists only for backward compatibility.
@@ -49,6 +49,7 @@ class PlainTextOutputProcessor(OutputProcessor, Serializable):
   yaml_tag = "!PlainTextOutputProcessor"
   def process(self, s: str) -> str:
     return s
+
 
 class JoinCharTextOutputProcessor(OutputProcessor, Serializable):
   """
@@ -64,6 +65,7 @@ class JoinCharTextOutputProcessor(OutputProcessor, Serializable):
   def process(self, s: str) -> str:
     return s.replace(" ", "").replace(self.space_token, " ")
 
+
 class JoinBpeTextOutputProcessor(OutputProcessor, Serializable):
   """
   Assumes a bpe-based vocabulary and outputs the merged words.
@@ -77,6 +79,7 @@ class JoinBpeTextOutputProcessor(OutputProcessor, Serializable):
 
   def process(self, s: str) -> str:
     return s.replace(self.merge_indicator_with_space, "")
+
 
 class JoinPieceTextOutputProcessor(OutputProcessor, Serializable):
   """
@@ -92,12 +95,13 @@ class JoinPieceTextOutputProcessor(OutputProcessor, Serializable):
   def process(self, s: str) -> str:
     return s.replace(" ", "").replace(self.space_token, " ").strip()
 
+
 class DependencyLeavesOutputProcessor(OutputProcessor, Serializable):
   yaml_tag = "!DependencyLeavesOutputProcessor"
   @serializable_init
   def __init__(self, string_processor:OutputProcessor=None):
     self.string_processor = string_processor
-  
+
   def process(self, rnng_sent) -> str:
     tokens = [rnng_sent.value_vocab[node.value] for node in self._get_nodes(rnng_sent.graph)]
     i = -1
@@ -109,15 +113,16 @@ class DependencyLeavesOutputProcessor(OutputProcessor, Serializable):
       return self.string_processor.process(sent_str)
     else:
       return sent_str
-    
+
   def _get_nodes(self, graph):
     return graph.iter_nodes()
-    
+
+
 class SyntaxLeavesOutputProcessor(DependencyLeavesOutputProcessor, Serializable):
   yaml_tag = "!SyntaxLeavesOutputProcessor"
   @serializable_init
   def __init__(self, string_processor:OutputProcessor=None):
     self.string_processor = string_processor
-  
+
   def _get_nodes(self, graph):
     return [graph[x] for x in graph.leaves()]

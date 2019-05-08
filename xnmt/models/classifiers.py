@@ -36,7 +36,7 @@ class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, Seriali
   def __init__(self,
                src_reader: input_readers.InputReader,
                trg_reader: input_readers.InputReader,
-               src_embedder: embedders.Embedder = bare(embedders.SimpleWordEmbedder),
+               src_embedder: embedders.Embedder = bare(embedders.LookupEmbedder),
                encoder: transducers.SeqTransducer = bare(recurrent.BiLSTMSeqTransducer),
                inference=bare(inferences.IndependentOutputInference),
                transform: transforms.Transform = bare(transforms.NonLinear),
@@ -68,16 +68,15 @@ class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, Seriali
     else:
       units = trg.len_unpadded()
       ids = trg.value
-    
+
     h = self._encode_src(src)
     loss_expr = self.scorer.calc_loss(h, ids)
     return LossExpr(loss_expr, units)
 
-  def generate(self,
-               src: Union[batchers.Batch, sent.Sentence],
-               normalize_scores: bool = False):
+  def generate(self, src: Union[batchers.Batch, sent.Sentence], normalize_scores: bool = False, *args, **kwargs):
     if not batchers.is_batched(src):
       src = batchers.mark_as_batch([src])
+    event_trigger.start_sent(src)
     h = self._encode_src(src)
     best_words, best_scores = self.scorer.best_k(h, k=1, normalize_scores=normalize_scores)
     assert best_words.shape == (1, src.batch_size())
@@ -94,6 +93,3 @@ class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, Seriali
       outputs.append(sent.ScalarSentence(value=word, score=score))
     return outputs
 
-  def get_nobp_state(self, state):
-    output_state = state.as_vector()
-    return output_state

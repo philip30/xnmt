@@ -20,8 +20,9 @@ string2dep: !Experiment
       rnn: !UniLSTMSeqTransducer
         decoder_input_feeding: false
       bridge: !CopyBridge {}
-      term_embedder: !DenseWordEmbedder
+      term_embedder: !LookupEmbedder
         vocab: !Ref {path: model.trg_reader.surface_vocab}
+        is_dense: True
       term_scorer: !Softmax
         vocab: !Ref {path: model.trg_reader.surface_vocab}
         output_projector: !Ref {path: model.decoder.term_embedder}

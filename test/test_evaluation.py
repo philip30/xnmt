@@ -73,5 +73,15 @@ class TestSequenceAccuracy(unittest.TestCase):
                                              ["1 2 3".split(), "1 2 3".split()]).value(),
                      0.5)
 
+
+class TestSegmentationFMeasureEvaluator(unittest.TestCase):
+  def test_fmeasure(self):
+    self.assertEqual(metrics.SegmentationFMeasureEvaluator().evaluate_one_sent("ab c def".split(), "a bc def".split()).value(),
+                     0.80)
+
+  def test_fmeasure_error(self):
+    with self.assertRaises(Exception) as context:
+      metrics.SegmentationFMeasureEvaluator().evaluate_one_sent("aaa b".split(), "aaa".split())
+
 if __name__ == '__main__':
   unittest.main()

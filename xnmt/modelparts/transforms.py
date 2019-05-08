@@ -26,7 +26,7 @@ class Identity(Transform, Serializable):
 class Linear(Transform, Serializable):
   """
   Linear projection with optional bias.
-  
+
   Args:
     input_dim: input dimension
     output_dim: hidden dimension
@@ -63,7 +63,7 @@ class Linear(Transform, Serializable):
 class NonLinear(Transform, Serializable):
   """
   Linear projection with optional bias and non-linearity.
-  
+
   Args:
     input_dim: input dimension
     output_dim: hidden dimension
@@ -123,7 +123,7 @@ class NonLinear(Transform, Serializable):
 class AuxNonLinear(NonLinear, Serializable):
   """
   NonLinear with an additional auxiliary input.
-  
+
   Args:
     input_dim: input dimension
     output_dim: hidden dimension

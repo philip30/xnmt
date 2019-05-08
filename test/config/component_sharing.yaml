@@ -7,7 +7,7 @@ exp1.pretrain: !Experiment
       vocab: !Vocab {vocab_file: examples/data/head.ja.vocab}
     trg_reader: !PlainTextReader
       vocab: !Vocab {vocab_file: examples/data/head.en.vocab}
-    src_embedder: !SimpleWordEmbedder
+    src_embedder: !LookupEmbedder
       emb_dim: 32
     encoder: !ModularSeqTransducer
       modules:
@@ -44,4 +44,4 @@ exp1.pretrain: !Experiment
 
 exp2.load: !LoadSerialized
   filename: test/tmp/exp1.pretrain.mod
-  
+

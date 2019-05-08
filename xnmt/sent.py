@@ -7,7 +7,7 @@ from typing import List, Optional, Sequence, Union
 import numpy as np
 
 from xnmt.vocabs import Vocab
-from xnmt.output import OutputProcessor
+from xnmt.output_processors import OutputProcessor
 from xnmt.graph import  HyperGraph, HyperNode, HyperEdge
 
 class Sentence(object):
@@ -83,7 +83,7 @@ class Sentence(object):
       return self
     else:
       return self[:self.len_unpadded()]
-  
+
   def batch_size(self):
     return 1
 
@@ -111,7 +111,7 @@ class ReadableSentence(Sentence):
     Returns: list of tokens.
     """
     raise NotImplementedError("must be implemented by subclasses")
-  
+
   def sent_str(self, custom_output_procs=None, **kwargs) -> str:
     """
     Return a single string containing the readable version of the sentence.
@@ -130,10 +130,10 @@ class ReadableSentence(Sentence):
     for pp in pps:
       out_str = pp.process(out_str)
     return out_str
-  
+
   def __repr__(self):
     return f'"{self.sent_str()}"'
-  
+
   def __str__(self):
     return self.sent_str()
 
@@ -223,7 +223,7 @@ class SimpleSentence(ReadableSentence):
     unpadded_sent: reference to original, unpadded sentence if available
   """
   def __init__(self,
-               words: Sequence[numbers.Integral],
+               words,
                idx: Optional[numbers.Integral] = None,
                vocab: Optional[Vocab] = None,
                score: Optional[numbers.Real] = None,
@@ -270,7 +270,7 @@ class SimpleSentence(ReadableSentence):
       exclude_set.add(Vocab.SS)
       exclude_set.add(Vocab.ES)
     if exclude_unk: exclude_set.add(self.vocab.unk_token)
-    # TODO: exclude padded if requested (i.e., all </s> tags except for the first)
+    if exclude_padded: exclude_set.add(Vocab.PAD)
     ret_toks =  [w for w in self.words if w not in exclude_set]
     if self.vocab: return [self.vocab[w] for w in ret_toks]
     else: return [str(w) for w in ret_toks]
@@ -286,28 +286,52 @@ class SimpleSentence(ReadableSentence):
                           output_procs=self.output_procs,
                           pad_token=self.pad_token,
                           unpadded_sent=unpadded_sent)
-  
+
 class AuxSimpleSentence(SimpleSentence):
   def __init__(self, **kwargs):
     super().__init__(**kwargs)
-    
+
   def len_unpadded(self):
     return 0
-  
+
   def sent_len(self):
     return 0
-  
+
   def real_len_unpadded(self):
     return super().len_unpadded()
-  
+
   def real_sent_len(self):
     return super().sent_len()
 
 
 class SegmentedSentence(SimpleSentence):
-  def __init__(self, segment=[], **kwargs) -> None:
-    super().__init__(**kwargs)
+  def __init__(self, words, segment=[], **kwargs) -> None:
+    super().__init__(words=words, **kwargs)
+    assert(all([type(x) == SegmentedWord for x in words]))
     self.segment = segment
+
+  def str_tokens(self, exclude_ss_es=True, exclude_unk=False, exclude_padded=True, **kwargs):
+    exclude_set = set()
+    if exclude_ss_es:
+      exclude_set.add(Vocab.SS)
+      exclude_set.add(Vocab.ES)
+    if exclude_unk: exclude_set.add(self.vocab.unk_token)
+    if exclude_padded: exclude_set.add(Vocab.PAD)
+    ret_toks =  [w.word for w in self.words if w not in exclude_set]
+    if self.vocab: return [self.vocab[w] for w in ret_toks]
+    else: return [str(w) for w in ret_toks]
+
+  def create_padded_sent(self, pad_len: numbers.Integral) -> 'SegmentedSentence':
+    if pad_len == 0:
+      return self
+    return self.sent_with_new_words(self.words + [SegmentedWord([self.pad_token], self.pad_token)] * pad_len)
+
+  def __getitem__(self, key):
+    ret = self.words[key]
+    if isinstance(ret, list):  # support for slicing
+      return SegmentedSentence(words=ret, idx=self.idx, vocab=self.vocab, score=self.score, output_procs=self.output_procs,
+                            pad_token=self.pad_token, unpadded_sent=self.unpadded_sent)
+    return ret.word
 
   def sent_with_new_words(self, new_words):
     return SegmentedSentence(words=new_words,
@@ -319,6 +343,28 @@ class SegmentedSentence(SimpleSentence):
                              segment=self.segment,
                              unpadded_sent=self.unpadded_sent)
 
+
+class SegmentedWord(object):
+  def __init__(self, chars, word):
+    self.chars = chars
+    self.word = word
+
+  def __hash__(self):
+    if self.word is not None:
+      return hash(self.word)
+    else:
+      return hash(tuple(self.chars))
+
+  def __eq__(self, other):
+    if type(other) == int:
+      return self.word == other
+    elif type(other) == list or type(other) == tuple:
+      return len(other) == len(self.chars) and \
+             all([x == y for x, y in zip(self.chars, other)])
+    elif type(other) == SegmentedWord:
+      return self.chars == other.chars and self.word == other.word
+    else:
+      return False
 
 class ArraySentence(Sentence):
   """
@@ -433,7 +479,7 @@ class GraphSentence(ReadableSentence):
     self.value_vocab = value_vocab
     self.num_padded = num_padded
     self.unpadded_sent = unpadded_sent
-    
+
   @functools.lru_cache(maxsize=1)
   def topo_sort(self):
     """
@@ -554,7 +600,7 @@ class GraphSentence(ReadableSentence):
     """
     out_str = str([self.str_tokens(**kwargs), [self.graph.sucessors(node.node_id) for node in self.graph.iter_nodes()]])
     return out_str
-  
+
   def plot(self, out_file):
     try:
       from graphviz import Digraph
@@ -607,27 +653,27 @@ class LatticeNode(HyperNode):
   def feature_str(self):
     return "{:.3f}|{:.3f}|{:.3f}".format(self.fwd_log_prob, self.marginal_log_prob, self.bwd_log_prob)
 
-    
+
 class SyntaxTreeNode(HyperNode):
   class Type(enum.Enum):
     NONE=0
     NT=1
     PRT=2
     T=3
-  
+
   def __init__(self, node_id, value, head, node_type=Type.NONE):
     super().__init__(value, node_id)
     self._head = head
     self._type = node_type
-    
+
   @property
   def head(self):
     return self._head
-  
+
   @property
   def node_type(self):
     return self._type
-  
+
 class RNNGAction(object):
   class Type(enum.Enum):
     GEN=0
@@ -636,23 +682,23 @@ class RNNGAction(object):
     REDUCE_RIGHT=3
     REDUCE_NT=4
     NONE=5
-    
+
   def __init__(self, action_type, action_content=None):
     self._action_type = action_type
     self._action_content = action_content
-  
+
   @property
   def action_type(self):
     return self._action_type
-  
+
   @property
   def action_content(self):
     return self._action_content
-  
+
   @property
   def action_id(self):
     return self.action_type.value
-  
+
   def str_token(self, surface_vocab, nt_vocab, edge_vocab):
     if self.action_type == self.Type.GEN:
       return "GEN('{}')".format(surface_vocab[self.action_content])
@@ -664,13 +710,13 @@ class RNNGAction(object):
       return "RR('{}')".format(edge_vocab[self.action_content])
     else:
       return "NONE()"
- 
+
   def __eq__(self, other):
     if type(other) == type(self):
       return self.action_type == other.action_type and self.action_content == other.action_content
     else:
       return False
-    
+
   def __repr__(self):
     if self.action_type == self.Type.GEN:
       return "GEN('{}')".format(self.action_content)
@@ -683,7 +729,7 @@ class RNNGAction(object):
     else:
       return "NONE()"
 
-  
+
 class DepTreeRNNGSequenceSentence(GraphSentence):
   def __init__(self,
                idx: Optional[numbers.Integral],
@@ -718,10 +764,10 @@ class DepTreeRNNGSequenceSentence(GraphSentence):
 
   def sent_len(self) -> int:
     return len(self.actions)
-  
+
   def len_unpadded(self) -> int:
     return len(self.actions)
-  
+
   def str_tokens(self, **kwargs) -> List[str]:
     return [action.str_token(self.value_vocab, self.node_vocab, self.edge_vocab) for action in self.actions]
 
@@ -747,7 +793,7 @@ class DepTreeRNNGSequenceSentence(GraphSentence):
     padded_sent = copy.deepcopy(self)
     padded_sent.actions[-pad_len:] = [RNNGAction.Type.NONE for _ in range(pad_len)]
     return padded_sent
-    
+
   def _actions_from_graph(self, all_surfaces):
     roots = self.graph.roots()
     # Only 1 Head
@@ -761,7 +807,7 @@ class DepTreeRNNGSequenceSentence(GraphSentence):
         else: # Non Terminal
           results[0].append(RNNGAction(RNNGAction.Type.NT, self.node_vocab.convert(self.graph[i].value)))
       results[1] = max(results[1], current_id+1)
-      
+
       for child, edge in sorted(successors):
         actions_from_graph(child, results)
         label = self.edge_vocab.convert(edge.label) if self.edge_vocab is not None else None
@@ -772,7 +818,7 @@ class DepTreeRNNGSequenceSentence(GraphSentence):
       return results[0]
     # Driver function
     return actions_from_graph(roots[0], [[], 1])
-  
+
   def _graph_from_actions(self, actions):
     stack = []
     node_list = {}
@@ -805,7 +851,7 @@ class ParseTreeRNNGSequenceSentence(DepTreeRNNGSequenceSentence):
   def _actions_from_graph(self, all_surfaces):
     roots = self.graph.roots()
     assert len(roots) == 1
-    
+
     def actions_from_graph(now_id, result, visited):
       now = self.graph[now_id]
       if now.node_id in visited:
@@ -820,8 +866,8 @@ class ParseTreeRNNGSequenceSentence(DepTreeRNNGSequenceSentence):
         result.append(RNNGAction(RNNGAction.Type.REDUCE_NT))
       else:
         result.append(RNNGAction(RNNGAction.Type.GEN, now.head))
-    
+
     buffer_result = []
     actions_from_graph(roots[0], buffer_result, set())
     return buffer_result
-    
+

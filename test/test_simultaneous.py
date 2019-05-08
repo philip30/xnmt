@@ -13,7 +13,7 @@ import xnmt.modelparts.transforms as transforms
 from xnmt.modelparts.attenders import MlpAttender
 from xnmt.modelparts.bridges import NoBridge
 from xnmt.modelparts.decoders import AutoRegressiveDecoder
-from xnmt.modelparts.embedders import SimpleWordEmbedder
+from xnmt.modelparts.embedders import LookupEmbedder
 import xnmt.events
 from xnmt import batchers, event_trigger
 from xnmt.param_collections import ParamManager
@@ -50,7 +50,7 @@ class TestSimultaneousTranslation(unittest.TestCase):
     self.model = SimultaneousTranslator(
       src_reader=self.src_reader,
       trg_reader=self.trg_reader,
-      src_embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=self.input_vocab_size),
+      src_embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=self.input_vocab_size),
       encoder=UniLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim),
       attender=MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
       decoder=AutoRegressiveDecoder(input_dim=layer_dim,
@@ -59,7 +59,7 @@ class TestSimultaneousTranslation(unittest.TestCase):
                                     transform=AuxNonLinear(input_dim=layer_dim, output_dim=layer_dim,
                                                            aux_input_dim=layer_dim),
                                     scorer=Softmax(vocab_size=self.output_vocab_size, input_dim=layer_dim),
-                                    embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=self.output_vocab_size),
+                                    embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=self.output_vocab_size),
                                     bridge=NoBridge(dec_dim=layer_dim, dec_layers=1)),
       policy_train_oracle=False,
       policy_test_oracle=False,
@@ -81,6 +81,8 @@ class TestSimultaneousTranslation(unittest.TestCase):
 
   def test_simult_beam(self):
     event_trigger.set_train(False)
+    mle_loss = loss_calculators.MLELoss()
+    mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
     self.model.generate(batchers.mark_as_batch([self.src_data[0]]), BeamSearch(beam_size=2))
    
 
@@ -111,7 +113,7 @@ class TestSimultTranslationWithGivenAction(unittest.TestCase):
     self.model = SimultaneousTranslator(
       src_reader=self.src_reader,
       trg_reader=self.trg_reader,
-      src_embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=self.input_vocab_size),
+      src_embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=self.input_vocab_size),
       encoder=UniLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim),
       attender=MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
       decoder=AutoRegressiveDecoder(input_dim=layer_dim,
@@ -120,7 +122,7 @@ class TestSimultTranslationWithGivenAction(unittest.TestCase):
                                     transform=AuxNonLinear(input_dim=layer_dim, output_dim=layer_dim,
                                                            aux_input_dim=layer_dim),
                                     scorer=Softmax(vocab_size=self.output_vocab_size, input_dim=layer_dim),
-                                    embedder=SimpleWordEmbedder(emb_dim=layer_dim, vocab_size=self.output_vocab_size),
+                                    embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=self.output_vocab_size),
                                     bridge=NoBridge(dec_dim=layer_dim, dec_layers=1)),
       policy_network = network.PolicyNetwork(transforms.MLP(2*self.layer_dim, self.layer_dim, 2)),
       policy_train_oracle=True,
@@ -139,7 +141,7 @@ class TestSimultTranslationWithGivenAction(unittest.TestCase):
     mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
     
     pol_loss = loss_calculators.PolicyMLELoss()
-    pol_loss.calc_loss(self.model, self.src[0], self.trg[0])
+    pol_loss._perform_calc_loss(self.model, self.src[0], self.trg[0])
 
     event_trigger.set_train(False)
     self.model.generate(batchers.mark_as_batch([self.src_data[0]]), GreedySearch())

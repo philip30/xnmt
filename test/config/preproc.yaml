@@ -58,7 +58,7 @@ standard-preproc: !Experiment
     trg_reader: !PlainTextReader
       vocab: !Vocab
         vocab_file: test/tmp/head.vocab.en
-    src_embedder: !SimpleWordEmbedder
+    src_embedder: !LookupEmbedder
       emb_dim: 256
     encoder: !BiLSTMSeqTransducer
       layers: 1
@@ -67,7 +67,7 @@ standard-preproc: !Experiment
       state_dim: 256
       input_dim: 256
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
+      embedder: !LookupEmbedder
         emb_dim: 256
       rnn: !UniLSTMSeqTransducer
         layers: 1

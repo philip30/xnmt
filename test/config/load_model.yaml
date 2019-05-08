@@ -9,7 +9,7 @@ exp1-pretrain-model: !Experiment
       vocab: !Vocab {vocab_file: examples/data/head.ja.vocab}
     trg_reader: !PlainTextReader
       vocab: !Vocab {vocab_file: examples/data/head.en.vocab}
-    src_embedder: !SimpleWordEmbedder
+    src_embedder: !LookupEmbedder
       emb_dim: 64
     encoder: !BiLSTMSeqTransducer
       layers: 2
@@ -19,7 +19,7 @@ exp1-pretrain-model: !Experiment
       hidden_dim: 64
       input_dim: 64
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
+      embedder: !LookupEmbedder
         emb_dim: 64
       rnn: !UniLSTMSeqTransducer
         layers: 1

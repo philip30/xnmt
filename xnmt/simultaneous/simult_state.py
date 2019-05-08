@@ -34,13 +34,13 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
     self.reset_attender = reset_attender
     self.cache = {}
     self.parent = parent
-    
+
   def read(self, src_encoding, policy_action):
     return SimultaneousState(self.model, src_encoding, self.decoder_state,
                              has_been_read=self.has_been_read+1, has_been_written=self.has_been_written,
                              written_word=self.written_word, policy_action=policy_action, reset_attender=True,
                              parent=self)
-  
+
   def write(self, src_encoding, word, policy_action):
     # Reset attender if there is a read action
     reset_attender = self.reset_attender
@@ -58,13 +58,13 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
       decoder_state = self.model.decoder.add_input(self.decoder_state, word)
     decoder_state.attention = self.model.attender.calc_attention(decoder_state.as_vector())
     decoder_state.context = self.model.attender.calc_context(decoder_state.as_vector(), decoder_state.attention)
-    
+
     # Calc context for decoding
     return SimultaneousState(self.model, self.encoder_state, decoder_state,
                              has_been_read=self.has_been_read, has_been_written=self.has_been_written+1,
                              written_word=word, policy_action=policy_action, reset_attender=reset_attender,
                              parent=self)
-  
+
   def find_backward(self, field):
     now = self
     results = []
@@ -82,16 +82,16 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
       now = now.parent
     self.cache[field] = results
     return self.cache[field]
- 
+
   # These states are used for decoding
   @property
   def rnn_state(self):
     return self.decoder_state.rnn_state
-  
+
   @property
   def context(self):
     return self.decoder_state.context
-  
+
   def __repr__(self):
     content = self.policy_action.content if self.policy_action is not None else None
     return "({}, {}, {})".format(content, self.has_been_read, self.has_been_written)

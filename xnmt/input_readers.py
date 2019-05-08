@@ -1,23 +1,22 @@
-from itertools import zip_longest
-from functools import lru_cache
+import functools
+import itertools
 import ast
-from typing import Any, Iterator, Optional, Sequence, Union
 import numbers
-
+import warnings
 import numpy as np
 
-import warnings
-with warnings.catch_warnings():
-  warnings.simplefilter("ignore", lineno=36)
-  import h5py
+from typing import Iterator, Optional, Sequence, Union
 
 from xnmt import logger
-
 from xnmt import events, vocabs
 from xnmt.graph import HyperEdge, HyperGraph
 from xnmt.persistence import serializable_init, Serializable
 from xnmt import sent
-from xnmt import batchers, output
+from xnmt import batchers, output_processors
+
+with warnings.catch_warnings():
+  warnings.simplefilter("ignore", lineno=36)
+  import h5py
 
 
 class InputReader(object):
@@ -51,6 +50,9 @@ class InputReader(object):
     """
     return False
 
+  def iterate_filtered(self, filename: str, filter_ids:Optional[Sequence[numbers.Integral]]=None):
+    raise NotImplementedError()
+
 
 class BaseTextReader(InputReader):
 
@@ -65,7 +67,7 @@ class BaseTextReader(InputReader):
     """
     raise RuntimeError("Input readers must implement the read_sent function")
 
-  @lru_cache(maxsize=128)
+  @functools.lru_cache(maxsize=1)
   def count_sents(self, filename: str) -> numbers.Integral:
     newlines = 0
     with open(filename, 'r+b') as f:
@@ -93,11 +95,6 @@ class BaseTextReader(InputReader):
         if max_id is not None and sent_count > max_id:
           break
 
-def convert_int(x: Any) -> numbers.Integral:
-  try:
-    return int(x)
-  except ValueError:
-    raise ValueError(f"Expecting integer tokens because no vocab was set. Got: '{x}'")
 
 class PlainTextReader(BaseTextReader, Serializable):
   """
@@ -106,35 +103,37 @@ class PlainTextReader(BaseTextReader, Serializable):
   Args:
     vocab: Vocabulary to convert string tokens to integer ids. If not given, plain text will be assumed to contain
            space-separated integer ids.
-    read_sent_len: if set, read the length of each sentence instead of the sentence itself. EOS is not counted.
     output_proc: output processors to revert the created sentences back to a readable string
   """
   yaml_tag = '!PlainTextReader'
- 
+
   @serializable_init
   def __init__(self,
                vocab: Optional[vocabs.Vocab] = None,
-               read_sent_len: bool = False,
-               output_proc: Sequence[output.OutputProcessor] = []) -> None:
+               output_proc: Sequence[output_processors.OutputProcessor] = []) -> None:
     self.vocab = vocab
-    self.read_sent_len = read_sent_len
-    self.output_procs = output.OutputProcessor.get_output_processor(output_proc)
+    self.output_procs = output_processors.OutputProcessor.get_output_processor(output_proc)
 
-  def read_sent(self, line: str, idx: numbers.Integral) -> sent.Sentence:
-    if self.vocab:
-      convert_fct = self.vocab.convert
-    else:
-      convert_fct = convert_int
-    if self.read_sent_len:
-      return sent.ScalarSentence(idx=idx, value=len(line.strip().split()))
-    else:
-      return sent.SimpleSentence(idx=idx,
-                                 words=[convert_fct(word) for word in line.strip().split()] + [vocabs.Vocab.ES],
-                                 vocab=self.vocab,
-                                 output_procs=self.output_procs)
+  def read_sent(self, line: str, idx: numbers.Integral) -> sent.SimpleSentence:
+    return sent.SimpleSentence(idx=idx,
+                               words=[self.vocab.convert(word) for word in line.strip().split()] + [vocabs.Vocab.ES],
+                               vocab=self.vocab,
+                               output_procs=self.output_procs)
 
   def vocab_size(self) -> numbers.Integral:
     return len(self.vocab)
+
+
+class LengthTextReader(BaseTextReader, Serializable):
+  yaml_tag = '!LengthTextReader'
+
+  @serializable_init
+  def __init__(self, output_proc: Sequence[output_processors.OutputProcessor] = []) -> None:
+    self.output_procs = output_processors.OutputProcessor.get_output_processor(output_proc)
+
+  def read_sent(self, line:str, idx:numbers.Integral) -> sent.ScalarSentence:
+    return sent.ScalarSentence(idx=idx, value=len(line.strip().split()))
+
 
 class CompoundReader(InputReader, Serializable):
   """
@@ -191,7 +190,7 @@ class SentencePieceTextReader(BaseTextReader, Serializable):
                l: numbers.Integral=-1,
                alpha: numbers.Real=0.1,
                vocab: Optional[vocabs.Vocab]=None,
-               output_proc=[output.JoinPieceTextOutputProcessor]) -> None:
+               output_proc=[output_processors.JoinPieceTextOutputProcessor]) -> None:
     """
     Args:
       model_file: The sentence piece model file
@@ -209,7 +208,7 @@ class SentencePieceTextReader(BaseTextReader, Serializable):
     self.alpha = alpha
     self.vocab = vocab
     self.train = False
-    self.output_procs = output.OutputProcessor.get_output_processor(output_proc)
+    self.output_procs = output_processors.OutputProcessor.get_output_processor(output_proc)
 
   @events.handle_xnmt_event
   def on_set_train(self, val):
@@ -229,6 +228,7 @@ class SentencePieceTextReader(BaseTextReader, Serializable):
   def vocab_size(self) -> numbers.Integral:
     return len(self.vocab)
 
+
 class RamlTextReader(BaseTextReader, Serializable):
   """
   Handles the RAML sampling, can be used on the target side, or on both the source and target side.
@@ -243,7 +243,7 @@ class RamlTextReader(BaseTextReader, Serializable):
   def __init__(self,
                tau: Optional[float] = 1.,
                vocab: Optional[vocabs.Vocab] = None,
-               output_proc: Sequence[output.OutputProcessor]=[]) -> None:
+               output_proc: Sequence[output_processors.OutputProcessor]=[]) -> None:
     """
     Args:
       tau: The temperature that controls peakiness of the sampling distribution
@@ -251,7 +251,7 @@ class RamlTextReader(BaseTextReader, Serializable):
     """
     self.tau = tau
     self.vocab = vocab
-    self.output_procs = output.OutputProcessor.get_output_processor(output_proc)
+    self.output_procs = output_processors.OutputProcessor.get_output_processor(output_proc)
 
   @events.handle_xnmt_event
   def on_set_train(self, val):
@@ -282,62 +282,53 @@ class RamlTextReader(BaseTextReader, Serializable):
   def needs_reload(self) -> bool:
     return True
 
+
 class CharFromWordTextReader(PlainTextReader, Serializable):
   """
   Read in word based corpus and turned that into SegmentedSentence.
   SegmentedSentece's words are characters, but it contains the information of the segmentation.
-  
-  x = SegmentedSentence("i code today")
-  (TRUE) x.words == ["i", "c", "o", "d", "e", "t", "o", "d", "a", "y"]
-  (TRUE) x.segment == [0, 4, 9]
-
-  It means that the segmentation (end of words) happen in the 0th, 4th and 9th position of the char sequence.
   """
   yaml_tag = "!CharFromWordTextReader"
   @serializable_init
   def __init__(self,
                vocab: vocabs.Vocab = None,
-               read_sent_len: bool = False,
-               output_proc: Sequence[output.OutputProcessor] = []) -> None:
-    self.vocab = vocab
-    self.read_sent_len = read_sent_len
-    self.output_procs = output.OutputProcessor.get_output_processor(output_proc)
+               char_vocab: vocabs.CharVocab = None, *args, **kwargs):
+    assert char_vocab is not None and vocab is not None
+    super().__init__(vocab=vocab, *args, **kwargs)
+    self.char_vocab = char_vocab
 
   def read_sent(self, line: str, idx: numbers.Integral) -> sent.SegmentedSentence:
-    chars = []
+    words = []
     segs = []
     offset = 0
-    for word in line.strip().split():
+    for word in line.strip().split() + [vocabs.Vocab.ES_STR]:
       offset += len(word)
       segs.append(offset-1)
-      chars.extend([c for c in word])
-    segs.append(len(chars))
-    chars.append(vocabs.Vocab.ES_STR)
-    sent_input = sent.SegmentedSentence(segment=segs,
-                                        words=[self.vocab.convert(c) for c in chars],
-                                        idx=idx,
-                                        vocab=self.vocab,
-                                        output_procs=self.output_procs)
-    return sent_input
-  
+      words.append(sent.SegmentedWord(tuple([self.char_vocab.convert(c) for c in word]), self.vocab.convert(word)))
+    segment = np.zeros(segs[-1]+1)
+    segment[segs] = 1
+
+    return sent.SegmentedSentence(segment=segs, words=words, idx=idx, vocab=self.vocab, output_procs=self.output_procs)
+
+
 class SimultActionTextReader(PlainTextReader, Serializable):
   yaml_tag = "!SimultActionTextReader"
-  
+
   @serializable_init
   def __init__(self):
     self.vocab = vocabs.Vocab(i2w=["READ", "WRITE"])
-  
+
   def read_sent(self, line: str, idx: numbers.Integral) -> sent.Sentence:
     try:
       actions = [self._parse_action(x) for x in line.strip().split()]
     except ValueError:
       raise ValueError("Error on idx {} on line: \n{}".format(idx, line.strip()))
-    
+
     actions.extend([self.vocab.convert("READ"),
                     self.vocab.convert("WRITE")])
-    
+
     return sent.AuxSimpleSentence(words=actions, idx=idx, vocab=self.vocab)
-    
+
   def _parse_action(self, action_str: str):
     if action_str.endswith(")"):
       start_index = action_str.index("(")
@@ -345,12 +336,12 @@ class SimultActionTextReader(PlainTextReader, Serializable):
       action_str = action_str[:start_index]
     else:
       content = None
-      
+
     if action_str == "READ" or action_str == "WRITE":
       return self.vocab.convert(action_str)
     else:
       raise ValueError(content)
-    
+
 
 class H5Reader(InputReader, Serializable):
   """
@@ -462,14 +453,14 @@ class NpzReader(InputReader, Serializable):
     self.timestep_truncate = timestep_truncate
 
   def read_sents(self, filename: str, filter_ids: Optional[Sequence[numbers.Integral]] = None) -> None:
-    npzFile = np.load(filename, mmap_mode=None if filter_ids is None else "r")
-    npzKeys = sorted(npzFile.files, key=lambda x: int(x.split('_')[-1]))
+    npz_file = np.load(filename, mmap_mode=None if filter_ids is None else "r")
+    npz_keys = sorted(npz_file.files, key=lambda x: int(x.split('_')[-1]))
     if filter_ids is not None:
       filter_ids = sorted(filter_ids)
-      npzKeys = [npzKeys[i] for i in filter_ids]
-      npzKeys.sort(key=lambda x: int(x.split('_')[-1]))
-    for sent_no, key in enumerate(npzKeys):
-      inp = npzFile[key]
+      npz_keys = [npz_keys[i] for i in filter_ids]
+      npz_keys.sort(key=lambda x: int(x.split('_')[-1]))
+    for sent_no, key in enumerate(npz_keys):
+      inp = npz_file[key]
       if self.transpose:
         inp = inp.transpose()
 
@@ -481,15 +472,16 @@ class NpzReader(InputReader, Serializable):
         inp = sub_inp
 
       if sent_no % 1000 == 999:
-        logger.info(f"Read {sent_no+1} lines ({float(sent_no+1)/len(npzKeys)*100:.2f}%) of {filename} at {key}")
+        logger.info(f"Read {sent_no+1} lines ({float(sent_no+1)/len(npz_keys)*100:.2f}%) of {filename} at {key}")
       yield sent.ArraySentence(idx=filter_ids[sent_no] if filter_ids else sent_no, nparr=inp)
-    npzFile.close()
+    npz_file.close()
 
   def count_sents(self, filename: str) -> numbers.Integral:
     npz_file = np.load(filename, mmap_mode="r")  # for counting sentences, only read the index
     l = len(npz_file.files)
     npz_file.close()
     return l
+
 
 class IDReader(BaseTextReader, Serializable):
   """
@@ -515,20 +507,20 @@ class GraphReader(BaseTextReader):
     self._node_vocab = node_vocab
     self._edge_vocab = edge_vocab
     self._value_vocab = value_vocab
-  
+
   @property
   def node_vocab(self):
     return self._node_vocab
-  
+
   @property
   def edge_vocab(self):
     return self._edge_vocab
-  
+
   @property
   def value_vocab(self):
     return self._value_vocab
- 
- 
+
+
 class CoNLLToRNNGActionsReader(GraphReader, Serializable):
   """
   Handles the reading of CoNLL File Format:
@@ -541,7 +533,7 @@ class CoNLLToRNNGActionsReader(GraphReader, Serializable):
   @serializable_init
   def __init__(self, surface_vocab: vocabs.Vocab, nt_vocab: vocabs.Vocab, edg_vocab: vocabs.Vocab, output_procs=[]):
     super().__init__(nt_vocab, edg_vocab, surface_vocab)
-    self.output_procs = output.OutputProcessor.get_output_processor(output_procs)
+    self.output_procs = output_processors.OutputProcessor.get_output_processor(output_procs)
 
   def read_sents(self, filename: str, filter_ids: Sequence[numbers.Integral] = None):
     # Routine to add tree
@@ -588,13 +580,14 @@ class CoNLLToRNNGActionsReader(GraphReader, Serializable):
       if len(lines) != 0:
         yield emit_tree(idx, lines)
 
+
 class PennTreeBankReader(GraphReader, Serializable):
   yaml_tag = "!PennTreeBankReader"
   @serializable_init
   def __init__(self, word_vocab: vocabs.Vocab, head_vocab: vocabs.Vocab, output_procs=[]):
     super().__init__(head_vocab, None, word_vocab)
-    self.output_procs = output.OutputProcessor.get_output_processor(output_procs)
-   
+    self.output_procs = output_processors.OutputProcessor.get_output_processor(output_procs)
+
   def _read_tree_from_line(self, line):
     stack = []
     edges = []
@@ -629,7 +622,7 @@ class PennTreeBankReader(GraphReader, Serializable):
               edges.append(HyperEdge(parent.node_id, [child.node_id]))
           now_depth -= 1
     return HyperGraph(edges, nodes)
-    
+
   def read_sents(self, filename: str, filter_ids: Sequence[numbers.Integral] = None):
     with open(filename) as fp:
       for idx, line in enumerate(fp):
@@ -642,7 +635,7 @@ class PennTreeBankReader(GraphReader, Serializable):
                                                  edge_vocab=self.edge_vocab,
                                                  all_surfaces=False,
                                                  output_procs=self.output_procs)
-        
+
 
 class LatticeReader(GraphReader, Serializable):
   """
@@ -756,7 +749,7 @@ def read_parallel_corpus(src_reader: InputReader,
     src_len, trg_len = 0, 0
   src_train_iterator = src_reader.read_sents(src_file, filter_ids)
   trg_train_iterator = trg_reader.read_sents(trg_file, filter_ids)
-  for src_sent, trg_sent in zip_longest(src_train_iterator, trg_train_iterator):
+  for src_sent, trg_sent in itertools.zip_longest(src_train_iterator, trg_train_iterator):
     if src_sent is None or trg_sent is None:
       raise RuntimeError(f"training src sentences don't match trg sentences: {src_len or src_reader.count_sents(src_file)} != {trg_len or trg_reader.count_sents(trg_file)}!")
     if max_num_sents and (max_num_sents <= len(src_data)):

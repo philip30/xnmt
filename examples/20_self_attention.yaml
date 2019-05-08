@@ -29,7 +29,7 @@
       vocab: !Vocab {vocab_file: '{DATA_OUT}/train.ja.vocab'}
     trg_reader: !PlainTextReader
       vocab: !Vocab {vocab_file: '{DATA_OUT}/train.en.vocab'}
-    src_embedder: !SimpleWordEmbedder
+    src_embedder: !LookupEmbedder
       emb_dim: 512
     encoder: !ModularSeqTransducer
       modules:
@@ -61,7 +61,7 @@
       state_dim: 512
       input_dim: 512
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
+      embedder: !LookupEmbedder
         emb_dim: 512
       rnn: !UniLSTMSeqTransducer
         layers: 1

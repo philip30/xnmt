@@ -1,5 +1,6 @@
-from typing import Any, List, Optional, Sequence
 import numbers
+
+from typing import Any, List, Optional, Sequence
 
 from xnmt.persistence import serializable_init, Serializable
 
@@ -16,7 +17,6 @@ class Vocab(Serializable):
   Args:
     i2w: complete list of known words, including ``<s>`` and ``</s>``.
     vocab_file: file containing one word per line, and not containing <s>, </s>, <unk>
-    sentencepiece_vocab: Set to ``True`` if ``vocab_file`` is the output of the sentencepiece tokenizer. Defaults to ``False``.
   """
 
   yaml_tag = "!Vocab"
@@ -24,6 +24,7 @@ class Vocab(Serializable):
   SS = 0
   ES = 1
   PAD = 2
+  UNK = 3
 
   SS_STR = "<s>"
   ES_STR = "</s>"
@@ -33,56 +34,50 @@ class Vocab(Serializable):
   @serializable_init
   def __init__(self,
                i2w: Optional[Sequence[str]] = None,
-               vocab_file: Optional[str] = None,
-               sentencepiece_vocab: bool = False) -> None:
+               vocab_file: Optional[str] = None):
+    super().__init__()
     assert i2w is None or vocab_file is None
     assert i2w or vocab_file
     if vocab_file:
-      i2w = Vocab.i2w_from_vocab_file(vocab_file, sentencepiece_vocab)
+      i2w = self.i2w_from_vocab_file(vocab_file)
     assert i2w is not None
     self.i2w = i2w
     self.w2i = {word: word_id for (word_id, word) in enumerate(self.i2w)}
     if Vocab.UNK_STR not in self.w2i:
       self.w2i[Vocab.UNK_STR] = len(self.i2w)
       self.i2w.append(Vocab.UNK_STR)
-    self.unk_token = self.w2i[Vocab.UNK_STR]
     self.save_processed_arg("i2w", self.i2w)
     self.save_processed_arg("vocab_file", None)
 
-  @staticmethod
-  def i2w_from_vocab_file(vocab_file: str, sentencepiece_vocab: bool = False) -> List[str]:
+  def i2w_from_vocab_file(self, vocab_file: str) -> List[str]:
     """Load the vocabulary from a file.
-    
+
     If ``sentencepiece_vocab`` is set to True, this will accept a sentencepiece vocabulary file
-    
+
     Args:
       vocab_file: file containing one word per line, and not containing ``<s>``, ``</s>``, ``<unk>``
-      sentencepiece_vocab (bool): Set to ``True`` if ``vocab_file`` is the output of the sentencepiece tokenizer. Defaults to ``False``.
     """
-    vocab = [Vocab.SS_STR, Vocab.ES_STR, Vocab.PAD_STR]
-    reserved = {Vocab.SS_STR, Vocab.ES_STR, Vocab.UNK_STR, Vocab.PAD_STR}
+    vocab = [Vocab.SS_STR, Vocab.ES_STR, Vocab.PAD_STR, Vocab.UNK_STR]
     with open(vocab_file, encoding='utf-8') as f:
       for line in f:
         word = line.strip()
-        # Sentencepiece vocab files have second field, ignore it
-        if sentencepiece_vocab:
-          word = word.split('\t')[0]
-        if word in reserved:
-          # Ignore if this is a sentencepiece vocab file
-          if sentencepiece_vocab:
-            continue
-          else:
-            raise RuntimeError(f"Vocab file {vocab_file} contains a reserved word: {word}")
-        vocab.append(word)
+        word = word.split('\t')[0]
+        self._add_word_to_vocab(vocab, word)
     return vocab
 
+  def _add_word_to_vocab(self, vocab, word):
+    vocab.append(word)
+
   def convert(self, w: str) -> int:
-    return self.w2i.get(w, self.unk_token)
+    return self.w2i.get(w, self.UNK)
 
   def __getitem__(self, i: numbers.Integral) -> str:
     return self.i2w[i]
 
   def __len__(self) -> int:
+    return len(self.i2w)
+
+  def vocab_size(self):
     return len(self.i2w)
 
   def is_compatible(self, other: Any) -> bool:
@@ -93,6 +88,12 @@ class Vocab(Serializable):
       return False
     if len(self) != len(other):
       return False
-    if self.unk_token != other.unk_token:
-      return False
     return self.w2i == other.w2i
+
+
+class CharVocab(Vocab):
+  yaml_tag = "!CharVocab"
+
+  def _add_word_to_vocab(self, vocab, word):
+    for c in word:
+      vocab.append(c)
