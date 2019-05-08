@@ -65,7 +65,7 @@ class SimultaneousState(decoders.AutoRegressiveDecoderState):
                              written_word=word, policy_action=policy_action, reset_attender=reset_attender,
                              parent=self)
 
-  def find_backward(self, field):
+  def find_backward(self, field) -> list:
     now = self
     results = []
     while now.parent is not None:

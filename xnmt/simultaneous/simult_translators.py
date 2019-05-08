@@ -14,7 +14,6 @@ import xnmt.event_trigger as event_trigger
 import xnmt.vocabs as vocabs
 import xnmt.sent as sent
 import xnmt.losses as losses
-import xnmt.transducers.base as transducers
 
 from xnmt import logger
 from xnmt.models.base import PolicyConditionedModel
@@ -101,10 +100,8 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
 
     batch_loss = []
     for src, action, model_states in zip(src_batch, self.actions, self.model_states):
-      assert type(src) == sent.CompoundSentence
-      policy_actions = reversed(model_states[-1].find_backward("policy_action"))
-      ref_action = src.sents[1].words
-      seq_ll = [dy.pick(act.log_likelihood, ref) for act, ref in zip(policy_actions, ref_action)]
+      policy_actions = model_states[-1].find_backward("policy_action")
+      seq_ll = [dy.pick(act.log_likelihood, act.content) for act in policy_actions]
       batch_loss.append(-dy.esum(seq_ll))
 
     dy.forward(batch_loss)
@@ -199,7 +196,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
       look_oracle = now_action is not None and from_oracle
       if look_oracle:
         return state.has_been_read + state.has_been_written >= len(force_action)
-      elif self.policy_network is None:
+      elif self.policy_network is None or self._is_action_forced():
         return state.has_been_written >= trg.sent_len()
       else:
         return (max_generation != -1 and state.has_been_written >= max_generation) or \
@@ -271,7 +268,11 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
     else:
       policy_action = PolicyAction(force_action)
 
-    return policy_action
+    # TODO(philip30): Update this value when you add more actions
+    if policy_action.content > 2:
+      import random
+      policy_action.content = random.randint(0, 1)
 
+    return policy_action
 
 

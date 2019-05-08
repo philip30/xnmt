@@ -31,7 +31,7 @@ las-pyramidal: !Experiment
     attender: !MlpAttender
       hidden_dim: 128
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
+      embedder: !LookupEmbedder
         emb_dim: 64
         word_dropout: 0.1
         fix_norm: 1

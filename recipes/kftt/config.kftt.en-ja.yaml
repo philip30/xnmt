@@ -23,7 +23,7 @@ kftt.en-ja: !Experiment
       vocab: !Vocab {vocab_file: '{EXP_DIR}/vocab.en'}
     trg_reader: !PlainTextReader
       vocab: !Vocab {vocab_file: '{EXP_DIR}/vocab.ja'}
-    src_embedder: !SimpleWordEmbedder   # Embed source words as 256 dimensional vectors
+    src_embedder: !LookupEmbedder   # Embed source words as 256 dimensional vectors
       emb_dim: 512
     encoder: !ResidualLSTMSeqTransducer
       layers: 2

@@ -8,13 +8,13 @@ iwslt-experiment: !Experiment
       vocab: !Vocab {vocab_file: '{EXP_DIR}/vocab.en.xnmt'}
     trg_reader: !PlainTextReader
       vocab: !Vocab {vocab_file: '{EXP_DIR}/vocab.vi.xnmt'}
-    src_embedder: !SimpleWordEmbedder
+    src_embedder: !LookupEmbedder
       emb_dim: 128
     encoder: !BiLSTMSeqTransducer
       layers: 1
     attender: !MlpAttender {}
     decoder: !AutoRegressiveDecoder
-      embedder: !SimpleWordEmbedder
+      embedder: !LookupEmbedder
         emb_dim: 128
       bridge: !CopyBridge {}
     inference: !AutoRegressiveInference
