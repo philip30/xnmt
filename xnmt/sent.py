@@ -366,6 +366,9 @@ class SegmentedWord(object):
     else:
       return False
 
+  def __repr__(self):
+    return str(self.chars)
+
 class ArraySentence(Sentence):
   """
   A sentence based on a numpy array containing a continuous-space vector for each token.
