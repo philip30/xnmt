@@ -292,19 +292,40 @@ class CharFromWordTextReader(PlainTextReader, Serializable):
   @serializable_init
   def __init__(self,
                vocab: vocabs.Vocab = None,
-               char_vocab: vocabs.CharVocab = None, *args, **kwargs):
+               char_vocab: vocabs.CharVocab = None,
+               add_word_begin_marker = True,
+               add_word_end_marker = True,
+               *args, **kwargs):
     assert char_vocab is not None and vocab is not None
     super().__init__(vocab=vocab, *args, **kwargs)
     self.char_vocab = char_vocab
+    self.add_word_begin_marker = add_word_begin_marker
+    self.add_word_end_marker = add_word_end_marker
 
   def read_sent(self, line: str, idx: numbers.Integral) -> sent.SegmentedSentence:
     words = []
     segs = []
     offset = 0
-    for word in line.strip().split() + [vocabs.Vocab.ES_STR]:
+    for word in line.strip().split():
+      chars = []
+      # <SS>
+      if self.add_word_begin_marker:
+        offset += 1
+        chars.append(self.char_vocab.SS)
+      # Chars
+      chars.extend([self.char_vocab.convert(c) for c in word])
       offset += len(word)
+      # <PAD>
+      if self.add_word_end_marker:
+        offset += 1
+        chars.append(self.char_vocab.PAD)
+      # Outputs
       segs.append(offset-1)
-      words.append(sent.SegmentedWord(tuple([self.char_vocab.convert(c) for c in word]), self.vocab.convert(word)))
+      words.append(sent.SegmentedWord(tuple(chars), self.vocab.convert(word)))
+    # Adding EOS
+    segs.append(segs[-1]+1)
+    words.append(sent.SegmentedWord(tuple([self.char_vocab.ES]), self.vocab.ES))
+    # For segment actions
     segment = np.zeros(segs[-1]+1)
     segment[segs] = 1
 

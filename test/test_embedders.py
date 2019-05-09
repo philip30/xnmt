@@ -8,7 +8,7 @@ from itertools import islice
 import xnmt.events
 
 from xnmt.input_readers import PlainTextReader, CharFromWordTextReader
-from xnmt.modelparts.embedders import LookupEmbedder, BagOfWordsEmbedder, CharCompositionEmbedder
+from xnmt.modelparts.embedders import LookupEmbedder, BagOfWordsEmbedder, CharCompositionEmbedder, CompositeEmbedder
 from xnmt.seq_composer import SumComposer, SeqTransducerComposer, DyerHeadComposer
 from xnmt.seq_composer import MaxComposer, AverageComposer, ConvolutionComposer
 from xnmt.modelparts.transforms import NonLinear, AuxNonLinear
@@ -109,6 +109,18 @@ class TestEmbedder(unittest.TestCase):
     event_trigger.start_sent(self.src[1])
     embedder.embed_sent(self.src[1])
 
+  def test_bagofwords_embedder(self):
+    embedder = BagOfWordsEmbedder(self.layer_dim, char_vocab=self.src_char_vocab, ngram_vocab= self.ngram_vocab, ngram_size=3)
+    event_trigger.set_train(True)
+    event_trigger.start_sent(self.src[1])
+    embedder.embed_sent(self.src[1])
+
+  def test_bagofwords_embedder_with_word_vocab(self):
+    embedder = BagOfWordsEmbedder(self.layer_dim, word_vocab=self.src_vocab, ngram_vocab= self.ngram_vocab, ngram_size=3)
+    event_trigger.set_train(True)
+    event_trigger.start_sent(self.src[1])
+    embedder.embed_sent(self.src[1])
+
   def test_dyer_composer(self):
     composer = DyerHeadComposer(fwd_combinator=UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim=self.layer_dim),
                                 bwd_combinator=UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim=self.layer_dim),
@@ -122,17 +134,21 @@ class TestEmbedder(unittest.TestCase):
     event_trigger.start_sent(self.src[1])
     embedder.embed_sent(self.src[1])
 
-  def test_bagofwords_embedder(self):
-    embedder = BagOfWordsEmbedder(self.layer_dim, char_vocab=self.src_char_vocab, ngram_vocab= self.ngram_vocab, ngram_size=3)
+  def test_composite_composer(self):
+    composer = DyerHeadComposer(fwd_combinator=UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim=self.layer_dim),
+                                bwd_combinator=UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim=self.layer_dim),
+                                transform=AuxNonLinear(input_dim=self.layer_dim,
+                                                       output_dim=self.layer_dim,
+                                                       aux_input_dim=self.layer_dim))
+    embedder_1 = CharCompositionEmbedder(emb_dim=self.layer_dim,
+                                       composer=composer,
+                                       char_vocab=self.src_char_vocab)
+    embedder_2 = LookupEmbedder(emb_dim=self.layer_dim, vocab_size=100)
+    embedder = CompositeEmbedder(embedders=[embedder_1, embedder_2])
     event_trigger.set_train(True)
     event_trigger.start_sent(self.src[1])
     embedder.embed_sent(self.src[1])
-
-  def test_bagofwords_embedder_with_word_vocab(self):
-    embedder = BagOfWordsEmbedder(self.layer_dim, word_vocab=self.src_vocab, ngram_vocab= self.ngram_vocab, ngram_size=3)
-    event_trigger.set_train(True)
-    event_trigger.start_sent(self.src[1])
-    embedder.embed_sent(self.src[1])
+    embedder.embed(self.src[1][0].words[0])
 
   def test_segmented_word(self):
     a = SegmentedWord([1,2,3], 10)

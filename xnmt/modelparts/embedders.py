@@ -334,7 +334,7 @@ class BagOfWordsEmbedder(WordEmbedder, Serializable):
     if self.word_vocab is not None:
       chars = self.word_vocab[word]
     elif self.char_vocab is not None:
-      chars = "".join([self.char_vocab[c] for c in word])
+      chars = "".join([self.char_vocab[c] for c in word if c != self.char_vocab.PAD and c != self.char_vocab.SS])
     else:
       raise ValueError("Either word vocab or char vocab should not be None")
 
@@ -392,6 +392,29 @@ class CharCompositionEmbedder(LookupEmbedder, Serializable):
   def _embed_word(self, word: sent.SegmentedWord, is_batched: bool = False):
     char_embeds = [LookupEmbedder._embed_word(self, x, False) for x in word.chars]
     return self.composer.compose(char_embeds)
+
+
+class CompositeEmbedder(Embedder, Serializable):
+  yaml_tag = '!CompositeEmbedder'
+
+  @serializable_init
+  def __init__(self, embedders):
+    self.embedders = embedders
+
+  def embed_sent(self, x: Any):
+    embeddings = [embedder.embed_sent(x) for embedder in self.embedders]
+    ret = []
+    for j in range(len(embeddings[0])):
+      ret.append(dy.esum([embeddings[i][j] for i in range(len(embeddings))]))
+    return expression_seqs.ExpressionSequence(expr_list=ret, mask=embeddings[0].mask)
+
+  def embed(self, word: Any) -> dy.Expression:
+    def select_word(_word, _embedder):
+      if type(_word) == sent.SegmentedWord and type(_embedder) == LookupEmbedder:
+        _word = _word.word
+      return _word
+
+    return dy.esum([embedder.embed(select_word(word, embedder)) for embedder in self.embedders])
 
 
 class NoopEmbedder(Embedder, Serializable):

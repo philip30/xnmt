@@ -46,7 +46,7 @@ class Policy(object):
       actions = sample_pp(actions)
     # Return
     return PolicyAction(actions, policy, state, mask)
-  
+
   def input_state(self, state):
     raise NotImplementedError()
 
@@ -73,13 +73,13 @@ class RecurrentPolicyNetwork(Serializable, Policy):
                rnn: seq_transducer.SeqTransducer = bare(recurrent.BiLSTMSeqTransducer)):
     self.rnn = rnn
     self.policy_network = policy_network
-    
+
   ### Warning do not use single sample_action normally here!
   ### Please use sample_actions to sample for making sequetial decisions
 
   def sample_actions(self, states: expr_seq.ExpressionSequence, argmax=False, sample_pp=None, predefined_action=None):
     states = self.rnn.transduce(states)
     return super().sample_actions(states, argmax, sample_pp, predefined_action)
-    
+
   def input_state(self, state):
     return self.policy_network.transform(state)
