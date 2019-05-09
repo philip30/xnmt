@@ -57,16 +57,18 @@ class Vocab(Serializable):
     Args:
       vocab_file: file containing one word per line, and not containing ``<s>``, ``</s>``, ``<unk>``
     """
-    vocab = [Vocab.SS_STR, Vocab.ES_STR, Vocab.PAD_STR, Vocab.UNK_STR]
+    reserved = [Vocab.SS_STR, Vocab.ES_STR, Vocab.PAD_STR, Vocab.UNK_STR]
+    vocab = {word: i for i, word in enumerate(reserved)}
     with open(vocab_file, encoding='utf-8') as f:
       for line in f:
         word = line.strip()
         word = word.split('\t')[0]
         self._add_word_to_vocab(vocab, word)
+    vocab = [word for word, word_id in sorted(vocab.items(), key=lambda x: x[1])]
     return vocab
 
   def _add_word_to_vocab(self, vocab, word):
-    vocab.append(word)
+    vocab[word] = len(vocab)
 
   def convert(self, w: str) -> int:
     return self.w2i.get(w, self.UNK)
@@ -96,4 +98,5 @@ class CharVocab(Vocab):
 
   def _add_word_to_vocab(self, vocab, word):
     for c in word:
-      vocab.append(c)
+      if c not in vocab:
+        vocab[c] = len(vocab)

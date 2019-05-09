@@ -1275,7 +1275,7 @@ class _YamlDeserializer(object):
             else:
               initialized_component = copy.deepcopy(node.default)
           if self.init_component.cache_info().hits > hits_before:
-            logger.debug(f"for {path}: reusing previously initialized {initialized_component}")
+            logger.debug(f">> for {path}: reusing previously initialized {initialized_component}")
         else:
           initialized_component = self.init_component(path)
         if len(path)==0:
@@ -1308,13 +1308,27 @@ class _YamlDeserializer(object):
     init_args = _get_init_args_defaults(obj)
     if "yaml_path" in init_args: init_params["yaml_path"] = path
     self.check_init_param_types(obj, init_params)
+
+    def format_output(output, spacing=4):
+      space_str = "".join([' '] * spacing)
+      for key, value in output.items():
+        if key == "vocab" or key.endswith("vocab"):
+          value = "{size: %d}" % (len(value))
+        if hasattr(value, "items"):
+          logger.debug("{}{}:".format(space_str, key))
+          format_output(dict(value), spacing+4)
+        else:
+          logger.debug("{}{}: {}".format(space_str, key, str(value)))
+    
     with utils.ReportOnException({"yaml_path":path}):
       try:
         if hasattr(obj, "xnmt_subcol_name"):
           initialized_obj = obj.__class__(**init_params, xnmt_subcol_name=obj.xnmt_subcol_name)
         else:
           initialized_obj = obj.__class__(**init_params)
-        logger.debug(f"initialized {path}: {obj.__class__.__name__}@{id(obj)}({dict(init_params)})"[:1000])
+        logger.debug(f"initialized {path}: {obj.__class__.__name__}@{id(obj)}")
+        format_output(dict(init_params))
+        logger.debug("")
       except TypeError as e:
         raise ComponentInitError(f"An error occurred when calling {type(obj).__name__}.__init__()\n"
                                  f" The following arguments were passed: {init_params}\n"

@@ -7,7 +7,6 @@ from typing import Any, List, Sequence, Union
 import xnmt.batchers as batchers
 import xnmt.event_trigger as event_trigger
 import xnmt.events as events
-import xnmt.inferences as inferences
 import xnmt.input_readers as input_readers
 import xnmt.search_strategies as search_strategies
 import xnmt.sent as sent
@@ -33,7 +32,6 @@ class DefaultTranslator(AutoRegressiveTranslator, Serializable, Reportable):
     encoder: An encoder to generate encoded inputs
     attender: An attention module
     decoder: A decoder
-    inference: The default inference strategy used for this model
   """
 
   yaml_tag = '!DefaultTranslator'
@@ -47,14 +45,12 @@ class DefaultTranslator(AutoRegressiveTranslator, Serializable, Reportable):
                encoder: transducers_base.SeqTransducer = bare(recurrent.BiLSTMSeqTransducer),
                attender: attenders.Attender = bare(attenders.MlpAttender),
                decoder: decoders.Decoder = bare(decoders.AutoRegressiveDecoder),
-               inference: inferences.AutoRegressiveInference = bare(inferences.AutoRegressiveInference),
                truncate_dec_batches: bool = False) -> None:
     super().__init__(src_reader=src_reader, trg_reader=trg_reader)
     self.src_embedder = src_embedder
     self.encoder = encoder
     self.attender = attender
     self.decoder = decoder
-    self.inference = inference
     self.truncate_dec_batches = truncate_dec_batches
 
   def shared_params(self):

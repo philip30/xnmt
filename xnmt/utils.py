@@ -11,6 +11,8 @@ from typing import List, MutableMapping, Optional
 import numpy as np
 import dynet as dy
 
+import xnmt.batchers as batchers
+
 from xnmt import logger
 from xnmt.settings import settings
 
@@ -114,6 +116,12 @@ class ReportOnException(object):
         logger.error(f"*** {key} ***")
         if callable(val):
           val()
+        elif batchers.is_batched(val):
+          for sent in val:
+            if hasattr(sent, "idx"):
+              print("{:>10}. {}".format(sent.idx, str(sent)[:100]))
+            else:
+              print("{}".format(str(sent)))
         else:
           logger.error(str(val))
 

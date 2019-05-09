@@ -289,6 +289,8 @@ class CharFromWordTextReader(PlainTextReader, Serializable):
   SegmentedSentece's words are characters, but it contains the information of the segmentation.
   """
   yaml_tag = "!CharFromWordTextReader"
+  ONE_MB = 1000 * 1024
+
   @serializable_init
   def __init__(self,
                vocab: vocabs.Vocab = None,
@@ -301,6 +303,10 @@ class CharFromWordTextReader(PlainTextReader, Serializable):
     self.char_vocab = char_vocab
     self.add_word_begin_marker = add_word_begin_marker
     self.add_word_end_marker = add_word_end_marker
+  
+  @functools.lru_cache(maxsize=ONE_MB)
+  def convert_word(self, word):
+    return [self.char_vocab.convert(c) for c in word]
 
   def read_sent(self, line: str, idx: numbers.Integral) -> sent.SegmentedSentence:
     words = []
@@ -313,7 +319,7 @@ class CharFromWordTextReader(PlainTextReader, Serializable):
         offset += 1
         chars.append(self.char_vocab.SS)
       # Chars
-      chars.extend([self.char_vocab.convert(c) for c in word])
+      chars.extend(self.convert_word(word))
       offset += len(word)
       # <PAD>
       if self.add_word_end_marker:

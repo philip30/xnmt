@@ -208,12 +208,12 @@ class LookupEmbedder(WordEmbedder, transforms.Linear, Serializable):
                src_reader: Optional[input_readers.InputReader] = Ref("model.src_reader", default=None),
                trg_reader: Optional[input_readers.InputReader] = Ref("model.trg_reader", default=None),
                is_dense: bool = False,
-               param_init: pinit.ParamInitializer= bare(pinit.GlorotInitializer),
-               bias_init: pinit.ParamInitializer = bare(pinit.ZeroInitializer),
+               param_init: pinit.ParamInitializer = Ref("exp_global.param_init", default=bare(pinit.GlorotInitializer)),
+               bias_init: pinit.ParamInitializer = Ref("exp_global.bias_init", default=bare(pinit.ZeroInitializer)),
                init_fastext: Optional[str] = None,
                weight_noise: float = Ref("exp_global.weight_noise", default=0.0),
-               *args, **kwargs):
-    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, *args, **kwargs)
+               fix_norm: Optional[float] = None):
+    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, fix_norm=fix_norm)
     # Embedding Parameters
     pcol = param_collections.ParamManager.my_params(self)
     self.vocab_size = self.choose_vocab_size(vocab_size, vocab, yaml_path, src_reader, trg_reader)
@@ -315,10 +315,10 @@ class BagOfWordsEmbedder(WordEmbedder, Serializable):
                transform: Optional[transforms.Transform] = None,
                include_lower_ngrams: bool = True,
                weight_noise: float = Ref("exp_global.weight_noise", default=0.0),
-               *args,**kwargs):
-    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, *args, **kwargs)
+               fix_norm: Optional[float] = None):
+    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, fix_norm=fix_norm)
     self.transform = self.add_serializable_component("transform", transform,
-                                                     lambda: transforms.NonLinear(input_dim=len(ngram_vocab),
+                                                     lambda: transforms.NonLinear(input_dim=ngram_vocab.vocab_size(),
                                                                                   output_dim=emb_dim,
                                                                                   activation='relu'))
     self.word_vocab = word_vocab
@@ -373,7 +373,7 @@ class BagOfWordsEmbedder(WordEmbedder, Serializable):
     return self.transform.transform(input_tensor)
 
 
-class CharCompositionEmbedder(LookupEmbedder, Serializable):
+class CharCompositionEmbedder(WordEmbedder, Serializable):
 
   yaml_tag = '!CharCompositionEmbedder'
 
@@ -383,14 +383,25 @@ class CharCompositionEmbedder(LookupEmbedder, Serializable):
                vocab_size: Optional[int] = None,
                emb_dim: int = Ref("exp_global.default_layer_dim"),
                weight_noise: float = Ref("exp_global.weight_noise", default=0.0),
+               param_init: pinit.ParamInitializer = Ref("exp_global.param_init", default=bare(pinit.GlorotInitializer)),
+               bias_init: pinit.ParamInitializer = Ref("exp_global.bias_init", default=bare(pinit.ZeroInitializer)),
                composer: seq_composer.SequenceComposer = bare(seq_composer.SumComposer),
-               *args, **kwargs):
-    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, vocab=char_vocab, vocab_size=vocab_size,
-                     *args, **kwargs)
+               fix_norm: Optional[float] = None):
+    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, fix_norm=fix_norm)
     self.composer = composer
+    # Embedding Parameters
+    pcol = param_collections.ParamManager.my_params(self)
+    self.vocab_size = self.choose_vocab_size(vocab_size, char_vocab, '', None, None)
+    self.embeddings = pcol.add_lookup_parameters((self.vocab_size, self.emb_dim), init=param_init.initializer((self.vocab_size, self.emb_dim),  is_lookup=True))
+    # Model States
+    self.train = False
+    self.save_processed_arg("vocab_size", self.vocab_size)
+
 
   def _embed_word(self, word: sent.SegmentedWord, is_batched: bool = False):
-    char_embeds = [LookupEmbedder._embed_word(self, x, False) for x in word.chars]
+    char_embeds = self.embeddings.batch(batchers.mark_as_batch(word.chars))
+
+    char_embeds = [dy.pick_batch_elem(char_embeds, i) for i in range(len(word.chars))]
     return self.composer.compose(char_embeds)
 
 
