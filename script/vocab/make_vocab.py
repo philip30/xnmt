@@ -14,6 +14,7 @@ from collections import Counter
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--min_count", type=int, default=1)
+parser.add_argument("--top", type=int, default=-1)
 args = parser.parse_args()
 
 all_words = Counter()
@@ -21,10 +22,15 @@ for line in sys.stdin:
   all_words.update(line.strip().split())
 
 if args.min_count > 1:
-  all_words = [key for key, value in all_words.items() if value >= args.min_count]
+  all_words = [(key, value) for key, value in all_words.items() if value >= args.min_count]
 else:
-  all_words = list(all_words.keys())
+  all_words = list(all_words.items())
 
-for word in sorted(all_words):
-  print(word)
+all_words = sorted(all_words, key=lambda x: -x[1])
+
+if args.top != -1 and args.top < len(all_words):
+  all_words = all_words[:args.top]
+
+for word, value in sorted(all_words):
+  print("{}\t{}".format(word, value))
 
