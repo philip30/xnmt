@@ -1,5 +1,5 @@
 # XNMT offers a very flexible way of multi-task training by specifying multiple
-# models and using the !Ref mechanism for weight sharing, as demonstrated
+# networks and using the !Ref mechanism for weight sharing, as demonstrated
 # in this config file.
 # The possible multi-task training strategies can be looked up in
 # xnmt/regimens.py and include same-batch, alternating-batch, and serial

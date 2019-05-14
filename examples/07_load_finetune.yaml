@@ -1,4 +1,4 @@
-# Saving and loading models is a key feature demonstrated in this config file.
+# Saving and loading networks is a key feature demonstrated in this config file.
 # This example shows how to load a trained model for fine tuning.
 # pretrained model.
 exp1-pretrain-model: !Experiment
@@ -49,7 +49,7 @@ exp2-finetune-model: !LoadSerialized
   # and except for the things explicitly overwritten in the overwrite: section.
   # It's possible to change any settings as long as these don't change the number
   # or nature of DyNet parameters allocated for the component.
-  filename: examples/models/exp1-pretrain-model.mod
+  filename: examples/networks/exp1-pretrain-model.mod
   path: ''
   overwrite: # list of [path, value] pairs. Value can be scalar or an arbitrary object
   - path: train.trainer

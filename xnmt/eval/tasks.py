@@ -2,20 +2,17 @@ from typing import Sequence, Union, Optional, Any
 
 import dynet as dy
 
-from xnmt.settings import settings
+from xnmt.internal.settings import settings
 from collections import defaultdict
-from xnmt import batchers, event_trigger, events, inferences, input_readers, loss_calculators, losses, reports, utils, \
-  xnmt_evaluate
+from xnmt import inferences, reports, xnmt_evaluate, event_trigger
+from xnmt.structs import batchers
+from xnmt.modules import input_readers
+from xnmt.internal import events, utils
+from xnmt.train import loss_calculators
 from xnmt.eval import metrics
-from xnmt.models import base as model_base
-from xnmt.persistence import serializable_init, Serializable, Ref, bare
+from xnmt.networks import base as model_base
+from xnmt.internal.persistence import serializable_init, Serializable, Ref, bare
 
-class EvalTask(object):
-  """
-  An EvalTask is a task that does evaluation and returns one or more EvalScore objects.
-  """
-  def eval(self) -> 'metrics.EvalScore':
-    raise NotImplementedError("EvalTask.eval() needs to be implemented in child classes")
 
 class LossEvalTask(EvalTask, Serializable):
   """

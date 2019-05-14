@@ -1,2 +1,0 @@
-class PolicyPrior(object):
-  pass

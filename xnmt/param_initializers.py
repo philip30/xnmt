@@ -1,32 +1,14 @@
 import math
-from typing import Tuple
-import numbers
 
 import numpy as np
 import dynet as dy
+import xnmt
+from xnmt.models import ParamInitializer
 
-from xnmt.persistence import serializable_init, Serializable
-
-class ParamInitializer(object):
-  """
-  A parameter initializer that delegates to the DyNet initializers and possibly
-  performs some extra configuration.
-  """
-
-  def initializer(self, dim, is_lookup: bool = False, num_shared: numbers.Integral = 1) -> 'dy.Initializer':
-    """
-    Args:
-      dim: dimension of parameter tensor
-      is_lookup: True if parameters are a lookup matrix
-      num_shared: Indicates if one parameter object holds multiple matrices
-    Returns:
-      a dynet initializer object
-    """
-    raise NotImplementedError("subclasses must implement initializer()")
 
 #### DYNET DEFAULT INITIALIZERS ####
 
-class NormalInitializer(ParamInitializer, Serializable):
+class NormalInitializer(ParamInitializer, xnmt.Serializable):
   """
   Wraps DyNet's NormalInitializer: http://dynet.readthedocs.io/en/latest/python_ref.html#dynet.NormalInitializer
 
@@ -38,15 +20,16 @@ class NormalInitializer(ParamInitializer, Serializable):
   """
   yaml_tag = "!NormalInitializer"
 
-  @serializable_init
-  def __init__(self, mean: numbers.Real = 0, var: numbers.Real = 1) -> None:
+  @xnmt.serializable_init
+  def __init__(self, mean: float = 0, var: float = 1) -> None:
     self.mean = mean
     self.var = var
 
-  def initializer(self, dim, is_lookup: bool = False, num_shared: numbers.Integral = 1) -> dy.NormalInitializer:
+  def initializer(self, dim, is_lookup: bool = False, num_shared: int = 1) -> dy.NormalInitializer:
     return dy.NormalInitializer(mean=self.mean, var=self.var)
 
-class UniformInitializer(ParamInitializer, Serializable):
+
+class UniformInitializer(ParamInitializer, xnmt.Serializable):
   """
   Wraps DyNet's UniformInitializer: http://dynet.readthedocs.io/en/latest/python_ref.html#dynet.UniformInitializer
 
@@ -56,14 +39,15 @@ class UniformInitializer(ParamInitializer, Serializable):
   """
   yaml_tag = "!UniformInitializer"
 
-  @serializable_init
-  def __init__(self, scale: numbers.Real) -> None:
+  @xnmt.serializable_init
+  def __init__(self, scale: float) -> None:
     self.scale = scale
 
-  def initializer(self, dim, is_lookup: bool = False, num_shared: numbers.Integral = 1) -> dy.UniformInitializer:
+  def initializer(self, dim, is_lookup: bool = False, num_shared: int = 1) -> dy.UniformInitializer:
     return dy.UniformInitializer(scale=self.scale)
 
-class ConstInitializer(ParamInitializer, Serializable):
+
+class ConstInitializer(ParamInitializer, xnmt.Serializable):
   """
   Wraps DyNet's ConstInitializer: http://dynet.readthedocs.io/en/latest/python_ref.html#dynet.ConstInitializer
 
@@ -74,14 +58,15 @@ class ConstInitializer(ParamInitializer, Serializable):
   """
   yaml_tag = "!ConstInitializer"
 
-  @serializable_init
-  def __init__(self, c: numbers.Real) -> None:
+  @xnmt.serializable_init
+  def __init__(self, c: float) -> None:
     self.c = c
 
-  def initializer(self, dim, is_lookup: bool = False, num_shared: numbers.Integral = 1) -> dy.ConstInitializer:
+  def initializer(self, dim, is_lookup: bool = False, num_shared: int = 1) -> dy.ConstInitializer:
     return dy.ConstInitializer(c=self.c)
 
-class GlorotInitializer(ParamInitializer, Serializable):
+
+class GlorotInitializer(ParamInitializer, xnmt.Serializable):
   """
   Wraps DyNet's GlorotInitializer: http://dynet.readthedocs.io/en/latest/python_ref.html#dynet.GlorotInitializer
 
@@ -105,11 +90,11 @@ class GlorotInitializer(ParamInitializer, Serializable):
   """
   yaml_tag = "!GlorotInitializer"
 
-  @serializable_init
-  def __init__(self, gain: numbers.Real = 1.0) -> None:
+  @xnmt.serializable_init
+  def __init__(self, gain: float = 1.0) -> None:
     self.gain = gain
 
-  def initializer(self, dim, is_lookup: bool = False, num_shared: numbers.Integral = 1) -> dy.UniformInitializer:
+  def initializer(self, dim, is_lookup: bool = False, num_shared: int = 1) -> dy.UniformInitializer:
     """
     Args:
       dim: dimensions of parameter tensor
@@ -129,7 +114,8 @@ class GlorotInitializer(ParamInitializer, Serializable):
       scale = gain * math.sqrt(3.0 * len(per_param_dims)) / math.sqrt(sum(per_param_dims))
       return dy.UniformInitializer(scale=scale)
 
-class FromFileInitializer(ParamInitializer, Serializable):
+
+class FromFileInitializer(ParamInitializer, xnmt.Serializable):
   """
   Wraps DyNet's FromFileInitializer: http://dynet.readthedocs.io/en/latest/python_ref.html#dynet.FromFileInitializer
 
@@ -140,14 +126,15 @@ class FromFileInitializer(ParamInitializer, Serializable):
   """
   yaml_tag = "!FromFileInitializer"
 
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self, fname: str) -> None:
     self.fname = fname
 
-  def initializer(self, dim, is_lookup: bool = False, num_shared: numbers.Integral = 1) -> dy.FromFileInitializer:
+  def initializer(self, dim, is_lookup: bool = False, num_shared: int = 1) -> dy.FromFileInitializer:
     return dy.FromFileInitializer(fname=self.fname)
 
-class NumpyInitializer(ParamInitializer, Serializable):
+
+class NumpyInitializer(ParamInitializer, xnmt.Serializable):
   """
   Wraps DyNet's NumpyInitializer: http://dynet.readthedocs.io/en/latest/python_ref.html#dynet.NumpyInitializer
 
@@ -160,30 +147,31 @@ class NumpyInitializer(ParamInitializer, Serializable):
   """
   yaml_tag = "!NumpyInitializer"
 
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self, array: np.ndarray) -> None:
     self.array = array
 
-  def initializer(self, dim, is_lookup: bool = False, num_shared: numbers.Integral = 1) -> dy.NumpyInitializer:
+  def initializer(self, dim, is_lookup: bool = False, num_shared: int = 1) -> dy.NumpyInitializer:
     return dy.NumpyInitializer(array=self.array)
 
 
 #### XNMT CUSTOM INITIALIZERS ####
 
-class ZeroInitializer(ParamInitializer, Serializable):
+class ZeroInitializer(ParamInitializer, xnmt.Serializable):
   """
   Initializes parameter matrix to zero (most appropriate for bias parameters).
   """
   yaml_tag="!ZeroInitializer"
 
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self) -> None:
     pass
 
-  def initializer(self, dim, is_lookup: bool = False, num_shared: numbers.Integral = 1) -> dy.ConstInitializer:
+  def initializer(self, dim, is_lookup: bool = False, num_shared: int = 1) -> dy.ConstInitializer:
     return dy.ConstInitializer(c=0.0)
 
-class LeCunUniformInitializer(ParamInitializer, Serializable):
+
+class LeCunUniformInitializer(ParamInitializer, xnmt.Serializable):
   """
   Reference: LeCun 98, Efficient Backprop
   http://yann.lecun.com/exdb/publis/pdf/lecun-98b.pdf
@@ -193,11 +181,11 @@ class LeCunUniformInitializer(ParamInitializer, Serializable):
   """
   yaml_tag = "!LeCunUniformInitializer"
 
-  @serializable_init
-  def __init__(self, scale: numbers.Real = 1.0) -> None:
+  @xnmt.serializable_init
+  def __init__(self, scale: float = 1.0) -> None:
     self.scale = scale
 
-  def initializer(self, dim, is_lookup: bool = False, num_shared: numbers.Integral = 1) -> dy.UniformInitializer:
+  def initializer(self, dim, is_lookup: bool = False, num_shared: int = 1) -> dy.UniformInitializer:
     if is_lookup:
       fan_in = dim[0]
     else:

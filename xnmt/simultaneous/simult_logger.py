@@ -5,8 +5,8 @@ import numpy as np
 
 import xnmt.reports as reports
 
-from xnmt import utils
-from xnmt.persistence import serializable_init, Serializable, Ref, Path
+from xnmt.internal import utils
+from xnmt.internal.persistence import serializable_init, Serializable, Ref, Path
 
 
 class SimultLogger(Serializable, reports.Reporter):

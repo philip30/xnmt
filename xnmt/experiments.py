@@ -1,14 +1,16 @@
 from typing import Any, Callable, Dict, List, Optional, Sequence
 import numbers
 
-from xnmt.settings import settings
+import xnmt.models.templates
+from xnmt.internal.settings import settings
 
 import xnmt.preproc as preprocs
-from xnmt import logger, param_collections, param_initializers
+from xnmt import logger, param_initializers
+from xnmt.internal import param_collections
 from xnmt.eval import metrics, tasks as eval_tasks
-from xnmt.models import base as models_base
+from xnmt.networks import base as models_base
 from xnmt.train import regimens
-from xnmt.persistence import serializable_init, Serializable, bare
+from xnmt.internal.persistence import serializable_init, Serializable, bare
 
 
 class ExpGlobal(Serializable):
@@ -30,7 +32,7 @@ class ExpGlobal(Serializable):
     placeholders: these will be used as arguments for a format() call applied to every string in the config.
                   For example, ``placeholders: {"PATH":"/some/path"} will cause each occurence of ``"{PATH}"`` in a
                   string to be replaced by ``"/some/path"``. As a special variable, ``EXP_DIR`` can be specified to
-                  overwrite the default location for writing models, logs, and other files.
+                  overwrite the default location for writing networks, logs, and other files.
   """
   yaml_tag = '!ExpGlobal'
 
@@ -41,8 +43,8 @@ class ExpGlobal(Serializable):
                dropout: numbers.Real = 0.3,
                weight_noise: numbers.Real = 0.0,
                default_layer_dim: numbers.Integral = 512,
-               param_init: param_initializers.ParamInitializer = bare(param_initializers.GlorotInitializer),
-               bias_init: param_initializers.ParamInitializer = bare(param_initializers.ZeroInitializer),
+               param_init: xnmt.models.templates.ParamInitializer = bare(param_initializers.GlorotInitializer),
+               bias_init: xnmt.models.templates.ParamInitializer = bare(param_initializers.ZeroInitializer),
                truncate_dec_batches: bool = False,
                save_num_checkpoints: numbers.Integral = 1,
                loss_comb_method: str = "sum",
@@ -73,7 +75,7 @@ class Experiment(Serializable):
     name: name of experiment
     exp_global: global experiment settings
     preproc: carry out preprocessing if specified
-    model: The main model. In the case of multitask training, several models must be specified, in which case the models will live not here but inside the training task objects.
+    model: The main model. In the case of multitask training, several networks must be specified, in which case the networks will live not here but inside the training task objects.
     train: The training regimen defines the training loop.
     evaluate: list of tasks to evaluate the model after training finishes.
     random_search_report: When random search is used, this holds the settings that were randomly drawn for documentary purposes.
@@ -91,6 +93,7 @@ class Experiment(Serializable):
                train: Optional[regimens.TrainingRegimen] = None,
                evaluate: Optional[List[eval_tasks.EvalTask]] = None,
                random_search_report: Optional[dict] = None,
+               standalone: Optional[List[Serializable]] = None,
                status: Optional[str] = None) -> None:
     self.name = name
     self.exp_global = exp_global
@@ -98,6 +101,7 @@ class Experiment(Serializable):
     self.model = model
     self.train = train
     self.evaluate = evaluate
+    self.standalone = standalone
     self.status = status
 
     if random_search_report:

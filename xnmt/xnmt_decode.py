@@ -1,8 +1,8 @@
 import argparse, os, sys
 
 from xnmt.eval import tasks
-from xnmt import param_collections, utils
-from xnmt.persistence import LoadSerialized, YamlPreloader, initialize_if_needed
+from xnmt.internal import param_collections, utils
+from xnmt.internal.persistence import LoadSerialized, YamlPreloader, initialize_if_needed
 
 def main() -> None:
   parser = argparse.ArgumentParser()

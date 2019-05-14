@@ -1,5 +1,6 @@
 import os
 import sys
+import warnings
 
 # No support for python2
 if sys.version_info[0] == 2:
@@ -9,55 +10,60 @@ package_dir = os.path.dirname(os.path.abspath(__file__))
 if package_dir not in sys.path:
   sys.path.append(package_dir)
 
+# Setting up logging
 import logging
 logger = logging.getLogger('xnmt')
 yaml_logger = logging.getLogger('yaml')
 file_logger = logging.getLogger('xnmt_file')
 
-# all Serializable objects must be imported here in order to be parsable
-# using the !Classname YAML syntax
-import xnmt.batchers
-import xnmt.eval.metrics
-import xnmt.eval.tasks
-import xnmt.experiments
-import xnmt.hyper_params
-import xnmt.inferences
-import xnmt.input_readers
-import xnmt.graph
-import xnmt.modelparts.attenders
-import xnmt.modelparts.bridges
-import xnmt.modelparts.decoders
-import xnmt.modelparts.embedders
-import xnmt.modelparts.scorers
-import xnmt.modelparts.transforms
-import xnmt.models.base
-import xnmt.models.classifiers
-import xnmt.models.language_models
-import xnmt.models.retrievers
-import xnmt.models.sequence_labelers
-import xnmt.models.translators
-import xnmt.optimizers
-import xnmt.param_initializers
-import xnmt.seq_composer
-import xnmt.persistence
-import xnmt.reports
-import xnmt.rl
-import xnmt.simultaneous.simult_translators
-import xnmt.simultaneous.simult_logger
-import xnmt.specialized_encoders.self_attentional_am
-import xnmt.specialized_encoders.tilburg_harwath
-import xnmt.train.regimens
-import xnmt.train.tasks
-import xnmt.transducers.convolution
-import xnmt.transducers.lattice
-import xnmt.transducers.network_in_network
-import xnmt.transducers.positional
-import xnmt.transducers.pyramidal
-import xnmt.transducers.recurrent
-import xnmt.transducers.residual
-import xnmt.transducers.self_attention
-import xnmt.transformer
+# matplotlib
+import matplotlib
+matplotlib.use('Agg')
 
+with warnings.catch_warnings():
+  warnings.simplefilter("ignore", lineno=36)
+  import h5py
+
+
+# Setting up initial components
+# The order does matter.
+# Change with due care.
+import xnmt.internal
+from xnmt.internal.persistence import Serializable, serializable_init, bare, Ref, Path
+from xnmt.internal.events import handle_xnmt_event, register_xnmt_handler
+from xnmt.internal import utils
+
+import xnmt.structs
+from xnmt.structs.batch import Batch, Mask, mark_as_batch, is_batched
+from xnmt.structs.vocabs import Vocab
+from xnmt.structs.expression_seqs import ExpressionSequence, ReversedExpressionSequence, LazyNumpyExpressionSequence
+from xnmt.structs.losses import LossExpr, FactoredLossExpr
+from xnmt.structs.sentences import Sentence
+
+import xnmt.globals
+from xnmt.globals import is_train
+
+import xnmt.models
+from xnmt.models.templates import ParamInitializer
+from xnmt.models import OutputProcessor
+
+import xnmt.param_initializers
+
+param_manager = lambda x: xnmt.internal.param_collections.ParamManager.my_params(x)
+default_layer_dim = Ref("exp_global.default_layer_dim")
+default_weight_noise = Ref("exp_global.weight_noise", default=0.0)
+default_param_init = xnmt.Ref("exp_global.param_init", default=xnmt.bare(xnmt.param_initializers.GlorotInitializer))
+default_bias_init = xnmt.Ref("exp_global.bias_init", default=xnmt.bare(xnmt.param_initializers.ZeroInitializer))
+default_dropout = Ref("exp_global.dropout", default=0.0)
+ref_src_reader = Ref("model.src_reader", default=None)
+ref_trg_reader = Ref("model.trg_reader", default=None)
+
+import xnmt.modules
+import xnmt.networks
+
+
+
+jj
 
 resolved_serialize_params = {}
 
@@ -71,7 +77,7 @@ def init_representer(dumper, obj):
 
 import yaml
 seen_yaml_tags = set()
-for SerializableChild in xnmt.persistence.Serializable.__subclasses__():
+for SerializableChild in xnmt.internal.persistence.Serializable.__subclasses__():
   assert hasattr(SerializableChild,
                  "yaml_tag") and SerializableChild.yaml_tag == f"!{SerializableChild.__name__}",\
     f"missing or misnamed yaml_tag attribute for class {SerializableChild.__name__}"

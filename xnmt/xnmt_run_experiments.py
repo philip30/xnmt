@@ -17,11 +17,12 @@ from typing import Optional, Sequence, Tuple
 
 import numpy as np
 
-from xnmt.settings import settings
-from xnmt import logger, file_logger, tee, utils
-from xnmt.tee import log_preamble
-from xnmt.param_collections import ParamManager
-from xnmt.persistence import YamlPreloader, save_to_file, initialize_if_needed
+from xnmt.internal.settings import settings
+from xnmt import logger, file_logger
+from xnmt.internal import tee, utils
+from xnmt.internal.tee import log_preamble
+from xnmt.internal.param_collections import ParamManager
+from xnmt.internal.persistence import YamlPreloader, save_to_file, initialize_if_needed
 from xnmt.eval import metrics
 
 if settings.RESOURCE_WARNINGS:

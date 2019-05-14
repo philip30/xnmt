@@ -3,51 +3,21 @@ from typing import Callable, Dict, Optional, Sequence, Union
 from collections import OrderedDict
 import numbers
 
-from xnmt.settings import settings
+from xnmt.internal.settings import settings
 import numpy as np
 import dynet as dy
 
 
-from xnmt import batchers, event_trigger, loss_calculators, loss_trackers, losses, optimizers, param_collections, utils
-from xnmt.models import base as models
-from xnmt.persistence import serializable_init, Serializable, bare, Ref
+from xnmt import event_trigger
+from xnmt.modules import optimizers
+from xnmt.structs import batchers
+from xnmt.internal import param_collections, utils
+from xnmt.networks import base as models
+from xnmt.internal.persistence import serializable_init, Serializable, bare, Ref
 from xnmt.eval import tasks as eval_tasks
-from xnmt.train import tasks as train_tasks
-import xnmt.reports as reports
+from xnmt.train import tasks as train_tasks, loss_calculators, loss_trackers
 
-class TrainingRegimen(object):
-  """
-  A training regimen is a class that implements a training loop.
-  """
-  def run_training(self, save_fct: Callable) -> None:
-    """
-    Run training steps in a loop until stopping criterion is reached.
 
-    Args:
-      save_fct: function to be invoked to save a model at dev checkpoints
-    """
-    raise NotImplementedError("")
-
-  def backward(self, loss: dy.Expression, dynet_profiling: numbers.Integral) -> None:
-    """
-    Perform backward pass to accumulate gradients.
-
-    Args:
-      loss: Result of self.training_step(...)
-      dynet_profiling: if > 0, print the computation graph
-    """
-    if dynet_profiling and dynet_profiling > 0:
-      dy.print_text_graphviz()
-    loss.backward()
-
-  def update(self, trainer: optimizers.XnmtOptimizer) -> None:
-    """
-    Update DyNet weights using the given optimizer.
-
-    Args:
-      trainer: DyNet trainer
-    """
-    trainer.update()
 
 class SimpleTrainingRegimen(train_tasks.SimpleTrainingTask, TrainingRegimen, Serializable):
   """
@@ -56,7 +26,7 @@ class SimpleTrainingRegimen(train_tasks.SimpleTrainingTask, TrainingRegimen, Ser
     src_file: the source training file
     trg_file: the target training file
     dev_every: dev checkpoints every n sentences (0 for only after epoch)
-    dev_zero: if True, add a checkpoint before training loop is entered (useful with pretrained models).
+    dev_zero: if True, add a checkpoint before training loop is entered (useful with pretrained networks).
     batcher: Type of batcher
     loss_calculator: The method for calculating the loss.
     trainer: Trainer object, default is SGD with learning rate 0.1
@@ -193,7 +163,7 @@ class SimpleTrainingRegimen(train_tasks.SimpleTrainingTask, TrainingRegimen, Ser
 #    src_file: the source training file
 #    trg_file: the target training file
 #    dev_every: dev checkpoints every n sentences (0 for only after epoch)
-#    dev_zero: if True, add a checkpoint before training loop is entered (useful with pretrained models).
+#    dev_zero: if True, add a checkpoint before training loop is entered (useful with pretrained networks).
 #    batcher: Type of batcher
 #    loss_calculator: The method for calculating the loss.
 #    trainer: Trainer object, default is SGD with learning rate 0.1
@@ -226,7 +196,7 @@ class SimpleTrainingRegimen(train_tasks.SimpleTrainingTask, TrainingRegimen, Ser
 #
 #  @serializable_init
 #  def __init__(self,
-#               model: models.ConditionedModel = Ref("model"),
+#               model: networks.ConditionedModel = Ref("model"),
 #               src_file: Union[None, str, Sequence[str]] = None,
 #               trg_file: Optional[str] = None,
 #               dev_every: numbers.Integral = 0,
@@ -338,7 +308,7 @@ class MultiTaskTrainingRegimen(TrainingRegimen):
                 will control early stopping, learning rate schedule, and
                 model checkpoints.
     trainer: Trainer object, default is SGD with learning rate 0.1
-    dev_zero: if True, add a checkpoint before training loop is entered (useful with pretrained models).
+    dev_zero: if True, add a checkpoint before training loop is entered (useful with pretrained networks).
     update_every: simulate large-batch training by accumulating gradients over several steps before updating parameters
     commandline_args:
   """
@@ -397,7 +367,7 @@ class SameBatchMultiTaskTrainingRegimen(MultiTaskTrainingRegimen, Serializable):
   Args:
     tasks: Training tasks
     trainer: The trainer is shared across tasks
-    dev_zero: If ``True``, add a checkpoint before training loop is entered (useful with pretrained models).
+    dev_zero: If ``True``, add a checkpoint before training loop is entered (useful with pretrained networks).
     per_task_backward: If ``True``, call backward() for each task separately and renew computation graph between
                        tasks. Yields the same results, but ``True`` uses less memory while ``False`` may be
                        faster when using autobatching.
@@ -489,7 +459,7 @@ class AlternatingBatchMultiTaskTrainingRegimen(MultiTaskTrainingRegimen, Seriali
   Args:
     tasks: training tasks
     trainer: the trainer is shared across tasks
-    dev_zero: if True, add a checkpoint before training loop is entered (useful with pretrained models).
+    dev_zero: if True, add a checkpoint before training loop is entered (useful with pretrained networks).
     loss_comb_method: method for combining loss across batch elements ('sum' or 'avg').
     update_every_within: Simulate large-batch training by accumulating gradients over several steps before updating
                          parameters. The behavior here is to draw multiple times from the same task until update is
@@ -567,7 +537,7 @@ class SerialMultiTaskTrainingRegimen(MultiTaskTrainingRegimen, Serializable):
   Args:
     tasks: training tasks. The currently active task is treated as main task.
     trainer: the trainer is shared across tasks
-    dev_zero: if True, add a checkpoint before training loop is entered (useful with pretrained models).
+    dev_zero: if True, add a checkpoint before training loop is entered (useful with pretrained networks).
     loss_comb_method: method for combining loss across batch elements ('sum' or 'avg').
     update_every: simulate large-batch training by accumulating gradients over several steps before updating parameters
     commandline_args:

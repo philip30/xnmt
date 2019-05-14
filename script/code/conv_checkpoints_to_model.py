@@ -3,7 +3,7 @@
 """Usage: conv_checkpoints_to_model.py MODFILE
 
 Takes a trained model file with multiple saved checkpoints and converts these
-checkpoints into standalone models.  This allows the different checkpoints to be
+checkpoints into standalone networks.  This allows the different checkpoints to be
 used, e.g., as parts of a model ensemble.
 
 This script will:

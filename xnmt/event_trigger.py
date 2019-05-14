@@ -2,16 +2,12 @@
 A module defining triggers to the common events used throughout XNMT.
 """
 
-from typing import Union
-import numbers
-import random
 
-from xnmt.train import tasks as training_tasks
-from xnmt.models import base as models
-from xnmt import batchers, events, losses, sent
+import xnmt
 
-@events.register_xnmt_event
-def new_epoch(training_task: training_tasks.TrainingTask, num_sents: numbers.Integral) -> None:
+
+@xnmt.register_xnmt_event
+def new_epoch(training_task, num_sents: int) -> None:
   """
   Trigger event indicating a new epoch for the specified task.
 
@@ -21,7 +17,7 @@ def new_epoch(training_task: training_tasks.TrainingTask, num_sents: numbers.Int
   """
   pass
 
-@events.register_xnmt_event
+@xnmt.register_xnmt_event
 def set_train(val: bool) -> None:
   """
   Trigger event indicating enabling/disabling of "training" mode.
@@ -31,8 +27,8 @@ def set_train(val: bool) -> None:
   """
   pass
 
-@events.register_xnmt_event
-def start_sent(src: Union[sent.Sentence, batchers.Batch]) -> None:
+@xnmt.register_xnmt_event
+def start_sent(src_batch) -> None:
   """
   Trigger event indicating the start of a new sentence (or batch of sentences).
 
@@ -40,11 +36,12 @@ def start_sent(src: Union[sent.Sentence, batchers.Batch]) -> None:
     src: new sentence (or batch of sentences)
   """
 
-@events.register_xnmt_event_assign
+@xnmt.register_xnmt_event_assign
 def get_report_input(context) -> dict:
   return context
 
-@events.register_xnmt_event
+
+@xnmt.register_xnmt_event
 def set_reporting(reporting: bool) -> None:
   pass
 

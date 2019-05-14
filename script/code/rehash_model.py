@@ -3,8 +3,8 @@
 """Usage: rehash_model.py MOD_IN MOD_OUT
 
 Takes a trained model and re-creates the unique hash of all of its components.
-This is useful when, for example, you want to ensemble models that have
-identical component names, such as two models that were adapted from the
+This is useful when, for example, you want to ensemble networks that have
+identical component names, such as two networks that were adapted from the
 same original model.
 
 This script will:
@@ -44,7 +44,7 @@ def extract_components(mod_infile):
   return components, yaml_lines
 
 def rewrite_components(mod_infile, mod_outfile, components, yaml_lines):
-  new_hashes = {} 
+  new_hashes = {}
   os.mkdir(f"{mod_outfile}.data")
   for type_name, hash_name in components:
     new_hash = generate_hash()

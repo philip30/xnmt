@@ -2,9 +2,9 @@ import math
 import unittest
 
 from xnmt.eval import metrics
-from xnmt import events
-from xnmt.utils import has_cython
-from xnmt.vocabs import Vocab
+from xnmt.internal import events
+from xnmt.internal.utils import has_cython
+from xnmt.structs.vocabs import Vocab
 
 class TestBLEU(unittest.TestCase):
   def setUp(self):

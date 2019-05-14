@@ -5,19 +5,21 @@ import numpy as np
 import random
 from itertools import islice
 
-import xnmt.events
+import xnmt.internal.events
 
-from xnmt.input_readers import PlainTextReader, CharFromWordTextReader
-from xnmt.modelparts.embedders import LookupEmbedder, BagOfWordsEmbedder, CharCompositionEmbedder, CompositeEmbedder
-from xnmt.seq_composer import SumComposer, SeqTransducerComposer, DyerHeadComposer
-from xnmt.seq_composer import MaxComposer, AverageComposer, ConvolutionComposer
-from xnmt.modelparts.transforms import NonLinear, AuxNonLinear
-from xnmt.sent import SegmentedWord
-from xnmt.transducers.recurrent import BiLSTMSeqTransducer, UniLSTMSeqTransducer
-from xnmt.param_collections import ParamManager
+from xnmt.modules.input_readers import PlainTextReader, CharFromWordTextReader
+from xnmt.modules.nn.embedders import LookupEmbedder, BagOfWordsEmbedder, CharCompositionEmbedder, CompositeEmbedder
+from xnmt.modules.nn.composers import SumComposer, SeqTransducerComposer, DyerHeadComposer
+from xnmt.modules.nn.composers import MaxComposer, AverageComposer, ConvolutionComposer
+from xnmt.modules.nn.transforms import NonLinear, AuxNonLinear
+from xnmt.structs.sentences import SegmentedWord
+from xnmt.modules.transducers import BiLSTMSeqTransducer, UniLSTMSeqTransducer
+from xnmt.internal.param_collections import ParamManager
 
-from xnmt import events, event_trigger, batchers
-from xnmt.vocabs import Vocab, CharVocab
+from xnmt import event_trigger
+from xnmt.structs import batchers
+from xnmt.internal import events
+from xnmt.structs.vocabs import Vocab, CharVocab
 
 class PretrainedSimpleWordEmbedderSanityTest(unittest.TestCase):
   def setUp(self):
@@ -49,7 +51,7 @@ class TestEmbedder(unittest.TestCase):
     np.random.seed(2)
     random.seed(2)
     layer_dim = 4
-    xnmt.events.clear()
+    xnmt.internal.events.clear()
     ParamManager.init_param_col()
     self.src_vocab = Vocab(vocab_file="examples/data/head.ja.vocab")
     self.src_char_vocab = CharVocab(vocab_file="examples/data/head.ja.vocab")

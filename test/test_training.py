@@ -2,31 +2,13 @@ import unittest
 
 import dynet as dy
 import numpy as np
+import xnmt
 
-from xnmt.modelparts.attenders import MlpAttender, DotAttender
-from xnmt.batchers import mark_as_batch, Mask, SrcBatcher
-from xnmt.modelparts.bridges import CopyBridge
-from xnmt.modelparts.decoders import AutoRegressiveDecoder
-from xnmt.modelparts.embedders import LookupEmbedder
-from xnmt.eval.tasks import LossEvalTask
-import xnmt.events
-from xnmt.input_readers import PlainTextReader
-from xnmt.transducers.recurrent import UniLSTMSeqTransducer, BiLSTMSeqTransducer
-from xnmt.loss_calculators import MLELoss
-from xnmt.optimizers import AdamTrainer, DummyTrainer
-from xnmt.param_collections import ParamManager
-from xnmt.transducers.pyramidal import PyramidalLSTMSeqTransducer
-from xnmt.train import regimens
-from xnmt.modelparts.transforms import NonLinear
-from xnmt.models.translators.default import DefaultTranslator
-from xnmt.modelparts.scorers import Softmax
-from xnmt.vocabs import Vocab
-from xnmt import event_trigger, sent
 
 class TestTruncatedBatchTraining(unittest.TestCase):
 
   def setUp(self):
-    xnmt.events.clear()
+    xnmt.internal.events.clear()
     ParamManager.init_param_col()
 
     self.src_reader = PlainTextReader(vocab=Vocab(vocab_file="examples/data/head.ja.vocab"))
@@ -52,8 +34,8 @@ class TestTruncatedBatchTraining(unittest.TestCase):
     trg_sents_trunc = [s.words[:trg_min] for s in trg_sents]
     for single_sent in trg_sents_trunc: single_sent[trg_min-1] = Vocab.ES
 
-    src_sents_trunc = [sent.SimpleSentence(words=s) for s in src_sents_trunc]
-    trg_sents_trunc = [sent.SimpleSentence(words=s) for s in trg_sents_trunc]
+    src_sents_trunc = [sentences.SimpleSentence(words=s) for s in src_sents_trunc]
+    trg_sents_trunc = [sentences.SimpleSentence(words=s) for s in trg_sents_trunc]
 
     single_loss = 0.0
     for sent_id in range(batch_size):
@@ -159,7 +141,7 @@ class TestTruncatedBatchTraining(unittest.TestCase):
 class TestBatchTraining(unittest.TestCase):
 
   def setUp(self):
-    xnmt.events.clear()
+    xnmt.internal.events.clear()
     ParamManager.init_param_col()
 
     self.src_reader = PlainTextReader(vocab=Vocab(vocab_file="examples/data/head.ja.vocab"))
@@ -189,8 +171,8 @@ class TestBatchTraining(unittest.TestCase):
     trg_masks = Mask(np_arr)
     trg_sents_padded = [[w for w in s] + [Vocab.ES]*(trg_max-s.sent_len()) for s in trg_sents]
 
-    src_sents_trunc = [sent.SimpleSentence(words=s) for s in src_sents_trunc]
-    trg_sents_padded = [sent.SimpleSentence(words=s) for s in trg_sents_padded]
+    src_sents_trunc = [sentences.SimpleSentence(words=s) for s in src_sents_trunc]
+    trg_sents_padded = [sentences.SimpleSentence(words=s) for s in trg_sents_padded]
 
     single_loss = 0.0
     for sent_id in range(batch_size):
@@ -276,7 +258,7 @@ class TestBatchTraining(unittest.TestCase):
 class TestTrainDevLoss(unittest.TestCase):
 
   def setUp(self):
-    xnmt.events.clear()
+    xnmt.internal.events.clear()
     ParamManager.init_param_col()
 
   def test_train_dev_loss_equal(self):
@@ -318,7 +300,7 @@ class TestTrainDevLoss(unittest.TestCase):
 class TestOverfitting(unittest.TestCase):
 
   def setUp(self):
-    xnmt.events.clear()
+    xnmt.internal.events.clear()
     ParamManager.init_param_col()
 
   def test_overfitting(self):

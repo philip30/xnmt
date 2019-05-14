@@ -39,12 +39,12 @@ ensemble2: !Experiment
         output_projector: !Ref {name: dense_embed}
   train: *train
 
-# Construct the ensemble by loading the previously trained models
+# Construct the ensemble by loading the previously trained networks
 ensemble3-load: !Experiment
   exp_global: *globals
   model: !EnsembleTranslator
-    src_reader: !Ref {path: model.models.0.src_reader}
-    trg_reader: !Ref {path: model.models.0.trg_reader}
+    src_reader: !Ref {path: model.networks.0.src_reader}
+    trg_reader: !Ref {path: model.networks.0.trg_reader}
     models:
       - !LoadSerialized
         filename: 'test/tmp/ensemble1.mod'

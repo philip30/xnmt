@@ -8,7 +8,7 @@
 
 autobatch-big: !Experiment
   exp_global: !ExpGlobal &autobatch_exp_global
-    model_file: '{EXP_DIR}/models/{EXP}.mod'
+    model_file: '{EXP_DIR}/networks/{EXP}.mod'
     log_file: '{EXP_DIR}/logs/{EXP}.log'
     default_layer_dim: 512
   model: !DefaultTranslator &autobatch_model

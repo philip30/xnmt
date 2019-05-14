@@ -7,23 +7,24 @@ import numpy
 import random
 import dynet as dy
 
-import xnmt.input_readers as input_readers
-import xnmt.events
-import xnmt.seq_composer as composer
+import xnmt.modules.input_readers as input_readers
+import xnmt.internal.events
+import xnmt.modules.nn.composers as composer
 
-from xnmt.modelparts.attenders import MlpAttender
-from xnmt.modelparts.bridges import NoBridge
-from xnmt.modelparts.decoders.rnng import RNNGDecoder
-from xnmt.modelparts.embedders import LookupEmbedder
-from xnmt import batchers, event_trigger
-from xnmt.param_collections import ParamManager
-from xnmt.transducers.recurrent import UniLSTMSeqTransducer
-from xnmt.transducers.base import IdentitySeqTransducer
-from xnmt.models.translators.default import DefaultTranslator
-from xnmt.search_strategies import GreedySearch, BeamSearch
-from xnmt.loss_calculators import MLELoss
-from xnmt.modelparts.transforms import AuxNonLinear
-from xnmt.vocabs import Vocab
+from xnmt.modules.nn.attenders import MlpAttender
+from xnmt.modules.nn.bridges import NoBridge
+from xnmt.modules.nn.decoders import RNNGDecoder
+from xnmt.modules.nn.embedders import LookupEmbedder
+from xnmt import event_trigger
+from xnmt.structs import batchers
+from xnmt.internal.param_collections import ParamManager
+from xnmt.modules.transducers import UniLSTMSeqTransducer
+from xnmt.modules.transducers import IdentitySeqTransducer
+from xnmt.networks.translators.seq2seq import DefaultTranslator
+from xnmt.inferences.search_strategies import GreedySearch, BeamSearch
+from xnmt.train.loss_calculators import MLELoss
+from xnmt.modules.nn.transforms import AuxNonLinear
+from xnmt.structs.vocabs import Vocab
 
 
 class TestGraphToGraph(unittest.TestCase):
@@ -33,7 +34,7 @@ class TestGraphToGraph(unittest.TestCase):
     numpy.random.seed(2)
     random.seed(2)
     layer_dim = 32
-    xnmt.events.clear()
+    xnmt.internal.events.clear()
     ParamManager.init_param_col()
     
     edge_vocab = Vocab(vocab_file="examples/data/parse/head.en.edge_vocab")

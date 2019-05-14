@@ -16,85 +16,21 @@ printed with an informative string representation.
 
 """
 
-from collections import defaultdict, Counter
+
 import math
 import subprocess
-from typing import List, Sequence, Dict, Tuple, Union, Any, Optional
-import numbers
-
 import yaml
 import numpy as np
 
-from xnmt import logger, levenshtein
-from xnmt.persistence import serializable_init, Serializable
+from typing import List, Sequence, Dict, Tuple, Union, Any, Optional
+from collections import defaultdict, Counter
 
-class EvalScore(object):
-  """
-  A template class for scores as resulting from using an :class:`Evaluator`.
+import xnmt
+import xnmt.models as models
+import xnmt.modules
 
-  Args:
-    desc: human-readable description to include in log outputs
-  """
-  def __init__(self, desc: Any = None) -> None:
-    self.desc = desc
 
-  def higher_is_better(self) -> bool:
-    """
-    Return ``True`` if higher values are favorable, ``False`` otherwise.
-
-    Returns:
-      Whether higher values are favorable.
-    """
-    raise NotImplementedError()
-  def value(self) -> float:
-    """
-    Get the numeric value of the evaluated metric.
-
-    Returns:
-      Numeric evaluation score.
-    """
-    raise NotImplementedError()
-  def metric_name(self) -> str:
-    """
-    Get the metric name.
-
-    Returns:
-      Metric name as string.
-    """
-    raise NotImplementedError()
-  def score_str(self) -> str:
-    """
-    A string representation of the evaluated score, potentially including additional statistics.
-
-    Returns:
-      String representation of score.
-    """
-    raise NotImplementedError()
-  def better_than(self, another_score: 'EvalScore') -> bool:
-    """
-    Compare score against another score and return ``True`` iff this score is better.
-
-    Args:
-      another_score: score to _compare against.
-
-    Returns:
-      Whether this score is better than ``another_score``.
-    """
-    if another_score is None or another_score.value() is None: return True
-    elif self.value() is None: return False
-    assert type(self) == type(another_score)
-    if self.higher_is_better():
-      return self.value() > another_score.value()
-    else:
-      return self.value() < another_score.value()
-  def __str__(self):
-    desc = getattr(self, "desc", None)
-    if desc:
-      return f"{self.metric_name()} ({desc}): {self.score_str()}"
-    else:
-      return f"{self.metric_name()}: {self.score_str()}"
-
-class SentenceLevelEvalScore(EvalScore):
+class SentenceLevelEvalScore(models.EvalScore):
   """
   A template class for scores that work on a sentence-level and can be aggregated to corpus-level.
   """
@@ -112,7 +48,8 @@ class SentenceLevelEvalScore(EvalScore):
     """
     raise NotImplementedError()
 
-class LossScore(EvalScore, Serializable):
+
+class LossScore(models.EvalScore, xnmt.Serializable):
   """
   Score indicating the value of the loss function of a neural network.
 
@@ -125,11 +62,11 @@ class LossScore(EvalScore, Serializable):
 
   yaml_tag = "!LossScore"
 
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self,
-               loss: numbers.Real,
-               loss_stats: Dict[str, numbers.Real] = None,
-               num_ref_words: Optional[numbers.Integral] = None,
+               loss: float,
+               loss_stats: Dict[str, float] = None,
+               num_ref_words: Optional[int] = None,
                desc: Any = None) -> None:
     super().__init__(desc=desc)
     self.loss = loss
@@ -147,7 +84,8 @@ class LossScore(EvalScore, Serializable):
     else:
       return f"{self.value():.3f} (ref_len={self.num_ref_words})"
 
-class BLEUScore(EvalScore, Serializable):
+
+class BLEUScore(models.EvalScore, xnmt.Serializable):
   """
   Class to keep a BLEU score.
 
@@ -162,14 +100,14 @@ class BLEUScore(EvalScore, Serializable):
   """
   yaml_tag = "!BLEUScore"
 
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self,
-               bleu: numbers.Real,
-               frac_score_list: Sequence[numbers.Real] = None,
-               brevity_penalty_score: numbers.Real = None,
-               hyp_len: numbers.Integral = None,
-               ref_len: numbers.Integral = None,
-               ngram: numbers.Integral = 4,
+               bleu: float,
+               frac_score_list: Sequence[float] = None,
+               brevity_penalty_score: float = None,
+               hyp_len: int = None,
+               ref_len: int = None,
+               ngram: int = 4,
                desc: Any = None) -> None:
     self.bleu = bleu
     self.frac_score_list = frac_score_list
@@ -193,7 +131,8 @@ class BLEUScore(EvalScore, Serializable):
       return f"{self.bleu}, {'/'.join(self.frac_score_list)} (BP = {self.brevity_penalty_score:.6f}, " \
              f"ratio={self.hyp_len / self.ref_len:.2f}, hyp_len={self.hyp_len}, ref_len={self.ref_len})"
 
-class GLEUScore(SentenceLevelEvalScore, Serializable):
+
+class GLEUScore(SentenceLevelEvalScore, xnmt.Serializable):
   """
   Class to keep a GLEU (Google BLEU) score.
 
@@ -205,12 +144,12 @@ class GLEUScore(SentenceLevelEvalScore, Serializable):
   """
   yaml_tag = "!GLEUScore"
 
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self,
-               corpus_n_match: numbers.Integral,
-               corpus_total: numbers.Integral,
-               hyp_len: numbers.Integral,
-               ref_len: numbers.Integral,
+               corpus_n_match: int,
+               corpus_total: int,
+               hyp_len: int,
+               ref_len: int,
                desc: Any = None) -> None:
     self.corpus_n_match = corpus_n_match
     self.corpus_total = corpus_total
@@ -239,6 +178,7 @@ class GLEUScore(SentenceLevelEvalScore, Serializable):
                      ref_len=sum(s.ref_len for s in scores),
                      desc=desc)
 
+
 class LevenshteinScore(SentenceLevelEvalScore):
   """
   A template class for Levenshtein-based scores.
@@ -251,12 +191,12 @@ class LevenshteinScore(SentenceLevelEvalScore):
     desc: human-readable description to include in log outputs
   """
 
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self,
-               correct: numbers.Integral,
-               substitutions: numbers.Integral,
-               insertions: numbers.Integral,
-               deletions: numbers.Integral,
+               correct: int,
+               substitutions: int,
+               insertions: int,
+               deletions: int,
                desc: Any = None) -> None:
     self.correct = correct
     self.substitutions = substitutions
@@ -283,21 +223,24 @@ class LevenshteinScore(SentenceLevelEvalScore):
                                insertions=sum(s.insertions for s in scores),
                                deletions=sum(s.deletions for s in scores))
 
-class WERScore(LevenshteinScore, Serializable):
+
+class WERScore(LevenshteinScore, xnmt.Serializable):
   """
   Class to keep a word error rate.
   """
   yaml_tag = "!WERScore"
   def metric_name(self): return "WER"
 
-class CERScore(LevenshteinScore, Serializable):
+
+class CERScore(LevenshteinScore, xnmt.Serializable):
   """
   Class to keep a character error rate.
   """
   yaml_tag = "!CERScore"
   def metric_name(self): return "CER"
 
-class RecallScore(SentenceLevelEvalScore, Serializable):
+
+class RecallScore(SentenceLevelEvalScore, xnmt.Serializable):
   """
   Class to keep a recall score.
 
@@ -310,12 +253,12 @@ class RecallScore(SentenceLevelEvalScore, Serializable):
   """
   yaml_tag = "!RecallScore"
 
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self,
-               recall: numbers.Real,
-               hyp_len: numbers.Integral,
-               ref_len: numbers.Integral,
-               nbest: numbers.Integral = 5,
+               recall: float,
+               hyp_len: int,
+               ref_len: int,
+               nbest: int = 5,
                desc: Any = None) -> None:
     self.recall  = recall
     self.hyp_len = hyp_len
@@ -340,7 +283,8 @@ class RecallScore(SentenceLevelEvalScore, Serializable):
   def aggregate(scores: Sequence['RecallScore'], desc: Any = None) -> 'RecallScore':
     return RecallScore(recall=np.average(s.recall for s in scores), hyp_len=len(scores), ref_len=len(scores), nbest=scores[0].nbest, desc=desc)
 
-class ExternalScore(EvalScore, Serializable):
+
+class ExternalScore(models.EvalScore, xnmt.Serializable):
   """
   Class to keep a score computed with an external tool.
 
@@ -351,8 +295,8 @@ class ExternalScore(EvalScore, Serializable):
   """
   yaml_tag = "!ExternalScore"
 
-  @serializable_init
-  def __init__(self, value: numbers.Real, higher_is_better: bool = True, desc: Any = None) -> None:
+  @xnmt.serializable_init
+  def __init__(self, value: float, higher_is_better: bool = True, desc: Any = None) -> None:
     self.value = value
     self.higher_is_better = higher_is_better
     self.desc = desc
@@ -364,7 +308,8 @@ class ExternalScore(EvalScore, Serializable):
   def score_str(self):
     return "{:.3f}".format(self.value)
 
-class SequenceAccuracyScore(SentenceLevelEvalScore, Serializable):
+
+class SequenceAccuracyScore(SentenceLevelEvalScore, xnmt.Serializable):
   """
   Class to keep a sequence accuracy score.
 
@@ -375,10 +320,10 @@ class SequenceAccuracyScore(SentenceLevelEvalScore, Serializable):
   """
   yaml_tag = "!SequenceAccuracyScore"
 
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self,
-               num_correct: numbers.Integral,
-               num_total: numbers.Integral,
+               num_correct: int,
+               num_total: int,
                desc: Any = None):
     self.num_correct = num_correct
     self.num_total = num_total
@@ -398,13 +343,13 @@ class SequenceAccuracyScore(SentenceLevelEvalScore, Serializable):
                                  desc=desc)
 
 
-class FMeasure(SentenceLevelEvalScore, Serializable):
+class FMeasure(SentenceLevelEvalScore, xnmt.Serializable):
   yaml_tag = "!FMeasure"
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self,
-               true_pos: numbers.Integral,
-               false_neg: numbers.Integral,
-               false_pos: numbers.Integral,
+               true_pos: int,
+               false_neg: int,
+               false_pos: int,
                desc: Any = None):
     self.true_pos = true_pos
     self.false_neg = false_neg
@@ -442,7 +387,7 @@ class Evaluator(object):
   A template class to evaluate the quality of output.
   """
 
-  def evaluate(self, ref: Sequence, hyp: Sequence, desc: Any = None) -> EvalScore:
+  def evaluate(self, ref: Sequence, hyp: Sequence, desc: Any = None) -> models.EvalScore:
     """
   Calculate the quality of output given a reference.
 
@@ -454,7 +399,7 @@ class Evaluator(object):
   """
     raise NotImplementedError('evaluate must be implemented in Evaluator subclasses')
 
-  def evaluate_multi_ref(self, ref: Sequence[Sequence], hyp: Sequence, desc: Any = None) -> EvalScore:
+  def evaluate_multi_ref(self, ref: Sequence[Sequence], hyp: Sequence, desc: Any = None) -> models.EvalScore:
     """
   Calculate the quality of output given multiple references.
 
@@ -464,6 +409,7 @@ class Evaluator(object):
     desc: optional description that is passed on to score objects
   """
     raise NotImplementedError(f'evaluate_multi_ref() is not implemented for {type(self)}.')
+
 
 class SentenceLevelEvaluator(Evaluator):
   """
@@ -482,9 +428,11 @@ class SentenceLevelEvaluator(Evaluator):
     if self.write_sentence_scores:
       with open(self.write_sentence_scores, "w") as f_out: f_out.write(yaml.dump(sentence_scores))
     return sentence_scores[0].__class__.aggregate(sentence_scores, desc=desc)
+
   def evaluate_one_sent(self, ref:Any, hyp:Any) -> SentenceLevelEvalScore:
     raise NotImplementedError("evaluate_one_sent must be implemented in SentenceLevelEvaluator subclasses")
-  def evaluate_multi_ref(self, ref: Sequence[Sequence], hyp: Sequence, desc: Any = None) -> EvalScore:
+
+  def evaluate_multi_ref(self, ref: Sequence[Sequence], hyp: Sequence, desc: Any = None) -> models.EvalScore:
     sentence_scores = []
     for ref_alternatives_i, hyp_i in zip(ref, hyp):
       cur_best = None
@@ -497,7 +445,8 @@ class SentenceLevelEvaluator(Evaluator):
       with open(self.write_sentence_scores, "w") as f_out: f_out.write(yaml.dump(sentence_scores))
     return sentence_scores[0].__class__.aggregate(sentence_scores, desc=desc)
 
-class FastBLEUEvaluator(SentenceLevelEvaluator, Serializable):
+
+class FastBLEUEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
   """
   Class for computing BLEU scores using a fast Cython implementation.
 
@@ -510,8 +459,8 @@ class FastBLEUEvaluator(SentenceLevelEvaluator, Serializable):
   """
   yaml_tag = "!FastBLEUEvaluator"
 
-  @serializable_init
-  def __init__(self, ngram: numbers.Integral = 4, smooth: numbers.Real = 1):
+  @xnmt.serializable_init
+  def __init__(self, ngram: int = 4, smooth: float = 1):
     self.ngram = ngram
     self.weights = (1 / ngram) * np.ones(ngram, dtype=np.float32)
     self.smooth = smooth
@@ -522,14 +471,14 @@ class FastBLEUEvaluator(SentenceLevelEvaluator, Serializable):
     try:
       from xnmt.cython import xnmt_cython
     except:
-      logger.error("BLEU evaluate fast requires xnmt cython installation step."
+      xnmt.logger.error("BLEU evaluate fast requires xnmt cython installation step."
                    "please check the documentation.")
       raise
     if len(ref) == 0 or len(hyp) == 0: return 0
     return xnmt_cython.bleu_sentence(self.ngram, self.smooth, ref, hyp)
 
 
-class BLEUEvaluator(Evaluator, Serializable):
+class BLEUEvaluator(Evaluator, xnmt.Serializable):
   """
   Compute BLEU scores against one or several references.
 
@@ -540,8 +489,8 @@ class BLEUEvaluator(Evaluator, Serializable):
   """
   yaml_tag = "!BLEUEvaluator"
 
-  @serializable_init
-  def __init__(self, ngram: numbers.Integral = 4):
+  @xnmt.serializable_init
+  def __init__(self, ngram: int = 4):
     self.ngram = ngram
     self.weights = (1 / ngram) * np.ones(ngram, dtype=np.float32)
     self.reference_corpus = None
@@ -636,7 +585,7 @@ class BLEUEvaluator(Evaluator, Serializable):
     bleu_score = brevity_penalty_score * precision_score
     return BLEUScore(bleu_score, frac_score_list, brevity_penalty_score, word_counter['candidate'], word_counter['reference'], ngram=self.ngram, desc=desc)
 
-  def _brevity_penalty(self, r: numbers.Integral, c: numbers.Integral) -> float:
+  def _brevity_penalty(self, r: int, c: int) -> float:
     """
     Args:
       r: number of words in reference corpus
@@ -698,7 +647,8 @@ class BLEUEvaluator(Evaluator, Serializable):
 
     return clipped_ngram_count, candidate_ngram_count
 
-class GLEUEvaluator(SentenceLevelEvaluator, Serializable):
+
+class GLEUEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
   """
   Class for computing GLEU (Google BLEU) Scores.
 
@@ -726,10 +676,10 @@ class GLEUEvaluator(SentenceLevelEvaluator, Serializable):
     write_sentence_scores: path of file to write sentence-level scores to (in YAML format)
   """
   yaml_tag = "!GLEUEvaluator"
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self,
-               min_length: numbers.Integral = 1,
-               max_length: numbers.Integral = 4,
+               min_length: int = 1,
+               max_length: int = 4,
                write_sentence_scores: Optional[str] = None) -> None:
     super().__init__(write_sentence_scores=write_sentence_scores)
     self.min = min_length
@@ -774,7 +724,7 @@ class GLEUEvaluator(SentenceLevelEvaluator, Serializable):
     return GLEUScore(n_match, n_total, hyp_len = len(hyp), ref_len = len(ref))
 
 
-class WEREvaluator(SentenceLevelEvaluator, Serializable):
+class WEREvaluator(SentenceLevelEvaluator, xnmt.Serializable):
   """
   A class to evaluate the quality of output in terms of word error rate.
 
@@ -783,11 +733,11 @@ class WEREvaluator(SentenceLevelEvaluator, Serializable):
     write_sentence_scores: path of file to write sentence-level scores to (in YAML format)
   """
   yaml_tag = "!WEREvaluator"
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self, case_sensitive: bool = False, write_sentence_scores: Optional[str] = None):
     super().__init__(write_sentence_scores=write_sentence_scores)
     self.case_sensitive = case_sensitive
-    self.aligner = levenshtein.LevenshteinAligner()
+    self.aligner = xnmt.modules.levenshtein.LevenshteinAligner()
 
   def evaluate_one_sent(self, ref: Sequence[str], hyp: Sequence[str]) -> WERScore:
     if not self.case_sensitive:
@@ -803,7 +753,8 @@ class WEREvaluator(SentenceLevelEvaluator, Serializable):
     assert score.hyp_len() == len(hyp)
     return score
 
-class CEREvaluator(SentenceLevelEvaluator, Serializable):
+
+class CEREvaluator(SentenceLevelEvaluator, xnmt.Serializable):
   """
   A class to evaluate the quality of output in terms of character error rate.
 
@@ -813,11 +764,11 @@ class CEREvaluator(SentenceLevelEvaluator, Serializable):
   """
   yaml_tag = "!CEREvaluator"
 
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self, case_sensitive: bool = False, write_sentence_scores: Optional[str] = None):
     super().__init__(write_sentence_scores=write_sentence_scores)
     self.case_sensitive = case_sensitive
-    self.aligner = levenshtein.LevenshteinAligner()
+    self.aligner = xnmt.modules.levenshtein.LevenshteinAligner()
 
   def evaluate_one_sent(self, ref: Sequence[str], hyp: Sequence[str]) -> CERScore:
     """
@@ -843,7 +794,8 @@ class CEREvaluator(SentenceLevelEvaluator, Serializable):
     assert score.hyp_len() == len(hyp_char)
     return score
 
-class ExternalEvaluator(Evaluator, Serializable):
+
+class ExternalEvaluator(Evaluator, xnmt.Serializable):
   """
   A class to evaluate the quality of the output according to an external evaluation script.
 
@@ -855,7 +807,7 @@ class ExternalEvaluator(Evaluator, Serializable):
     higher_better: whether to interpret higher scores as favorable.
   """
   yaml_tag = "!ExternalEvaluator"
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self, path:str=None, higher_better:bool=True):
     self.path = path
     self.higher_better = higher_better
@@ -876,7 +828,8 @@ class ExternalEvaluator(Evaluator, Serializable):
     external_score = float(out)
     return ExternalScore(external_score, higher_is_better=self.higher_better, desc=desc)
 
-class RecallEvaluator(SentenceLevelEvaluator,Serializable):
+
+class RecallEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
   """
   Compute recall by counting true positives.
 
@@ -885,8 +838,8 @@ class RecallEvaluator(SentenceLevelEvaluator,Serializable):
     write_sentence_scores: path of file to write sentence-level scores to (in YAML format)
   """
   yaml_tag = "!RecallEvaluator"
-  @serializable_init
-  def __init__(self, nbest: numbers.Integral = 5, write_sentence_scores: Optional[str] = None):
+  @xnmt.serializable_init
+  def __init__(self, nbest: int = 5, write_sentence_scores: Optional[str] = None):
     super().__init__(write_sentence_scores=write_sentence_scores)
     self.nbest = nbest
 
@@ -902,7 +855,7 @@ class RecallEvaluator(SentenceLevelEvaluator,Serializable):
     score = 1.0 if any(ref == idx for idx, _ in hyp[:self.nbest]) else 0.0
     return RecallScore(score, hyp_len=1, ref_len=1, nbest=self.nbest)
 
-# The below is needed for evaluating retrieval models, but depends on MeanAvgPrecisionScore which seems to have been
+# The below is needed for evaluating retrieval networks, but depends on MeanAvgPrecisionScore which seems to have been
 # lost.
 #
 # class MeanAvgPrecisionEvaluator(object):
@@ -922,7 +875,7 @@ class RecallEvaluator(SentenceLevelEvaluator,Serializable):
 #     avg = avg/float(len(ref))
 #     return MeanAvgPrecisionScore(avg, len(hyp), len(ref), nbest=self.nbest, desc=self.desc)
 
-class SequenceAccuracyEvaluator(SentenceLevelEvaluator, Serializable):
+class SequenceAccuracyEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
   """
   A class to evaluate the quality of output in terms of sequence accuracy.
 
@@ -931,7 +884,7 @@ class SequenceAccuracyEvaluator(SentenceLevelEvaluator, Serializable):
     write_sentence_scores: path of file to write sentence-level scores to (in YAML format)
   """
   yaml_tag = "!SequenceAccuracyEvaluator"
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self, case_sensitive=False, write_sentence_scores: Optional[str] = None) -> None:
     super().__init__(write_sentence_scores=write_sentence_scores)
     self.case_sensitive = case_sensitive
@@ -956,7 +909,7 @@ class SequenceAccuracyEvaluator(SentenceLevelEvaluator, Serializable):
     return SequenceAccuracyScore(num_correct=correct, num_total=1)
 
 
-class FMeasureEvaluator(SentenceLevelEvaluator, Serializable):
+class FMeasureEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
   """
   A class to evaluate the quality of output in terms of classification F-score.
 
@@ -965,7 +918,7 @@ class FMeasureEvaluator(SentenceLevelEvaluator, Serializable):
     write_sentence_scores: path of file to write sentence-level scores to (in YAML format)
   """
   yaml_tag = "!FMeasureEvaluator"
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self, pos_token:str="1", write_sentence_scores: Optional[str] = None) -> None:
     super().__init__(write_sentence_scores=write_sentence_scores)
     self.pos_token = pos_token
@@ -987,9 +940,9 @@ class FMeasureEvaluator(SentenceLevelEvaluator, Serializable):
                     false_pos=1 if (ref != hyp) and (hyp == self.pos_token) else 0)
 
 
-class SegmentationFMeasureEvaluator(SentenceLevelEvaluator, Serializable):
+class SegmentationFMeasureEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
   yaml_tag = "!SegmentationFMeasureEvaluator"
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self, write_sentence_scores: Optional[str] = None) -> None:
     super().__init__(write_sentence_scores=write_sentence_scores)
 
@@ -1027,9 +980,9 @@ class SegmentationFMeasureEvaluator(SentenceLevelEvaluator, Serializable):
     return FMeasure(true_pos=tp, false_neg=fn, false_pos=fp)
 
 
-class RNNGParseFMeasureEvaluator(SentenceLevelEvaluator, Serializable):
+class RNNGParseFMeasureEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
   yaml_tag = "!RNNGParseFMeasureEvaluator"
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self, ignore_word_in_gen=False, write_sentence_scores: Optional[str]=None):
     super().__init__(write_sentence_scores=write_sentence_scores)
     self.ignore_word_in_gen = ignore_word_in_gen

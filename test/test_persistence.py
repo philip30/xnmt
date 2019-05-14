@@ -5,7 +5,8 @@ import shutil
 import yaml
 
 import xnmt
-from xnmt import events, param_collections, persistence, utils
+from xnmt.internal import persistence, events, param_collections, utils
+
 
 class TestPath(unittest.TestCase):
 
@@ -13,10 +14,10 @@ class TestPath(unittest.TestCase):
     pass
 
   def test_init(self):
-    self.assertTrue(type(persistence.Path(""))==persistence.Path)
-    self.assertTrue(type(persistence.Path(".."))==persistence.Path)
-    self.assertTrue(type(persistence.Path(".2"))==persistence.Path)
-    self.assertTrue(type(persistence.Path("one.2"))==persistence.Path)
+    self.assertTrue(type(persistence.Path("")) == persistence.Path)
+    self.assertTrue(type(persistence.Path("..")) == persistence.Path)
+    self.assertTrue(type(persistence.Path(".2")) == persistence.Path)
+    self.assertTrue(type(persistence.Path("one.2")) == persistence.Path)
     with self.assertRaises(ValueError):
       persistence.Path(".one.")
       persistence.Path("one..2")
@@ -174,7 +175,7 @@ class TestPreloader(unittest.TestCase):
     a: !LoadSerialized
       filename: '{{EXP_DIR}}/{{EXP}}.yaml'
     """)
-    persistence.YamlPreloader.preload_obj(test_obj, exp_name = "tmp1", exp_dir=self.out_dir)
+    persistence.YamlPreloader.preload_obj(test_obj, exp_name ="tmp1", exp_dir=self.out_dir)
 
   def test_load_referenced_serialized_top(self):
     with open(f"{self.out_dir}/tmp1.yaml", "w") as f_out:
@@ -242,7 +243,7 @@ class TestPreloader(unittest.TestCase):
                          c: '{V1}/bla'
                          d: ['bla', 'bla.{V2}']
                          """)
-    persistence.YamlPreloader._format_strings(test_obj, {"V1":"val1", "V2":"val2"})
+    persistence.YamlPreloader._format_strings(test_obj, {"V1": "val1", "V2": "val2"})
     self.assertEqual(test_obj["a"].arg1, "val1")
     self.assertEqual(test_obj["a"].other_arg, 2)
     self.assertEqual(test_obj["a"].arg2, "val2")
@@ -285,7 +286,7 @@ class TestSaving(unittest.TestCase):
                              v: some_val
                            arg2: !Ref { name: id1 }
                          """)
-    preloaded = persistence.YamlPreloader.preload_obj(root=test_obj,exp_name="exp1",exp_dir=self.out_dir)
+    preloaded = persistence.YamlPreloader.preload_obj(root=test_obj, exp_name="exp1", exp_dir=self.out_dir)
     initalized = persistence.initialize_if_needed(preloaded)
     persistence.save_to_file(self.model_file, initalized)
 
@@ -299,7 +300,7 @@ class TestSaving(unittest.TestCase):
                            arg2: !DummyArgClass2
                              v: !Ref { name: id1 }
                          """)
-    preloaded = persistence.YamlPreloader.preload_obj(root=test_obj,exp_name="exp1",exp_dir=self.out_dir)
+    preloaded = persistence.YamlPreloader.preload_obj(root=test_obj, exp_name="exp1", exp_dir=self.out_dir)
     initalized = persistence.initialize_if_needed(preloaded)
     persistence.save_to_file(self.model_file, initalized)
 
@@ -315,7 +316,7 @@ class TestSaving(unittest.TestCase):
                              v: !DummyArgClass2
                                v: !Ref { name: id1 }
                          """)
-    preloaded = persistence.YamlPreloader.preload_obj(root=test_obj,exp_name="exp1",exp_dir=self.out_dir)
+    preloaded = persistence.YamlPreloader.preload_obj(root=test_obj, exp_name="exp1", exp_dir=self.out_dir)
     initalized = persistence.initialize_if_needed(preloaded)
     persistence.save_to_file(self.model_file, initalized)
 
@@ -329,7 +330,7 @@ class TestSaving(unittest.TestCase):
                              - !Ref { name: id1 }
                              - !Ref { name: id1 }
                          """)
-    preloaded = persistence.YamlPreloader.preload_obj(root=test_obj,exp_name="exp1",exp_dir=self.out_dir)
+    preloaded = persistence.YamlPreloader.preload_obj(root=test_obj, exp_name="exp1", exp_dir=self.out_dir)
     initalized = persistence.initialize_if_needed(preloaded)
     persistence.save_to_file(self.model_file, initalized)
 
@@ -362,7 +363,7 @@ class TestReferences(unittest.TestCase):
                            arg2: !DummyArgClass2 { v: some_other_val }
                          arg2: !Ref { path: arg1 }
                          """)
-    preloaded = persistence.YamlPreloader.preload_obj(root=test_obj,exp_name="exp1",exp_dir=self.out_dir)
+    preloaded = persistence.YamlPreloader.preload_obj(root=test_obj, exp_name="exp1", exp_dir=self.out_dir)
     initialized = persistence.initialize_if_needed(preloaded)
     dump = persistence._dump(initialized)
     reloaded = yaml.load(dump)

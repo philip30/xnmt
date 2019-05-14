@@ -1,6 +1,6 @@
 string2dep: !Experiment
   exp_global: !ExpGlobal
-    model_file: '{EXP_DIR}/models/{EXP}.mod'
+    model_file: '{EXP_DIR}/networks/{EXP}.mod'
     log_file: '{EXP_DIR}/logs/{EXP}.log'
     default_layer_dim: 256
     dropout: 0.3

@@ -17,9 +17,9 @@ with warnings.catch_warnings():
 import yaml
 
 from xnmt import logger
-from xnmt.persistence import serializable_init, Serializable
+from xnmt.internal.persistence import serializable_init, Serializable
 import xnmt.thirdparty.speech_features as speech_features
-import xnmt.utils as utils
+import xnmt.internal.utils as utils
 
 
 class PreprocTask(object):

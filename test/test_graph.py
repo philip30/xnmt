@@ -1,6 +1,6 @@
 import unittest
 
-from xnmt.graph import HyperGraph, HyperEdge, HyperNode
+from xnmt.structs.graph import HyperGraph, HyperEdge, HyperNode
 
 
 class TestGraph(unittest.TestCase):

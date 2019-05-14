@@ -7,25 +7,26 @@ import numpy
 import random
 import dynet as dy
 
-import xnmt.loss_calculators as loss_calculators
-import xnmt.modelparts.transforms as transforms
+import xnmt.train.loss_calculators as loss_calculators
+import xnmt.modules.nn.transforms as transforms
 
-from xnmt.modelparts.attenders import MlpAttender
-from xnmt.modelparts.bridges import NoBridge
-from xnmt.modelparts.decoders import AutoRegressiveDecoder
-from xnmt.modelparts.embedders import LookupEmbedder
-import xnmt.events
-from xnmt import batchers, event_trigger
-from xnmt.param_collections import ParamManager
-from xnmt.input_readers import PlainTextReader, CompoundReader, SimultActionTextReader
-from xnmt.transducers.recurrent import UniLSTMSeqTransducer
-from xnmt.search_strategies import GreedySearch, BeamSearch
-from xnmt.simultaneous.simult_translators import SimultaneousTranslator
-from xnmt.modelparts.transforms import AuxNonLinear
-from xnmt.modelparts.scorers import Softmax
-from xnmt.vocabs import Vocab
+from xnmt.modules.nn.attenders import MlpAttender
+from xnmt.modules.nn.bridges import NoBridge
+from xnmt.modules.decoders import AutoRegressiveDecoder
+from xnmt.modules.nn.embedders import LookupEmbedder
+import xnmt.internal.events
+from xnmt import event_trigger
+from xnmt.structs import batchers
+from xnmt.internal.param_collections import ParamManager
+from xnmt.modules.input_readers import PlainTextReader, CompoundReader, SimultActionTextReader
+from xnmt.modules.transducers import UniLSTMSeqTransducer
+from xnmt.inferences.search_strategies import GreedySearch, BeamSearch
+from xnmt.networks.translators.simult_translators import SimultaneousTranslator
+from xnmt.modules.nn.transforms import AuxNonLinear
+from xnmt.modules.nn.scorers import Softmax
+from xnmt.structs.vocabs import Vocab
 
-import xnmt.rl.policy_network as network
+import xnmt.rl.policies as network
 
 
 class TestSimultaneousTranslation(unittest.TestCase):
@@ -35,7 +36,7 @@ class TestSimultaneousTranslation(unittest.TestCase):
     numpy.random.seed(2)
     random.seed(2)
     layer_dim = 32
-    xnmt.events.clear()
+    xnmt.internal.events.clear()
     ParamManager.init_param_col()
     
     self.src_reader = PlainTextReader(vocab=Vocab(vocab_file="examples/data/head.ja.vocab"))
@@ -92,7 +93,7 @@ class TestSimultTranslationWithGivenAction(unittest.TestCase):
     numpy.random.seed(2)
     random.seed(2)
     layer_dim = 32
-    xnmt.events.clear()
+    xnmt.internal.events.clear()
     ParamManager.init_param_col()
    
     src_vocab = Vocab(vocab_file="examples/data/head.ja.vocab")
@@ -124,7 +125,7 @@ class TestSimultTranslationWithGivenAction(unittest.TestCase):
                                     scorer=Softmax(vocab_size=self.output_vocab_size, input_dim=layer_dim),
                                     embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=self.output_vocab_size),
                                     bridge=NoBridge(dec_dim=layer_dim, dec_layers=1)),
-      policy_network = network.PolicyNetwork(transforms.MLP(2*self.layer_dim, self.layer_dim, 2)),
+      policy_network = network.PolicyNetwork(transforms.MLP(2 * self.layer_dim, self.layer_dim, 2)),
       policy_train_oracle=True,
       policy_test_oracle=True
     )

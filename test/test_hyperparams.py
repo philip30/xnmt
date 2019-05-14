@@ -1,7 +1,7 @@
 import unittest
 
-from xnmt import events
-from xnmt.hyper_params import *
+from xnmt.internal import events
+from xnmt.structs.hyper_params import *
 
 
 class TestSanityHyperParameter(unittest.TestCase):

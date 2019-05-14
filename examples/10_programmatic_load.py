@@ -3,22 +3,22 @@
 
 import os
 
-import xnmt.tee
-from xnmt.param_collections import ParamManager
-from xnmt.persistence import initialize_if_needed, YamlPreloader, LoadSerialized, save_to_file
+import xnmt.internal.tee
+from xnmt.internal.param_collections import ParamManager
+from xnmt.internal.persistence import initialize_if_needed, YamlPreloader, LoadSerialized
 
 EXP_DIR = os.path.dirname(__file__)
 EXP = "programmatic-load"
 
-model_file = f"{EXP_DIR}/models/{EXP}.mod"
+model_file = f"{EXP_DIR}/networks/{EXP}.mod"
 log_file = f"{EXP_DIR}/logs/{EXP}.log"
 
-xnmt.tee.set_out_file(log_file, EXP)
+xnmt.internal.tee.set_out_file(log_file, EXP)
 
 ParamManager.init_param_col()
 
 load_experiment = LoadSerialized(
-  filename=f"{EXP_DIR}/models/programmatic.mod",
+  filename=f"{EXP_DIR}/networks/programmatic.mod",
   overwrite=[
     {"path" : "train", "val" : None},
     {"path": "status", "val": None},

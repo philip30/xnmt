@@ -5,7 +5,7 @@
 # config file.
 #
 # This demonstrates a standard model training, including set up of logging, model
-# saving, etc.; models are saved into YAML files that can again be loaded using
+# saving, etc.; networks are saved into YAML files that can again be loaded using
 # the standard YAML  way (examples/07_load_finetune.yaml) or the Python way
 # (10_programmatic_load.py)
 #
@@ -18,25 +18,25 @@ import random
 
 import numpy as np
 
-from xnmt.modelparts.attenders import MlpAttender
-from xnmt.batchers import SrcBatcher, InOrderBatcher
-from xnmt.modelparts.bridges import CopyBridge
-from xnmt.modelparts.decoders import AutoRegressiveDecoder
-from xnmt.modelparts.embedders import LookupEmbedder
+from xnmt.modules.nn.attenders import MlpAttender
+from xnmt.structs.batchers import SrcBatcher, InOrderBatcher
+from xnmt.modules.nn.bridges import CopyBridge
+from xnmt.modules.nn.decoders import AutoRegressiveDecoder
+from xnmt.modules.nn.embedders import LookupEmbedder
 from xnmt.eval.tasks import LossEvalTask, AccuracyEvalTask
 from xnmt.experiments import Experiment
 from xnmt.inferences import AutoRegressiveInference
-from xnmt.input_readers import PlainTextReader
-from xnmt.transducers.recurrent import BiLSTMSeqTransducer, UniLSTMSeqTransducer
-from xnmt.modelparts.transforms import AuxNonLinear
-from xnmt.modelparts.scorers import Softmax
-from xnmt.optimizers import AdamTrainer
-from xnmt.param_collections import ParamManager
-from xnmt.persistence import save_to_file
-import xnmt.tee
+from xnmt.modules.input_readers import PlainTextReader
+from xnmt.modules.transducers import BiLSTMSeqTransducer, UniLSTMSeqTransducer
+from xnmt.modules.nn.transforms import AuxNonLinear
+from xnmt.modules.nn.scorers import Softmax
+from xnmt.modules.optimizers import AdamTrainer
+from xnmt.internal.param_collections import ParamManager
+from xnmt.internal.persistence import save_to_file
+import xnmt.internal.tee
 from xnmt.train.regimens import SimpleTrainingRegimen
-from xnmt.models.translators.default import DefaultTranslator
-from xnmt.vocabs import Vocab
+from xnmt.networks.translators.seq2seq import DefaultTranslator
+from xnmt.structs.vocabs import Vocab
 
 seed=13
 random.seed(seed)
@@ -45,10 +45,10 @@ np.random.seed(seed)
 EXP_DIR = os.path.dirname(__file__)
 EXP = "programmatic"
 
-model_file = f"{EXP_DIR}/models/{EXP}.mod"
+model_file = f"{EXP_DIR}/networks/{EXP}.mod"
 log_file = f"{EXP_DIR}/logs/{EXP}.log"
 
-xnmt.tee.set_out_file(log_file, EXP)
+xnmt.internal.tee.set_out_file(log_file, EXP)
 
 ParamManager.init_param_col()
 ParamManager.param_col.model_file = model_file

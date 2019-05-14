@@ -55,7 +55,7 @@ def main():
   if os.path.isfile(args.model_to):
     raise ValueError(f"model_to already exists: {args.model_to}")
   elif not os.path.isdir(f"{args.model_from}.data") or not os.path.isdir(f"{args.model_from}.data.1"):
-    raise ValueError("avg_checkpoints can only be applied to models saved with at least 2 checkpoints")
+    raise ValueError("avg_checkpoints can only be applied to networks saved with at least 2 checkpoints")
 
   data_files = [f"{args.model_from}.data"]
   i=1

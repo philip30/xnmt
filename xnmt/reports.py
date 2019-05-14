@@ -1,7 +1,7 @@
 """
 Reports gather inputs, outputs, and intermediate computations in a nicely formatted way for convenient manual inspection.
 
-To support reporting, the models providing the data to be reported must subclass ``Reportable`` and call
+To support reporting, the networks providing the data to be reported must subclass ``Reportable`` and call
 ``self.report_sent_info(d)`` with key/value pairs containing the data to be reported at the appropriate times.
 If this causes a computational overhead, the boolean ``compute_report`` field should queried and extra computations
 skipped if this field is ``False``.
@@ -26,10 +26,11 @@ matplotlib.use('Agg')
 import numpy as np
 
 from xnmt import plotting
-from xnmt import sent, utils
-from xnmt.events import handle_xnmt_event, register_xnmt_handler
-from xnmt.persistence import Serializable, serializable_init
-from xnmt.settings import settings
+from xnmt.internal import utils
+from xnmt.structs import sentences
+from xnmt.internal.events import handle_xnmt_event, register_xnmt_handler
+from xnmt.internal.persistence import Serializable, serializable_init
+from xnmt.internal.settings import settings
 from xnmt.thirdparty.charcut import charcut
 
 class ReportInfo(object):
@@ -156,8 +157,8 @@ class ReferenceDiffReporter(Reporter, Serializable):
     self.hyp_sents, self.ref_sents, self.src_sents = [], [], []
 
   def create_sent_report(self,
-                         src: sent.Sentence,
-                         output: sent.ReadableSentence,
+                         src: sentences.Sentence,
+                         output: sentences.ReadableSentence,
                          ref_file: Optional[str] = None,
                          **kwargs) -> None:
     """
@@ -171,7 +172,7 @@ class ReferenceDiffReporter(Reporter, Serializable):
     """
     reference = utils.cached_file_lines(ref_file)[output.idx]
     trg_str = output.sent_str()
-    if isinstance(src, sent.ReadableSentence):
+    if isinstance(src, sentences.ReadableSentence):
       src_str = src.sent_str()
       self.src_sents.append(src_str)
     self.hyp_sents.append(trg_str)
@@ -228,7 +229,7 @@ class CompareMtReporter(Reporter, Serializable):
     self.report_path = report_path
     self.hyp_sents, self.ref_sents = [], []
 
-  def create_sent_report(self, output: sent.ReadableSentence, ref_file: str, **kwargs) -> None:
+  def create_sent_report(self, output: sentences.ReadableSentence, ref_file: str, **kwargs) -> None:
     """
     Create report.
 
@@ -384,7 +385,7 @@ class AttentionReporter(HtmlReporter, Serializable):
     self.max_num_sents = max_num_sents
     self.cur_sent_no = 0
 
-  def create_sent_report(self, src: sent.Sentence, output: sent.ReadableSentence, attentions: np.ndarray,
+  def create_sent_report(self, src: sentences.Sentence, output: sentences.ReadableSentence, attentions: np.ndarray,
                          ref_file: Optional[str], **kwargs) -> None:
 
     """
@@ -402,13 +403,13 @@ class AttentionReporter(HtmlReporter, Serializable):
     reference = utils.cached_file_lines(ref_file)[output.idx]
     idx = src.idx
     self.add_sent_heading(idx)
-    src_tokens = src.str_tokens() if isinstance(src, sent.ReadableSentence) else []
+    src_tokens = src.str_tokens() if isinstance(src, sentences.ReadableSentence) else []
     trg_tokens = output.str_tokens()
-    src_str = src.sent_str() if isinstance(src, sent.ReadableSentence) else ""
+    src_str = src.sent_str() if isinstance(src, sentences.ReadableSentence) else ""
     trg_str = output.sent_str()
     self.add_charcut_diff(trg_str, reference)
     self.add_fields_if_set({"Src" : src_str})
-    self.add_atts(attentions, src.get_array() if isinstance(src, sent.ArraySentence) else src_tokens,
+    self.add_atts(attentions, src.get_array() if isinstance(src, sentences.ArraySentence) else src_tokens,
                   trg_tokens, idx)
     self.finish_sent()
 
@@ -462,7 +463,7 @@ class SegmentationReporter(Reporter, Serializable):
     self.report_path = report_path
     self.report_fp = None
 
-  def create_sent_report(self, segment_actions, src: sent.Sentence, **kwargs):
+  def create_sent_report(self, segment_actions, src: sentences.Sentence, **kwargs):
     if self.report_fp is None:
       utils.make_parent_dir(self.report_path)
       self.report_fp = open(self.report_path, "w")
@@ -487,7 +488,7 @@ class OOVStatisticsReporter(Reporter, Serializable):
   """
   A reporter that prints OOV statistics: recovered OOVs, fantasized new words, etc.
 
-  Some models such as character- or subword-based models can produce words that are not in the training.
+  Some networks such as character- or subword-based networks can produce words that are not in the training.
   This is desirable when we produce a correct word that would have been an OOV with a word-based model
   but undesirable when we produce something that's not a correct word.
   The reporter prints some statistics that help analyze the OOV behavior of the model.
@@ -506,7 +507,7 @@ class OOVStatisticsReporter(Reporter, Serializable):
     self.train_trg_file = train_trg_file
     self.out_sents, self.ref_lines = [], []
 
-  def create_sent_report(self, output: sent.ReadableSentence, ref_file: str, **kwargs) -> None:
+  def create_sent_report(self, output: sentences.ReadableSentence, ref_file: str, **kwargs) -> None:
     self.output_vocab = output.vocab
     reference = utils.cached_file_lines(ref_file)[output.idx]
     self.ref_lines.append(reference)

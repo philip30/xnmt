@@ -1,6 +1,6 @@
 lexbias: !Experiment # 'standard' is the name given to the experiment
   exp_global: !ExpGlobal
-    model_file: '{EXP_DIR}/models/{EXP}.mod'
+    model_file: '{EXP_DIR}/networks/{EXP}.mod'
     log_file: '{EXP_DIR}/logs/{EXP}.log'
     default_layer_dim: 512
     dropout: 0.3

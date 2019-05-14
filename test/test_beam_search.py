@@ -2,20 +2,22 @@ import unittest
 
 import dynet as dy
 
-from xnmt.modelparts.attenders import MlpAttender
-from xnmt import batchers, event_trigger, events
-from xnmt.modelparts.bridges import CopyBridge
-from xnmt.modelparts.decoders import AutoRegressiveDecoder
-from xnmt.modelparts.embedders import LookupEmbedder
-from xnmt.input_readers import PlainTextReader
-from xnmt.transducers.recurrent import UniLSTMSeqTransducer, BiLSTMSeqTransducer
-from xnmt.modelparts.transforms import NonLinear
-from xnmt.modelparts.scorers import Softmax
-from xnmt.models.translators.default import DefaultTranslator
-from xnmt.search_strategies import BeamSearch, GreedySearch
-from xnmt.param_collections import ParamManager
-from xnmt.persistence import LoadSerialized, initialize_if_needed, YamlPreloader
-from xnmt.vocabs import Vocab
+from xnmt.modules.nn.attenders import MlpAttender
+from xnmt import event_trigger
+from xnmt.structs import batchers
+from xnmt.internal import events
+from xnmt.modules.nn.bridges import CopyBridge
+from xnmt.modules.nn.decoders import AutoRegressiveDecoder
+from xnmt.modules.nn.embedders import LookupEmbedder
+from xnmt.modules.input_readers import PlainTextReader
+from xnmt.modules.transducers import UniLSTMSeqTransducer, BiLSTMSeqTransducer
+from xnmt.modules.nn.transforms import NonLinear
+from xnmt.modules.nn.scorers import Softmax
+from xnmt.networks.translators.seq2seq import DefaultTranslator
+from xnmt.inferences.search_strategies import BeamSearch, GreedySearch
+from xnmt.internal.param_collections import ParamManager
+from xnmt.internal.persistence import LoadSerialized, initialize_if_needed, YamlPreloader
+from xnmt.structs.vocabs import Vocab
 
 class TestFreeDecodingLoss(unittest.TestCase):
 

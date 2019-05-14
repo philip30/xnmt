@@ -1,19 +1,19 @@
-from typing import Optional, Sequence, Union
-import numbers
-from unidecode import unidecode
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from xnmt import utils
+from typing import Optional, Sequence, Union
+from unidecode import unidecode
+
+import xnmt
+
 
 def plot_attention(src_words: Union[np.ndarray, Sequence[str]],
                    trg_words: Sequence[str],
                    attention_matrix: np.ndarray,
                    file_name: str,
-                   size_x: numbers.Real = 8.0,
-                   size_y: numbers.Real = 8.0) -> None:
+                   size_x: float = 8.0,
+                   size_y: float = 8.0) -> None:
   """This takes in source and target words and an attention matrix (in numpy format)
   and prints a visualization of this to a file.
 
@@ -59,7 +59,7 @@ def plot_attention(src_words: Union[np.ndarray, Sequence[str]],
     plot_speech_features(feature_matrix=src_words, ax=ax, dpi=dpi)
     fig.tight_layout()
 
-  utils.make_parent_dir(file_name)
+  xnmt.internal.utils.make_parent_dir(file_name)
   plt.savefig(file_name, dpi=dpi)
   plt.close()
 
@@ -68,8 +68,8 @@ def plot_speech_features(feature_matrix: np.ndarray,
                          file_name: Optional[str] = None,
                          vertical: bool = True,
                          ax: Optional[matplotlib.axes.Axes] = None,
-                         length: numbers.Real = 8.0,
-                         dpi: numbers.Number = 100):
+                         length: float = 8.0,
+                         dpi: int = 100):
   """Plot speech feature matrix.
 
   Args:
@@ -91,7 +91,7 @@ def plot_speech_features(feature_matrix: np.ndarray,
     plt.pcolor(feature_matrix, cmap=plt.cm.jet, vmin=-1, vmax=1)
     plt.axis('off')
   if file_name is not None:
-    utils.make_parent_dir(file_name)
+    xnmt.internal.utils.make_parent_dir(file_name)
     plt.savefig(file_name, dpi=dpi)
     plt.close()
 

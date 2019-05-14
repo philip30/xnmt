@@ -1,4 +1,4 @@
-# Saving and loading models is a key feature demonstrated in this config file.
+# Saving and loading networks is a key feature demonstrated in this config file.
 # This example shows how to load a trained model for fine tuning.
 # pretrained model.
 exp1-pretrain-model: !Experiment
@@ -50,7 +50,7 @@ exp2-finetune-minrisk: !LoadSerialized
   # This will perform minimum risk training with SamplingSearch.
   # Same as above, the pretrained model will be loaded and an appropriate search_strategy
   # will be used during minimum risk training.
-  filename: examples/models/exp1-pretrain-model.mod
+  filename: examples/networks/exp1-pretrain-model.mod
   path: ''
   overwrite:
   - path: train.status

@@ -44,12 +44,12 @@ exp2-single: !Experiment
         output_projector: !Ref {name: dense_embed}
   train: *train
 
-# Load the previously trained models and combine them to an ensemble
+# Load the previously trained networks and combine them to an ensemble
 exp3-ensemble-load: !Experiment
   exp_global: *globals
   model: !EnsembleTranslator
-    src_reader: !Ref {path: model.models.0.src_reader}
-    trg_reader: !Ref {path: model.models.0.trg_reader}
+    src_reader: !Ref {path: model.networks.0.src_reader}
+    trg_reader: !Ref {path: model.networks.0.trg_reader}
     models:
       - !LoadSerialized
         filename: 'examples/output/exp1-single.mod'
@@ -64,7 +64,7 @@ exp3-ensemble-load: !Experiment
       ref_file: examples/data/head.en
       hyp_file: examples/output/{EXP}.test_hyp
 
-# Alternatively, we can also hook up the models during training time already
+# Alternatively, we can also hook up the networks during training time already
 exp4-ensemble-train: !Experiment
   exp_global: *globals
   model: !EnsembleTranslator

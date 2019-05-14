@@ -1,14 +1,14 @@
 import unittest
 import os, shutil
 
-from xnmt.utils import has_cython
+from xnmt.internal.utils import has_cython
 import xnmt.xnmt_run_experiments as run
-import xnmt.events
+import xnmt.internal.events
 
 class TestRunningConfig(unittest.TestCase):
 
   def setUp(self):
-    xnmt.events.clear()
+    xnmt.internal.events.clear()
 
   def test_assemble(self):
     run.main(["test/config/assemble.yaml"])

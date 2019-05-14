@@ -1,8 +1,8 @@
 import argparse
-import xnmt.input_readers as input_readers
+import xnmt.modules.input_readers as input_readers
 
-from xnmt.graph import HyperNode, HyperEdge, HyperGraph
-from xnmt.sent import SyntaxTreeNode
+from xnmt.structs.graph import HyperEdge, HyperGraph
+from xnmt.structs.sentences import SyntaxTreeNode
 from collections import defaultdict
 
 DELIMITER = "▁"

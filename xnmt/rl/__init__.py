@@ -1,3 +1,3 @@
-import xnmt.rl.policy_gradient
-import xnmt.rl.policy_network
-import xnmt.rl.policy_action
+import xnmt.rl.policies
+import xnmt.rl.baseline
+import xnmt.rl.rewards

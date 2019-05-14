@@ -2,7 +2,8 @@ import argparse
 import sys
 from typing import Callable
 
-from xnmt import inferences, utils
+from xnmt import inferences
+from xnmt.internal import utils
 from xnmt.eval import metrics
 
 from xnmt.eval.metrics import *  # import everything so we can parse it with eval()

@@ -1,6 +1,6 @@
 import argparse
-import xnmt.vocabs as vocabs
-import xnmt.input_readers as input_readers
+import xnmt.structs.vocabs as vocabs
+import xnmt.modules.input_readers as input_readers
 
 parser = argparse.ArgumentParser()
 parser.add_argument("input")

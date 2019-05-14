@@ -4,20 +4,23 @@ import math
 import numpy as np
 import dynet as dy
 
-from xnmt.modelparts.attenders import MlpAttender
-from xnmt.modelparts.bridges import CopyBridge
-from xnmt.modelparts.decoders import AutoRegressiveDecoder
-from xnmt.modelparts.embedders import LookupEmbedder
-from xnmt.input_readers import PlainTextReader
-from xnmt.transducers.recurrent import UniLSTMSeqTransducer, BiLSTMSeqTransducer
-from xnmt.param_collections import ParamManager
-from xnmt.transducers.pyramidal import PyramidalLSTMSeqTransducer
-from xnmt.modelparts.scorers import Softmax
-from xnmt.transducers.self_attention import MultiHeadAttentionSeqTransducer
-from xnmt.modelparts.transforms import NonLinear
-from xnmt.models.translators.default import DefaultTranslator
-from xnmt.vocabs import Vocab
-from xnmt import batchers, event_trigger, events
+from xnmt.modules.nn.attenders import MlpAttender
+from xnmt.modules.nn.bridges import CopyBridge
+from xnmt.modules.nn.decoders import AutoRegressiveDecoder
+from xnmt.modules.nn.embedders import LookupEmbedder
+from xnmt.modules.input_readers import PlainTextReader
+from xnmt.modules.transducers import UniLSTMSeqTransducer, BiLSTMSeqTransducer
+from xnmt.internal.param_collections import ParamManager
+from xnmt.modules.transducers import PyramidalLSTMSeqTransducer
+from xnmt.modules.nn.scorers import Softmax
+from xnmt.modules.transducers.self_attention import MultiHeadAttentionSeqTransducer
+from xnmt.modules.nn.transforms import NonLinear
+from xnmt.networks.translators.seq2seq import DefaultTranslator
+from xnmt.structs.vocabs import Vocab
+from xnmt import event_trigger
+from xnmt.structs import batchers
+from xnmt.internal import events
+
 
 class TestEncoder(unittest.TestCase):
 

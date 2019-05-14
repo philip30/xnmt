@@ -6,76 +6,15 @@ import numbers
 
 import numpy as np
 
-from xnmt import batchers, event_trigger, input_readers, logger, losses, loss_trackers, loss_calculators, \
-  param_collections
-from xnmt.models import base as model_base
+from xnmt import logger, event_trigger
+from xnmt.structs import batchers
+from xnmt.modules import input_readers
+from xnmt.internal import param_collections
+from xnmt.train import loss_calculators, loss_trackers
+from xnmt.networks import base as model_base
 from xnmt.eval import tasks as eval_tasks
-from xnmt.persistence import serializable_init, Serializable, bare
+from xnmt.internal.persistence import serializable_init, Serializable, bare
 
-class TrainingTask(object):
-  """
-  Base class for a training task. Training tasks can perform training steps
-  and keep track of the training state, but may not implement the actual training
-  loop.
-
-  Args:
-    model: The model to train
-  """
-  def __init__(self, model: 'model_base.TrainableModel') -> None:
-    self.model = model
-
-  def should_stop_training(self):
-    """
-    Returns:
-      True iff training is finished, i.e. training_step(...) should not be called again
-    """
-    raise NotImplementedError("must be implemented by subclasses")
-
-  def training_step(self, **kwargs) -> 'losses.FactoredLossExpr':
-    """
-    Perform forward pass for the next training step and handle training logic (switching epoch, reshuffling, ..)
-
-    Args:
-      **kwargs: depends on subclass implementations
-    Returns:
-      Loss
-    """
-    raise NotImplementedError("must be implemented by subclasses")
-
-  def next_minibatch(self) -> Iterator:
-    """
-    Infinitely loop over training minibatches.
-
-    Returns:
-      Generator yielding (src_batch,trg_batch) tuples
-    """
-
-  def checkpoint_needed(self) -> bool:
-    raise NotImplementedError("must be implemented by subclasses")
-
-  def checkpoint(self, control_learning_schedule: bool = False) -> bool:
-    """
-    Perform a dev checkpoint.
-
-    Args:
-      control_learning_schedule: If ``False``, only evaluate dev data.
-                                 If ``True``, also perform model saving, LR decay etc. if needed.
-    Returns:
-      ``True`` iff the model needs saving
-    """
-    raise NotImplementedError("must be implemented by subclasses")
-
-  def cur_num_minibatches(self) -> int:
-    """
-    Current number of minibatches (may change between epochs, e.g. for randomizing batchers or if reload_command is given)
-    """
-    raise NotImplementedError("must be implemented by subclasses")
-
-  def cur_num_sentences(self) -> int:
-    """
-    Current number of parallel sentences (may change between epochs, e.g. if reload_command is given)
-    """
-    raise NotImplementedError("must be implemented by subclasses")
 
 
 class SimpleTrainingTask(TrainingTask, Serializable):
