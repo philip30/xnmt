@@ -1,19 +1,11 @@
 from typing import Any, Callable, Dict, List, Optional, Sequence
-import numbers
 
-import xnmt.models.templates
-from xnmt.internal.settings import settings
-
+import xnmt
 import xnmt.preproc as preprocs
-from xnmt import logger, param_initializers
-from xnmt.internal import param_collections
-from xnmt.eval import metrics, tasks as eval_tasks
-from xnmt.networks import base as models_base
-from xnmt.train import regimens
-from xnmt.internal.persistence import serializable_init, Serializable, bare
+import xnmt.models as models
 
 
-class ExpGlobal(Serializable):
+class ExpGlobal(xnmt.Serializable):
   """
   An object that holds global settings that can be referenced by components wherever appropriate.
 
@@ -34,22 +26,20 @@ class ExpGlobal(Serializable):
                   string to be replaced by ``"/some/path"``. As a special variable, ``EXP_DIR`` can be specified to
                   overwrite the default location for writing networks, logs, and other files.
   """
-  yaml_tag = '!ExpGlobal'
-
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self,
-               model_file: str = settings.DEFAULT_MOD_PATH,
-               log_file: str = settings.DEFAULT_LOG_PATH,
-               dropout: numbers.Real = 0.3,
-               weight_noise: numbers.Real = 0.0,
-               default_layer_dim: numbers.Integral = 512,
-               param_init: xnmt.models.templates.ParamInitializer = bare(param_initializers.GlorotInitializer),
-               bias_init: xnmt.models.templates.ParamInitializer = bare(param_initializers.ZeroInitializer),
+               model_file: str = xnmt.settings.DEFAULT_MOD_PATH,
+               log_file: str = xnmt.settings.DEFAULT_LOG_PATH,
+               dropout: float = 0.3,
+               weight_noise: float = 0.0,
+               default_layer_dim: int = 512,
+               param_init: xnmt.ParamInitializer = xnmt.default_param_init,
+               bias_init: xnmt.ParamInitializer = xnmt.default_bias_init,
                truncate_dec_batches: bool = False,
-               save_num_checkpoints: numbers.Integral = 1,
+               save_num_checkpoints: int = 1,
                loss_comb_method: str = "sum",
-               commandline_args: dict = {},
-               placeholders: Dict[str, Any] = {}) -> None:
+               commandline_args: Optional[dict] = None,
+               placeholders: Optional[Dict[str, Any]] = None) -> None:
     self.model_file = model_file
     self.log_file = log_file
     self.dropout = dropout
@@ -62,9 +52,14 @@ class ExpGlobal(Serializable):
     self.save_num_checkpoints = save_num_checkpoints
     self.loss_comb_method = loss_comb_method
     self.placeholders = placeholders
+    
+    if commandline_args is None:
+      self.commandline_args = {}
+    if placeholders is None:
+      self.placeholders = {}
 
 
-class Experiment(Serializable):
+class Experiment(xnmt.Serializable):
   """
   A default experiment that performs preprocessing, training, and evaluation.
 
@@ -81,19 +76,16 @@ class Experiment(Serializable):
     random_search_report: When random search is used, this holds the settings that were randomly drawn for documentary purposes.
     status: Status of the experiment, will be automatically set to "done" in saved model if the experiment has finished running.
   """
-
-  yaml_tag = '!Experiment'
-
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self,
                name: str,
-               exp_global: Optional[ExpGlobal] = bare(ExpGlobal),
+               exp_global: Optional[ExpGlobal] = xnmt.bare(ExpGlobal),
                preproc: Optional[preprocs.PreprocRunner] = None,
-               model: Optional[models_base.TrainableModel] = None,
-               train: Optional[regimens.TrainingRegimen] = None,
-               evaluate: Optional[List[eval_tasks.EvalTask]] = None,
+               model: Optional[models.TrainableModel] = None,
+               train: Optional[models.TrainingRegimen] = None,
+               evaluate: Optional[List[models.EvalTask]] = None,
                random_search_report: Optional[dict] = None,
-               standalone: Optional[List[Serializable]] = None,
+               standalone: Optional[Dict[str, xnmt.Serializable]] = None,
                status: Optional[str] = None) -> None:
     self.name = name
     self.exp_global = exp_global
@@ -105,26 +97,26 @@ class Experiment(Serializable):
     self.status = status
 
     if random_search_report:
-      logger.info(f"> instantiated random parameter search: {random_search_report}")
+      xnmt.logger.info(f"> instantiated random parameter search: {random_search_report}")
 
-  def __call__(self, save_fct: Callable) -> Sequence[metrics.EvalScore]:
+  def __call__(self, save_fct: Callable) -> Sequence[models.EvalScore]:
     """
     Launch training loop, followed by final evaluation.
     """
     eval_scores = ["Not evaluated"]
     if self.status != "done":
       if self.train:
-        logger.info("> Training")
+        xnmt.logger.info("> Training")
         self.train.run_training(save_fct = save_fct)
-        logger.info('reverting learned weights to best checkpoint..')
+        xnmt.logger.info('reverting learned weights to best checkpoint..')
         try:
-          param_collections.ParamManager.param_col.revert_to_best_model()
-        except param_collections.RevertingUnsavedModelException:
+          xnmt.internal.param_collections.ParamManager.param_col.revert_to_best_model()
+        except xnmt.internal.param_collections.RevertingUnsavedModelException:
           pass
 
       evaluate_args = self.evaluate
       if evaluate_args:
-        logger.info("> Performing final evaluation")
+        xnmt.logger.info("> Performing final evaluation")
         eval_scores = []
         for evaluator in evaluate_args:
           eval_score = evaluator.eval()
@@ -136,7 +128,7 @@ class Experiment(Serializable):
       self.save_processed_arg("status", "done")
       save_fct()
     else:
-      logger.info("Experiment already finished, skipping.")
+      xnmt.logger.info("Experiment already finished, skipping.")
 
     return eval_scores
 

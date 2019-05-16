@@ -35,7 +35,7 @@ from xnmt.internal.param_collections import ParamManager
 from xnmt.internal.persistence import save_to_file
 import xnmt.internal.tee
 from xnmt.train.regimens import SimpleTrainingRegimen
-from xnmt.networks.translators.seq2seq import DefaultTranslator
+from xnmt.networks.seq2seq import DefaultTranslator
 from xnmt.structs.vocabs import Vocab
 
 seed=13

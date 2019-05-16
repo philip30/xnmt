@@ -12,9 +12,6 @@ import xnmt.models.templates
 
 
 class PositionalSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
-
-  yaml_tag = '!PositionalSeqTransducer'
-
   @xnmt.serializable_init
   def __init__(self,
                max_pos: int,

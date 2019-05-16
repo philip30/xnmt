@@ -1,8 +1,9 @@
-
+import random
 import dynet as dy
 import xnmt
+import functools
 
-from typing import List, Dict, Optional
+from typing import List, Optional
 
 class AttenderState(object):
   def __init__(self,
@@ -21,13 +22,43 @@ class UniDirectionalState(object):
   def output(self) -> dy.Expression:
     pass
 
+
 class DecoderState(object):
   """A state that holds whatever information is required for the decoder.
      Child classes must implement the as_vector() method, which will be
      used by e.g. the attention mechanism"""
   def as_vector(self) -> dy.Expression:
-    raise  NotImplementedError()
+    raise NotImplementedError()
 
+  @property
+  def context(self):
+    raise NotImplementedError()
+
+
+class ClassifierState(DecoderState):
+  def __init__(self, h: dy.Expression):
+    self._h = h
+  
+  def as_vector(self) -> dy.Expression:
+    return self._h
+  
+  @property
+  def context(self):
+    return self._h
+  
+
+class LabelerState(DecoderState):
+  def __init__(self, encodings: List[dy.Expression], timestep=0):
+    self.encodings = encodings
+    self.timestep = timestep
+    
+  def as_vector(self) -> dy.Expression:
+    return self.encodings[self.timestep]
+  
+  def context(self):
+    return self.encodings[self.timestep]
+    
+  
 
 class SentenceStats(object):
   """
@@ -105,18 +136,18 @@ class EncoderState(object):
 
 class SearchAction(object):
   def __init__(self,
-               action: int,
-               log_likelihood: dy.Expression=None,
-               decoder_state: DecoderState=None,
-               mask: xnmt.Mask=None):
-    self._action = action
+               decoder_state: DecoderState,
+               action_id: Optional[int] = None,
+               log_likelihood: Optional[dy.Expression] = None,
+               mask: Optional[xnmt.Mask] = None):
+    self._action_id = action_id
     self._log_likelihood = log_likelihood
     self._mask = mask
     self._decoder_state = decoder_state
 
   @property
-  def action(self):
-    return self._action
+  def action_id(self):
+    return self._action_id
 
   @property
   def log_likelihood(self):
@@ -132,6 +163,53 @@ class SearchAction(object):
 
   def __repr__(self):
     ll = dy.exp(self.log_likelihood).npvalue() if self.log_likelihood is not None else None
-    return "({}, {})".format(repr(self.action), ll)
+    return "({}, {})".format(repr(self.action_id), ll)
 
 
+class Hypothesis(object):
+  def __init__(self, score: float, action: SearchAction, timestep: int = 0, parent: Optional['Hypothesis'] = None):
+    self._score = score
+    self._action = action
+    self._timestep = timestep
+    self._parent = parent
+  
+  @property
+  def score(self):
+    return self._score
+
+  @property
+  def action(self):
+    return self._action
+  
+  @property
+  def timestep(self):
+    return self._timestep
+  
+  @property
+  def parent(self):
+    return self._parent
+  
+  @functools.lru_cache(maxsize=1)
+  def actions(self):
+    actions = []
+    now = self
+    while now.parent is not None:
+      actions.append(now.action)
+      now = now.parent
+    return list(reversed(actions))
+  
+
+class TrainingState(object):
+  """
+  This holds the state of the training loop.
+  """
+  def __init__(self):
+    self.num_times_lr_decayed = 0
+    self.cur_attempt = 0
+    self.epoch_num = 0
+    self.steps_into_epoch = 0
+    self.sents_since_start = 0
+    self.sents_into_epoch = 0
+    self.best_dev_score = None
+    # used to pack and shuffle minibatches (keeping track might help resuming crashed trainings in the future)
+    self.epoch_seed = random.randint(1,2147483647)

@@ -1,43 +1,33 @@
-import xnmt.modules.nn.transforms as transforms
-import xnmt.internal.events as events
-import xnmt.modules.transducers.base as seq_transducer
-import xnmt.structs.expression_seqs as expr_seq
-import xnmt.modules.transducers.recurrent as recurrent
 
-from xnmt.internal.persistence import Serializable, serializable_init, bare
+import xnmt
+import xnmt.models as models
+import xnmt.modules.nn as nn
 
 
 
-
-class PolicyNetwork(Serializable, Policy):
-
-  yaml_tag = '!PolicyNetwork'
-  @serializable_init
-  @events.register_xnmt_handler
-  def __init__(self, policy_network: transforms.Transform = bare(transforms.Linear)):
+class PolicyNetwork(models.Policy, xnmt.Serializable):
+  @xnmt.serializable_init
+  def __init__(self, policy_network: models.Transform = xnmt.bare(nn.Linear)):
     self.policy_network = policy_network
 
   def input_state(self, state):
     return self.policy_network.transform(state)
 
 
-class RecurrentPolicyNetwork(Serializable, Policy):
-
-  yaml_tag = '!RecurrentPolicyNetwork'
-  @serializable_init
-  @events.register_xnmt_handler
+class RecurrentPolicyNetwork(models.Policy, nn.Linear):
+  @xnmt.serializable_init
   def __init__(self,
-               policy_network: transforms.Transform = bare(transforms.Linear),
-               rnn: seq_transducer.SeqTransducer = bare(recurrent.BiLSTMSeqTransducer)):
+               policy_network: models.Transform = xnmt.bare(nn.Linear),
+               rnn: models.SeqTransducer = xnmt.bare(nn.BiLSTMSeqTransducer)):
     self.rnn = rnn
     self.policy_network = policy_network
 
   ### Warning do not use single sample_action normally here!
   ### Please use sample_actions to sample for making sequetial decisions
 
-  def sample_actions(self, states: expr_seq.ExpressionSequence, argmax=False, sample_pp=None, predefined_action=None):
+  def sample_actions(self, states: xnmt.ExpressionSequence, argmax=False, sample_pp=None, predefined_action=None):
     states = self.rnn.transduce(states)
-    return super().sample_actions(states, argmax, sample_pp, predefined_action)
+    return super().sample_actions(states.encode_seq, argmax, sample_pp, predefined_action)
 
   def input_state(self, state):
     return self.policy_network.transform(state)

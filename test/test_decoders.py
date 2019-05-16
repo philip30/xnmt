@@ -13,7 +13,7 @@ from xnmt.modules.input_readers import PlainTextReader
 from xnmt.modules.transducers import UniLSTMSeqTransducer, BiLSTMSeqTransducer
 from xnmt.internal.param_collections import ParamManager
 from xnmt.modules.nn.transforms import NonLinear
-from xnmt.networks.translators.seq2seq import DefaultTranslator
+from xnmt.networks.seq2seq import DefaultTranslator
 from xnmt.modules.nn.scorers import Softmax
 from xnmt.inferences.search_strategies import GreedySearch
 from xnmt.structs.vocabs import Vocab

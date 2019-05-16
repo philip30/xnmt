@@ -1,20 +1,15 @@
-from typing import Sequence, Union, Optional, Any
-
+import collections
 import dynet as dy
 
-from xnmt.internal.settings import settings
-from collections import defaultdict
-from xnmt import inferences, reports, xnmt_evaluate, event_trigger
-from xnmt.structs import batchers
-from xnmt.modules import input_readers
-from xnmt.internal import events, utils
-from xnmt.train import loss_calculators
-from xnmt.eval import metrics
-from xnmt.networks import base as model_base
-from xnmt.internal.persistence import serializable_init, Serializable, Ref, bare
+from typing import Sequence, Union, Optional, Any
+
+import xnmt
+import xnmt.models as models
+import xnmt.eval.metrics as metrics
+import xnmt.eval.evaluate as evaluate
 
 
-class LossEvalTask(EvalTask, Serializable):
+class LossEvalTask(models.EvalTask, xnmt.Serializable):
   """
   A task that does evaluation of the loss function.
 
@@ -30,20 +25,20 @@ class LossEvalTask(EvalTask, Serializable):
     loss_comb_method: method for combining loss across batch elements ('sum' or 'avg').
     desc: description to pass on to computed score objects
   """
-  yaml_tag = '!LossEvalTask'
-
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self,
                src_file: Union[str, Sequence[str]],
                ref_file: Optional[str] = None,
-               model: 'model_base.GeneratorModel' = Ref("model"),
-               batcher: Optional[batchers.Batcher] = Ref("train.batcher", default=bare(batchers.SrcBatcher, batch_size=32)),
-               loss_calculator: loss_calculators.LossCalculator = bare(loss_calculators.MLELoss),
+               model: models.ConditionedModel = xnmt.Ref("model"),
+               batcher: Optional[xnmt.structs.Batcher] = xnmt.Ref("train.batcher"),
+               loss_calculator: models.LossCalculator = xnmt.bare(xnmt.train.MLELoss),
                max_src_len: Optional[int] = None,
                max_trg_len: Optional[int] = None,
                max_num_sents: Optional[int] = None,
-               loss_comb_method: str = Ref("exp_global.loss_comb_method", default="sum"),
-               desc: Any = None) -> None:
+               loss_comb_method: str = xnmt.Ref("exp_global.loss_comb_method", default="sum"),
+               src_reader: models.InputReader = xnmt.ref_src_reader,
+               trg_reader: models.InputReader = xnmt.ref_trg_reader,
+               desc: Any = None):
     self.model = model
     self.loss_calculator = loss_calculator
     self.src_file = src_file
@@ -54,20 +49,26 @@ class LossEvalTask(EvalTask, Serializable):
     self.max_trg_len = max_trg_len
     self.max_num_sents = max_num_sents
     self.loss_comb_method = loss_comb_method
-    self.desc=desc
+    self.src_reader = src_reader
+    self.trg_reader = trg_reader
+    self.desc = desc
+    self.src_data = None
+    self.ref_data = None
+    self.src_batches = None
+    self.ref_batches = None
 
-  def eval(self) -> 'metrics.EvalScore':
+  def eval(self) -> models.EvalScore:
     """
     Perform evaluation task.
 
     Returns:
       Evaluated score
     """
-    event_trigger.set_train(False)
+    xnmt.event_trigger.set_train(False)
     if self.src_data is None:
       self.src_data, self.ref_data, self.src_batches, self.ref_batches = \
-        input_readers.read_parallel_corpus(src_reader=self.model.src_reader,
-                                           trg_reader=self.model.trg_reader,
+        xnmt.modules.input_readers.read_parallel_corpus(src_reader=self.src_reader,
+                                           trg_reader=self.trg_reader,
                                            src_file=self.src_file,
                                            trg_file=self.ref_file,
                                            batcher=self.batcher,
@@ -75,11 +76,11 @@ class LossEvalTask(EvalTask, Serializable):
                                            max_src_len=self.max_src_len,
                                            max_trg_len=self.max_trg_len)
     ref_words_cnt = 0
-    loss_maps = defaultdict(float)
-    loss_wrds = defaultdict(float)
+    loss_maps = collections.defaultdict(float)
+    loss_wrds = collections.defaultdict(float)
     for src, trg in zip(self.src_batches, self.ref_batches):
-      with utils.ReportOnException({"src": src, "trg": trg, "graph": utils.print_cg_conditional}):
-        dy.renew_cg(immediate_compute=settings.IMMEDIATE_COMPUTE, check_validity=settings.CHECK_VALIDITY)
+      with xnmt.utils.ReportOnException({"src": src, "trg": trg, "graph": xnmt.utils.print_cg_conditional}):
+        dy.renew_cg(immediate_compute=xnmt.settings.IMMEDIATE_COMPUTE, check_validity=xnmt.settings.CHECK_VALIDITY)
 
         loss_expr = self.loss_calculator.calc_loss(self.model, src, trg)
         loss, loss_value = loss_expr.compute(comb_method=self.loss_comb_method)
@@ -95,7 +96,11 @@ class LossEvalTask(EvalTask, Serializable):
                              num_ref_words=ref_words_cnt,
                              desc=self.desc)
 
-class AccuracyEvalTask(EvalTask, Serializable):
+
+
+
+
+class AccuracyEvalTask(models.EvalTask, xnmt.Serializable):
   """
   A task that does evaluation of some measure of accuracy.
 
@@ -110,35 +115,31 @@ class AccuracyEvalTask(EvalTask, Serializable):
                        that was generated by the previous eval tasks.
     desc: human-readable description passed on to resulting score objects
   """
-
-  yaml_tag = '!AccuracyEvalTask'
-
-  @serializable_init
-  @events.register_xnmt_handler
+  @xnmt.serializable_init
   def __init__(self,
                src_file: Union[str,Sequence[str]],
                ref_file: Union[str,Sequence[str]],
                hyp_file: str,
-               model: 'model_base.GeneratorModel' = Ref("model"),
-               eval_metrics: Union[str, metrics.Evaluator, Sequence[metrics.Evaluator]] = "bleu",
-               inference: Optional['inferences.Inference'] = None,
+               model: Union[models.GeneratorModel, models.Reportable] = xnmt.Ref("model"),
+               eval_metrics: Union[str, models.Evaluator, Sequence[models.Evaluator]] = "bleu",
+               inference: Optional[models.Inference] = None,
                perform_inference: bool = True,
                desc: Any = None) -> None:
     self.model = model
     if isinstance(eval_metrics, str):
-      eval_metrics = [xnmt_evaluate.eval_shortcuts[shortcut]() for shortcut in eval_metrics.split(",")]
+      eval_metrics = [evaluate.eval_shortcuts[shortcut]() for shortcut in eval_metrics.split(",")]
     elif not isinstance(eval_metrics, Sequence): eval_metrics = [eval_metrics]
     self.eval_metrics = eval_metrics
     self.src_file = src_file
     self.ref_file = ref_file
     self.hyp_file = hyp_file
-    self.inference = inference or self.model.inference
+    self.inference = inference
     self.perform_inference = perform_inference
     self.desc = desc
 
-  def eval(self) -> Sequence[metrics.EvalScore]:
-    event_trigger.set_train(False)
-    if issubclass(self.model.__class__, reports.Reportable):
+  def eval(self) -> Sequence[models.EvalScore]:
+    xnmt.event_trigger.set_train(False)
+    if issubclass(self.model.__class__, models.Reportable):
       self.model.report_corpus_info({"ref_file": self.ref_file})
     if self.perform_inference:
       self.inference.perform_inference(generator=self.model,
@@ -146,12 +147,14 @@ class AccuracyEvalTask(EvalTask, Serializable):
                                        trg_file=self.hyp_file,
                                        ref_file=self.ref_file)
     # Evaluate
-    eval_scores = xnmt_evaluate.xnmt_evaluate(hyp_file=self.hyp_file, ref_file=self.ref_file, desc=self.desc,
-                                              evaluators=self.eval_metrics)
+    eval_scores = evaluate.evaluate(hyp_file=self.hyp_file,
+                                    ref_file=self.ref_file,
+                                    desc=self.desc,
+                                    evaluators=self.eval_metrics)
 
     return eval_scores
 
-class DecodingEvalTask(EvalTask, Serializable):
+class DecodingEvalTask(models.EvalTask, xnmt.Serializable):
   """
   A task that does performs decoding without comparing against a reference.
 
@@ -161,23 +164,20 @@ class DecodingEvalTask(EvalTask, Serializable):
     model: generator model to generate hypothesis with
     inference: inference object
   """
-
-  yaml_tag = '!DecodingEvalTask'
-
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self,
                src_file: Union[str,Sequence[str]],
                hyp_file: str,
-               model: 'model_base.GeneratorModel' = Ref("model"),
-               inference: Optional['inferences.Inference'] = None) -> None:
+               model: models.GeneratorModel = xnmt.Ref("model"),
+               inference: Optional[models.Inference] = None):
 
     self.model = model
     self.src_file = src_file
     self.hyp_file = hyp_file
-    self.inference = inference or self.model.inference
+    self.inference = inference
 
   def eval(self) -> None:
-    event_trigger.set_train(False)
+    xnmt.event_trigger.set_train(False)
     self.inference.perform_inference(generator=self.model,
                                      src_file=self.src_file,
                                      trg_file=self.hyp_file)

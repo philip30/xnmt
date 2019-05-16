@@ -20,7 +20,6 @@ class WordEmbedder(models.Embedder):
     weight_noise: apply Gaussian noise with given standard deviation to embeddings
     fix_norm: fix the norm of word vectors to be radius r, see https://arxiv.org/abs/1710.01329
   """
-
   def __init__(self,
                emb_dim: int,
                weight_noise: float,
@@ -82,9 +81,6 @@ class WordEmbedder(models.Embedder):
 
 
 class LookupEmbedder(WordEmbedder, transforms.Linear, xnmt.Serializable):
-
-  yaml_tag = '!LookupEmbedder'
-
   @xnmt.serializable_init
   def __init__(self,
                emb_dim: int = xnmt.default_layer_dim,
@@ -189,7 +185,6 @@ class LookupEmbedder(WordEmbedder, transforms.Linear, xnmt.Serializable):
 
 class BagOfWordsEmbedder(WordEmbedder, xnmt.Serializable):
 
-  yaml_tag = '!BagOfWordsEmbedder'
   ONE_MB = 1000 * 1024
 
   @xnmt.serializable_init
@@ -264,9 +259,6 @@ class BagOfWordsEmbedder(WordEmbedder, xnmt.Serializable):
     return False
 
 class CharCompositionEmbedder(WordEmbedder, xnmt.Serializable):
-
-  yaml_tag = '!CharCompositionEmbedder'
-
   @xnmt.serializable_init
   def __init__(self,
                char_vocab: Optional[xnmt.structs.vocabs.CharVocab] = xnmt.Ref("model.src_reader.char_vocab", default=None),
@@ -299,8 +291,6 @@ class CharCompositionEmbedder(WordEmbedder, xnmt.Serializable):
     return False
 
 class CompositeEmbedder(models.Embedder, xnmt.Serializable):
-  yaml_tag = '!CompositeEmbedder'
-
   @xnmt.serializable_init
   def __init__(self, embedders):
     self.embedders = embedders
@@ -333,9 +323,6 @@ class NoopEmbedder(models.Embedder, xnmt.Serializable):
   Args:
     emb_dim: Size of the inputs
   """
-
-  yaml_tag = '!NoopEmbedder'
-
   @xnmt.serializable_init
   def __init__(self, emb_dim: Optional[int]) -> None:
     self.emb_dim = emb_dim
@@ -366,9 +353,6 @@ class NoopEmbedder(models.Embedder, xnmt.Serializable):
 
 
 class PositionEmbedder(models.Embedder, xnmt.Serializable):
-
-  yaml_tag = '!PositionEmbedder'
-
   @xnmt.serializable_init
   def __init__(self,
                max_pos: int,

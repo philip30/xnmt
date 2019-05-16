@@ -15,8 +15,6 @@ __all__ = ["LayerNorm", "BatchNorm"]
 
 
 class LayerNorm(xnmt.Serializable, models.Transform):
-  yaml_tag = "!LayerNorm"
-
   @xnmt.serializable_init
   def __init__(self, d_hid: int):
     subcol = xnmt.param_manager(self)
@@ -48,8 +46,6 @@ class BatchNorm(xnmt.Serializable, models.Transform, models.SeqTransducer):
     population_running_mean: automatically set
     population_running_std: automatically set
   """
-  yaml_tag = "!BatchNorm"
-
   @xnmt.serializable_init
   def __init__(self,
                hidden_dim: int,

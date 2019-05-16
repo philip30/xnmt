@@ -57,8 +57,6 @@ class SAAMPositionwiseFeedForward(xnmt.xnmt.Serializable):
                        (pass ``None`` to create automatically)
     layer_norm: layer norm object to be applied (pass ``None`` to create automatically)
   """
-  yaml_tag = "!SAAMPositionwiseFeedForward"
-
   @xnmt.serializable_init
   def __init__(self, input_dim: int, hidden_dim: int, nonlinearity: str = "rectify",
                linear_transforms: Optional[Sequence[transforms.Linear]] = None,
@@ -102,8 +100,6 @@ class SAAMMultiHeadedSelfAttention(xnmt.xnmt.Serializable):
     res_shortcut:
     desc: useful to describe layer if plot_attention is given.
   """
-  yaml_tag = "!SAAMMultiHeadedSelfAttention"
-
   @xnmt.serializable_init
   def __init__(self, head_count: int, model_dim: int, downsample_factor: int = 1, input_dim: int = None,
                ignore_masks: bool = False, plot_attention: Optional[str] = None,
@@ -362,7 +358,6 @@ class SAAMMultiHeadedSelfAttention(xnmt.xnmt.Serializable):
 
 
 class TransformerEncoderLayer(xnmt.xnmt.Serializable):
-  yaml_tag = "!TransformerEncoderLayer"
   @xnmt.serializable_init
   def __init__(self,
                hidden_dim,
@@ -492,8 +487,6 @@ class SAAMSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
     bias_init: initializer for bias vectors
     positional_embedder:
   """
-  yaml_tag = u'!SAAMSeqTransducer'
-
   @xnmt.serializable_init
   def __init__(self,
                input_dim: int = 512,

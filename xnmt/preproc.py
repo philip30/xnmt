@@ -2,19 +2,16 @@ import time
 import sys
 import os.path
 import subprocess
-from collections import defaultdict
+import numbers
 import unicodedata
 import re
 import math
-from typing import Dict, List, Optional, Sequence, Union
-import numbers
-
 import numpy as np
-import warnings
-with warnings.catch_warnings():
-  warnings.simplefilter("ignore", lineno=36)
-  import h5py
+import h5py
 import yaml
+
+from typing import Dict, List, Optional, Sequence, Union
+from collections import defaultdict
 
 from xnmt import logger
 from xnmt.internal.persistence import serializable_init, Serializable
@@ -38,8 +35,6 @@ class PreprocRunner(Serializable):
            * Option("spec", help_str="The specifications describing which type of processing to use. For normalize and vocab, should consist of the 'lang' and 'spec', where 'lang' can either be 'all' to apply the same type of processing to all languages, or a zero-indexed integer indicating which language to process."),
     overwrite: Whether to overwrite files if they already exist.
   """
-  yaml_tag = "!PreprocRunner"
-
   @serializable_init
   def __init__(self, tasks: Optional[List[PreprocTask]] = None, overwrite: bool = False) -> None:
     if tasks is None: tasks = []
@@ -52,22 +47,6 @@ class PreprocRunner(Serializable):
       task.run_preproc_task(overwrite = overwrite)
 
 class PreprocExtract(PreprocTask, Serializable):
-  yaml_tag = "!PreprocExtract"
-  @serializable_init
-  def __init__(self, in_files: Sequence[str], out_files: Sequence[str], specs: 'Extractor') -> None:
-    self.in_files = in_files
-    self.out_files = out_files
-    self.specs = specs
-
-  def run_preproc_task(self, overwrite: bool = False) -> None:
-    extractor = self.specs
-    for in_file, out_file in zip(self.in_files, self.out_files):
-      if overwrite or not os.path.isfile(out_file):
-        utils.make_parent_dir(out_file)
-        extractor.extract_to(in_file, out_file)
-
-class PreprocTokenize(PreprocTask, Serializable):
-  yaml_tag = "!PreprocTokenize"
   @serializable_init
   def __init__(self, in_files: Sequence[str], out_files: Sequence[str], specs: Sequence['Tokenizer']) -> None:
     self.in_files = in_files
@@ -90,7 +69,6 @@ class PreprocTokenize(PreprocTask, Serializable):
             out_stream.write(f"{line}\n")
 
 class PreprocNormalize(PreprocTask, Serializable):
-  yaml_tag = "!PreprocNormalize"
   @serializable_init
   def __init__(self, in_files: Sequence[str], out_files: Sequence[str], specs: Sequence['Normalizer']):
     self.in_files = in_files
@@ -114,7 +92,6 @@ class PreprocNormalize(PreprocTask, Serializable):
             out_stream.write(line + "\n")
 
 class PreprocFilter(PreprocTask, Serializable):
-  yaml_tag = "!PreprocFilter"
   @serializable_init
   def __init__(self, in_files: Sequence[str], out_files: Sequence[str], specs: Sequence['SentenceFilterer']):
     self.in_files = in_files
@@ -139,7 +116,6 @@ class PreprocFilter(PreprocTask, Serializable):
 
 
 class PreprocVocab(PreprocTask, Serializable):
-  yaml_tag = "!PreprocVocab"
   @serializable_init
   def __init__(self, in_files: Sequence[str], out_files: Sequence[str], specs: Sequence[dict]) -> None:
     self.in_files = in_files
@@ -177,9 +153,11 @@ class Normalizer(object):
 
 class NormalizerLower(Normalizer, Serializable):
   """Lowercase the text."""
-
-  yaml_tag = "!NormalizerLower"
-
+  
+  @serializable_init
+  def __init__(self):
+    pass
+  
   def normalize(self, sent: str) -> str:
     return sent.lower()
 
@@ -190,8 +168,6 @@ class NormalizerRemovePunct(Normalizer, Serializable):
     remove_inside_word: If ``False``, only remove punctuation appearing adjacent to white space.
     allowed_chars: Specify punctuation that is allowed and should not be removed.
   """
-  yaml_tag = "!NormalizerRemovePunct"
-
   @serializable_init
   def __init__(self, remove_inside_word: bool = False, allowed_chars: str = "") -> None:
     self.remove_inside_word = remove_inside_word
@@ -239,8 +215,6 @@ class BPETokenizer(Tokenizer, Serializable):
 
   TODO: Unimplemented
   """
-  yaml_tag = '!BPETokenizer'
-
   @serializable_init
   def __init__(self, vocab_size, train_files):
     """Determine the BPE based on the vocab size and corpora"""
@@ -254,8 +228,6 @@ class CharacterTokenizer(Tokenizer, Serializable):
   """
   Tokenize into characters, with __ indicating blank spaces
   """
-  yaml_tag = '!CharacterTokenizer'
-
   @serializable_init
   def __init__(self) -> None:
     pass
@@ -276,8 +248,6 @@ class UnicodeTokenizer(Tokenizer, Serializable):
     merge_symbol: the merge symbol to use
     reverse: whether to reverse tokenization (assumes use_merge_symbol=True was used in forward direction)
   """
-  yaml_tag = '!UnicodeTokenizer'
-
   @serializable_init
   def __init__(self, use_merge_symbol: bool = True, merge_symbol: str = '↹', reverse: bool = False) -> None:
     self.merge_symbol = merge_symbol if use_merge_symbol else ''
@@ -340,8 +310,6 @@ class ExternalTokenizer(Tokenizer, Serializable):
     tokenizer_args
     arg_separator
   """
-  yaml_tag = '!ExternalTokenizer'
-
   @serializable_init
   def __init__(self, path: str, tokenizer_args: Optional[Sequence[str]] = None, arg_separator: str = ' ') -> None:
     """Initialize the wrapper around the external tokenizer. """
@@ -397,9 +365,6 @@ class SentencepieceTokenizer(Tokenizer, Serializable):
     encode_extra_options:
     decode_extra_options:
   """
-
-  yaml_tag = '!SentencepieceTokenizer'
-
   @serializable_init
   def __init__(self,
                train_files: Sequence[str],
@@ -516,8 +481,6 @@ class SentenceFiltererMatchingRegex(SentenceFilterer):
 class SentenceFiltererLength(SentenceFilterer, Serializable):
   """Filters sentences by length"""
 
-  yaml_tag = "!SentenceFiltererLength"
-
   @serializable_init
   def __init__(self,
                min_src: Optional[numbers.Integral] = None,
@@ -583,7 +546,6 @@ class VocabFilterer(object):
 
 class VocabFiltererFreq(VocabFilterer, Serializable):
   """Filter the vocabulary, removing words below a particular minimum frequency"""
-  yaml_tag = "!VocabFiltererFreq"
   @serializable_init
   def __init__(self, min_freq: numbers.Integral) -> None:
     """Specification contains a single value min_freq"""
@@ -594,7 +556,6 @@ class VocabFiltererFreq(VocabFilterer, Serializable):
 
 class VocabFiltererRank(VocabFilterer, Serializable):
   """Filter the vocabulary, removing words above a particular frequency rank"""
-  yaml_tag = "!VocabFiltererRank"
   @serializable_init
   def __init__(self, max_rank: numbers.Integral) -> None:
     """Specification contains a single value max_rank"""
@@ -614,7 +575,6 @@ class Extractor(object):
     raise RuntimeError("Subclasses of Extractor must implement the extract_to() function")
 
 class MelFiltExtractor(Extractor, Serializable):
-  yaml_tag = "!MelFiltExtractor"
   @serializable_init
   def __init__(self, nfilt: numbers.Integral = 40, delta: bool = False):
     self.delta = delta
@@ -669,9 +629,10 @@ class LatticeFromPlfExtractor(Extractor, Serializable):
   http://www.statmt.org/moses/?n=Moses.WordLattices
   It is used, among others, in the Fisher/Callhome Spanish-to-English Speech Translation Corpus (Post et al, 2013).
   """
-
-  yaml_tag = "!LatticeFromPlfExtractor"
-
+  @serializable_init
+  def __init__(self):
+    pass
+  
   def extract_to(self, in_file: str, out_file: str):
 
     output_file = open(out_file, "w")

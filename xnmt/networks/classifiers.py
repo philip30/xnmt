@@ -1,25 +1,15 @@
-from typing import Union
-
-from xnmt import inferences, event_trigger
-from xnmt.modules import input_readers
-from xnmt.structs import sentences, batchers
-from xnmt.modules.nn import embedders, scorers, transforms
-from xnmt.modules.transducers import recurrent, base as transducers
-from xnmt.networks import base as models
-from xnmt.internal.persistence import serializable_init, Serializable, bare
-from xnmt.structs.losses import LossExpr
+import xnmt
+import xnmt.models as models
+import xnmt.modules.nn as nn
 
 
-class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, Serializable):
+class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, xnmt.Serializable):
   """
   A sequence classifier.
 
   Runs embeddings through an encoder, feeds the average over all encoder outputs to a transform and scoring layer.
 
   Args:
-    src_reader: A reader for the source side.
-    trg_reader: A reader for the target side.
-    src_embedder: A word embedder for the input language
     encoder: An encoder to generate encoded inputs
     inference: how to perform inference
     transform: A transform performed before the scoring function
@@ -28,53 +18,31 @@ class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, Seriali
 
   yaml_tag = '!SequenceClassifier'
 
-  @serializable_init
+  @xnmt.serializable_init
   def __init__(self,
-               src_reader: input_readers.InputReader,
-               trg_reader: input_readers.InputReader,
-               src_embedder: embedders.Embedder = bare(embedders.LookupEmbedder),
-               encoder: transducers.SeqTransducer = bare(recurrent.BiLSTMSeqTransducer),
-               inference=bare(inferences.IndependentOutputInference),
-               transform: transforms.Transform = bare(transforms.NonLinear),
-               scorer: scorers.Scorer = bare(scorers.Softmax)) -> None:
-    super().__init__(src_reader=src_reader, trg_reader=trg_reader)
-    self.src_embedder = src_embedder
+               encoder: models.Encoder = xnmt.bare(nn.SentenceEncoder),
+               inference: models.Inference = xnmt.bare(xnmt.inferences.IndependentOutputInference),
+               transform: models.Transform = xnmt.bare(nn.NonLinear),
+               scorer: models.Scorer = xnmt.bare(nn.Softmax)):
+    models.GeneratorModel.__init__(self)
+    
+    super().__init__()
     self.encoder = encoder
     self.transform = transform
     self.scorer = scorer
     self.inference = inference
 
-  def shared_params(self):
-    return [{".src_embedder.emb_dim", ".encoder.input_dim"},
-            {".encoder.hidden_dim", ".transform.input_dim"},
-            {".transform.output_dim", ".scorer.input_dim"}]
+  def calc_nll(self, src: xnmt.Batch, trg: xnmt.Batch) -> xnmt.LossExpr:
+    units = [t.len_unpadded() for t in trg]
+    ids = xnmt.mark_as_batch([t.value for t in trg])
+    h = self.initial_state(src)
+    loss_expr = self.scorer.calc_loss(h.as_vector(), ids)
+    return xnmt.LossExpr(loss_expr, units)
 
-  def _encode_src(self, src):
-    event_trigger.start_sent(src)
-    embeddings = self.src_embedder.embed_sent(src)
-    self.encoder.transduce(embeddings)
-    h = self.encoder.get_final_states()[-1].main_expr()
-    return self.transform.transform(h)
-
-  def calc_nll(self, src: Union[batchers.Batch, sentences.Sentence], trg: Union[batchers.Batch, sentences.Sentence]) \
-          -> LossExpr:
-    if batchers.is_batched(trg):
-      units = [t.len_unpadded() for t in trg]
-      ids = batchers.ListBatch([t.value for t in trg])
-    else:
-      units = trg.len_unpadded()
-      ids = trg.value
-
-    h = self._encode_src(src)
-    loss_expr = self.scorer.calc_loss(h, ids)
-    return LossExpr(loss_expr, units)
-
-  def generate(self, src: Union[batchers.Batch, sentences.Sentence], normalize_scores: bool = False, *args, **kwargs):
-    if not batchers.is_batched(src):
-      src = batchers.mark_as_batch([src])
-    event_trigger.start_sent(src)
-    h = self._encode_src(src)
-    best_words, best_scores = self.scorer.best_k(h, k=1, normalize_scores=normalize_scores)
+  def generate(self, src: xnmt.Batch, search_strategy: models.SearchStrategy, normalize_scores: bool = False):
+    xnmt.event_trigger.start_sent(src)
+    h = self.initial_state(src)
+    best_words, best_scores = self.best_k(h, 1, normalize_scores)
     assert best_words.shape == (1, src.batch_size())
     assert best_scores.shape == (1, src.batch_size())
 
@@ -86,6 +54,19 @@ class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, Seriali
       else:
         word = best_words[0]
         score = best_scores[0]
-      outputs.append(sentences.ScalarSentence(value=word, score=score))
+      outputs.append(xnmt.structs.sentences.ScalarSentence(value=word, score=score))
     return outputs
+
+  def initial_state(self, src: xnmt.Batch) -> models.DecoderState:
+    xnmt.event_trigger.start_sent(src)
+    encoding_result = self.encoder.encode(src)
+    h = encoding_result.encoder_final_states[-1].main_expr()
+    return models.ClassifierState(self.transform.transform(h))
+
+  def best_k(self, dec_state: models.DecoderState, k: int, normalize_scores: bool):
+    return self.scorer.best_k(dec_state.as_vector(), k, normalize_scores)
+  
+  def sample(self, dec_state: models.DecoderState, k: int):
+    raise self.scorer.sample(dec_state.as_vector(), k)
+  
 

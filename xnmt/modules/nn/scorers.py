@@ -5,7 +5,6 @@ import dynet as dy
 
 import xnmt
 import xnmt.models as models
-import xnmt.modules as modules
 import xnmt.modules.nn.transforms as transforms
 
 
@@ -29,9 +28,6 @@ class Softmax(models.Scorer, xnmt.Serializable):
     bias_init: How to initialize the bias
     output_projector: The projection to be used before the output
   """
-
-  yaml_tag = '!Softmax'
-
   @xnmt.serializable_init
   def __init__(self,
                input_dim: int = xnmt.default_layer_dim,
@@ -101,7 +97,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
     """
     return self.label_smoothing == 0.0
 
-  def calc_loss(self, x: dy.Expression, y: Union[int, List[int]]) -> dy.Expression:
+  def calc_loss(self, x: dy.Expression, y: xnmt.Batch) -> dy.Expression:
     if self.can_loss_be_derived_from_scores():
       scores = self.calc_scores(x)
       # single mode
@@ -120,7 +116,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
       if self.label_smoothing > 0:
         ls_loss = -dy.mean_elems(log_prob)
         loss = ((1 - self.label_smoothing) * loss) + (self.label_smoothing * ls_loss)
-
+    
     return loss
 
   def calc_probs(self, x: dy.Expression) -> dy.Expression:

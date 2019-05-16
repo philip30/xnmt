@@ -3,8 +3,23 @@ import math
 import numpy as np
 import dynet as dy
 import xnmt
-from xnmt.models import ParamInitializer
 
+class ParamInitializer(object):
+  """
+  A parameter initializer that delegates to the DyNet initializers and possibly
+  performs some extra configuration.
+  """
+
+  def initializer(self, dim, is_lookup: bool = False, num_shared: int = 1) -> 'dy.Initializer':
+    """
+    Args:
+      dim: dimension of parameter tensor
+      is_lookup: True if parameters are a lookup matrix
+      num_shared: Indicates if one parameter object holds multiple matrices
+    Returns:
+      a dynet initializer object
+    """
+    raise NotImplementedError("subclasses must implement initializer()")
 
 #### DYNET DEFAULT INITIALIZERS ####
 
@@ -18,8 +33,6 @@ class NormalInitializer(ParamInitializer, xnmt.Serializable):
     mean: Mean of the distribution
     var: Variance of the distribution
   """
-  yaml_tag = "!NormalInitializer"
-
   @xnmt.serializable_init
   def __init__(self, mean: float = 0, var: float = 1) -> None:
     self.mean = mean
@@ -37,8 +50,6 @@ class UniformInitializer(ParamInitializer, xnmt.Serializable):
   Args:
     scale: Parameters are sampled from :math:`\\mathcal U([-\\texttt{scale},\\texttt{scale}])`
   """
-  yaml_tag = "!UniformInitializer"
-
   @xnmt.serializable_init
   def __init__(self, scale: float) -> None:
     self.scale = scale
@@ -56,8 +67,6 @@ class ConstInitializer(ParamInitializer, xnmt.Serializable):
   Args:
     c: Value to initialize the parameters
   """
-  yaml_tag = "!ConstInitializer"
-
   @xnmt.serializable_init
   def __init__(self, c: float) -> None:
     self.c = c
@@ -88,8 +97,6 @@ class GlorotInitializer(ParamInitializer, xnmt.Serializable):
   Args:
     gain: Gain (Depends on the activation function)
   """
-  yaml_tag = "!GlorotInitializer"
-
   @xnmt.serializable_init
   def __init__(self, gain: float = 1.0) -> None:
     self.gain = gain
@@ -124,8 +131,6 @@ class FromFileInitializer(ParamInitializer, xnmt.Serializable):
   Args:
     fname: File name
   """
-  yaml_tag = "!FromFileInitializer"
-
   @xnmt.serializable_init
   def __init__(self, fname: str) -> None:
     self.fname = fname
@@ -145,8 +150,6 @@ class NumpyInitializer(ParamInitializer, xnmt.Serializable):
   Args:
     array: Numpy array
   """
-  yaml_tag = "!NumpyInitializer"
-
   @xnmt.serializable_init
   def __init__(self, array: np.ndarray) -> None:
     self.array = array
@@ -161,8 +164,6 @@ class ZeroInitializer(ParamInitializer, xnmt.Serializable):
   """
   Initializes parameter matrix to zero (most appropriate for bias parameters).
   """
-  yaml_tag="!ZeroInitializer"
-
   @xnmt.serializable_init
   def __init__(self) -> None:
     pass
@@ -179,8 +180,6 @@ class LeCunUniformInitializer(ParamInitializer, xnmt.Serializable):
   Args:
     scale: scale
   """
-  yaml_tag = "!LeCunUniformInitializer"
-
   @xnmt.serializable_init
   def __init__(self, scale: float = 1.0) -> None:
     self.scale = scale

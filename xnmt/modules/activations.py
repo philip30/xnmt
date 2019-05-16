@@ -1,6 +1,5 @@
 import dynet as dy
 
-
 _activation = {
   "tanh": dy.tanh,
   "relu": dy.rectify,

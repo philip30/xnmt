@@ -17,10 +17,6 @@ class MlpAttender(models.Attender, xnmt.Serializable):
     param_init: how to initialize weight matrices
     bias_init: how to initialize bias vectors
   """
-
-  yaml_tag = '!MlpAttender'
-
-
   @xnmt.serializable_init
   def __init__(self,
                input_dim: int = xnmt.default_layer_dim,
@@ -59,9 +55,6 @@ class DotAttender(models.Attender, xnmt.Serializable):
   Args:
     scale: whether to perform scaling
   """
-
-  yaml_tag = '!DotAttender'
-
   @xnmt.serializable_init
   def __init__(self, scale: bool = True):
     self.curr_sent = None
@@ -90,9 +83,6 @@ class BilinearAttender(models.Attender, xnmt.Serializable):
     state_dim: dimension of state inputs; if None, use exp_global.default_layer_dim
     param_init: how to initialize weight matrices; if None, use ``exp_global.param_init``
   """
-
-  yaml_tag = '!BilinearAttender'
-
   @xnmt.serializable_init
   def __init__(self,
                input_dim: int = xnmt.default_layer_dim,
@@ -123,9 +113,6 @@ class LatticeBiasedMlpAttender(MlpAttender, xnmt.Serializable):
     param_init: how to initialize weight matrices
     bias_init: how to initialize bias vectors
   """
-
-  yaml_tag = '!LatticeBiasedMlpAttender'
-
   @xnmt.serializable_init
   def __init__(self,
                input_dim: int = xnmt.default_layer_dim,

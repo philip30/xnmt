@@ -1,34 +1,27 @@
-
 import dynet as dy
 import numpy as np
 import collections
 
-from typing import List
+from typing import Sequence
 
-from xnmt.structs import losses
-from xnmt.internal import events
-from xnmt.rl import PolicyAction
-from xnmt.rl.baseline import Baseline, TransformBaseline
+import xnmt
+import xnmt.models as models
+import xnmt.rl.baseline as baselines
 
-from xnmt.internal.persistence import bare, Serializable, serializable_init
-
-
-
-class PolicyGradient(Serializable):
+class PolicyGradient(xnmt.Serializable):
 
   yaml_tag = '!PolicyGradient'
 
-  @serializable_init
-  @events.register_xnmt_handler
-  def __init__(self, baseline_network: Baseline = bare(TransformBaseline)):
+  @xnmt.serializable_init
+  def __init__(self, baseline_network: models.Baseline = xnmt.bare(baselines.TransformBaseline)):
     self.baseline_network = baseline_network
 
-  def calc_loss(self,  actions: List[PolicyAction], rewards: List[List[float]]):
+  def calc_loss(self,  actions: Sequence[models.SearchAction], rewards: Sequence[Sequence[float]]):
 
     assert len(actions) == len(rewards), "Unequal actions, rewards value"
-    ones = np.ones(rewards[0]) # Make ones equal to the batch size
+    ones = np.ones(len(rewards[0])) # Make ones equal to the batch size
 
-    input_states = [action.policy_input for action in actions]
+    input_states = [action.decoder_state.context for action in actions]
     policy_lls = [action.log_likelihood for action in actions]
     masks = [action.mask for action in actions]
     flags = [(1-mask if mask is not None else ones) for mask in masks]
@@ -46,9 +39,9 @@ class PolicyGradient(Serializable):
     list(ret_units.update(unit) for unit in units)
     ret_units = list(ret_units.values())
 
-    return losses.FactoredLossExpr({
-      "reinforce": losses.LossExpr(-dy.esum(batch_gradient), ret_units),
-      "baseline V(x)": losses.LossExpr(dy.esum(baseline_loss), ret_units)
+    return xnmt.FactoredLossExpr({
+      "reinforce": xnmt.LossExpr(-dy.esum(batch_gradient), ret_units),
+      "baseline V(x)": xnmt.LossExpr(dy.esum(baseline_loss), ret_units)
     })
 
 

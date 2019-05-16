@@ -56,10 +56,10 @@ class Decoder(object):
   A template class to convert a prefix of previously generated words and
   a context vector into a probability distribution over possible next words.
   """
-  def initial_state(self, enc_final_states: List[states.FinalTransducerState]):
+  def initial_state(self, enc_results: states.EncoderState):
     raise NotImplementedError('must be implemented by subclasses')
 
-  def add_input(self, dec_state: states.DecoderState, trg_word: xnmt.Batch):
+  def add_input(self, dec_state: states.DecoderState, trg_word: Optional[xnmt.Batch]):
     raise NotImplementedError('must be implemented by subclasses')
 
   def calc_loss(self, dec_state: states.DecoderState, ref_action: xnmt.Batch):
@@ -71,7 +71,7 @@ class Decoder(object):
   def sample(self, dec_state: states.DecoderState, n: int, temperature=1.0):
     raise NotImplementedError('must be implemented by subclasses')
 
-  def finish_generating(self, dec_output, dec_state, eog_symbol):
+  def finish_generating(self, dec_output: Any, dec_state: states.DecoderState):
     raise NotImplementedError('must be implemented by subclasses')
 
 
@@ -129,13 +129,15 @@ class Embedder(object):
     if vocab is not None:
       return len(vocab)
     elif "encoder" in yaml_path:
-      if src_reader is None or src_reader.vocab is None:
-        raise ValueError("Could not determine src_embedder's vocabulary. Please set its vocab member explicitly, or specify the vocabulary of src_reader ahead of time.")
-      return len(src_reader.vocab)
+      if src_reader is None or getattr(src_reader, "vocab", None) is None:
+        raise ValueError("Could not determine src_embedder's size. "
+                         "Please set its vocab_size or vocab member explicitly, or specify the vocabulary of src_reader ahead of time.")
+      return len(getattr(src_reader, "vocab", []))
     elif "decoder" in yaml_path or "output_projector" in yaml_path:
-      if trg_reader is None or trg_reader.vocab is None:
-        raise ValueError("Could not determine trg_embedder's vocabulary. Please set its vocab member explicitly, or specify the vocabulary of trg_reader ahead of time.")
-      return len(trg_reader.vocab)
+      if trg_reader is None or getattr(trg_reader, "vocab", None) is None:
+        raise ValueError("Could not determine target embedder's size. "
+                         "Please set its vocab_size or vocab member explicitly, or specify the vocabulary of trg_reader ahead of time.")
+      return len(getattr(trg_reader, "vocab", []))
     else:
       raise ValueError("Attempted to determine vocab size of {} (path: {}), but path was not src_embedder, trg_embedder, or output_projector, so it could not determine what part of the model to use. Please set vocab_size or vocab explicitly.".format(self.__class__, yaml_path))
 
@@ -164,15 +166,15 @@ class Embedder(object):
     elif vocab is not None:
       return len(vocab)
     elif "encoder" in yaml_path:
-      if src_reader is None or getattr(src_reader,"vocab",None) is None:
+      if src_reader is None or getattr(src_reader, "vocab", None) is None:
         raise ValueError("Could not determine src_embedder's size. "
                          "Please set its vocab_size or vocab member explicitly, or specify the vocabulary of src_reader ahead of time.")
-      return len(src_reader.vocab)
+      return len(getattr(src_reader, "vocab", []))
     elif "decoder" in yaml_path or "output_projector" in yaml_path:
-      if trg_reader is None or trg_reader.vocab is None:
+      if trg_reader is None or getattr(trg_reader, "vocab", None) is None:
         raise ValueError("Could not determine target embedder's size. "
                          "Please set its vocab_size or vocab member explicitly, or specify the vocabulary of trg_reader ahead of time.")
-      return len(trg_reader.vocab)
+      return len(getattr(trg_reader, "vocab", []))
     else:
       raise ValueError(f"Attempted to determine vocab size of {self.__class__} (path: {yaml_path}), "
                        f"but path was not src_embedder, decoder.embedder, or output_projector, so it could not determine what part of the model to use. "
@@ -225,9 +227,7 @@ class UniDiSeqTransducer(SeqTransducer):
 
 class BidiSeqTransducer(SeqTransducer):
   def transduce(self, seq) -> states.EncoderState:
-    raise NotImplementedError
-
-
+    raise NotImplementedError()
 
 
 class Scorer(object):
@@ -287,7 +287,7 @@ class Scorer(object):
     """
     raise NotImplementedError('calc_log_prob must be implemented by subclasses of Scorer')
 
-  def calc_loss(self, x: dy.Expression, y: Union[int, List[int]]) -> dy.Expression:
+  def calc_loss(self, x: dy.Expression, y: xnmt.Batch) -> dy.Expression:
     """
     Calculate the loss incurred by making a particular decision.
 
@@ -317,7 +317,7 @@ class Scorer(object):
       return vocab_size
     elif vocab is not None:
       return len(vocab)
-    elif trg_reader is None or trg_reader.vocab is None:
+    elif trg_reader is None or getattr(trg_reader, "vocab", None) is None:
       raise ValueError(
         "Could not determine scorer's's output size. "
         "Please set its vocab_size or vocab member explicitly, or specify the vocabulary of trg_reader ahead of time.")

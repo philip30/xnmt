@@ -85,3 +85,8 @@ class PolicyConditionedModel(object):
       from_oracle: bool=False, force_decoding: bool=True, parent_model: models.basic.GeneratorModel=None):
     raise NotImplementedError("Must be implemented by subclasses")
 
+
+class Baseline(object):
+  
+  def calculate_baseline(self, input_states: List[dy.Expression]):
+    pass

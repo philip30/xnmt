@@ -12,9 +12,6 @@ class Scalar(xnmt.Serializable):
     initial: The value being hold by the scalar.
     times_updated: Is the epoch number.
   """
-
-  yaml_tag = "!Scalar"
-
   @xnmt.serializable_init
   @xnmt.register_xnmt_handler
   def __init__(self, initial: numbers.Real = 0.0, times_updated: numbers.Integral = 0) -> None:
@@ -67,9 +64,6 @@ class DefinedSequence(Scalar, xnmt.Serializable):
     sequence: A list of numbers
     times_updated: The epoch number
   """
-
-  yaml_tag = "!DefinedSequence"
-
   @xnmt.serializable_init
   def __init__(self, sequence: typing.Sequence[numbers.Real], times_updated: numbers.Integral = 0) -> None:
     self.sequence = sequence

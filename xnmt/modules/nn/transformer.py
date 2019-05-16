@@ -233,8 +233,6 @@ class DecoderLayer(object):
 
 
 class TransformerEncoder(xnmt.Serializable):
-  yaml_tag = '!TransformerEncoder'
-
   @xnmt.serializable_init
   def __init__(self, layers=1, input_dim=512, h=1, dropout=0.0, attn_dropout=False, layer_norm=False):
     dy_model = xnmt.param_manager(self)
@@ -256,8 +254,6 @@ class TransformerEncoder(xnmt.Serializable):
 
 
 class TransformerDecoder(xnmt.Serializable):
-  yaml_tag = '!TransformerDecoder'
-
   @xnmt.serializable_init
   def __init__(self, layers=1, input_dim=512, h=1,
                dropout=0.0, layer_norm=False,

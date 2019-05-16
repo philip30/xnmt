@@ -20,9 +20,6 @@ class LatticeLSTMTransducer(models.UniDiSeqTransducer, xnmt.Serializable):
     hidden_dim: number of hidden units
     dropout: dropout rate for variational dropout, or 0.0 to disable dropout
   """
-
-  yaml_tag = "!LatticeLSTMTransducer"
-
   @xnmt.serializable_init
   def __init__(self,
                input_dim: int = xnmt.default_layer_dim,

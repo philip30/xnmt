@@ -18,8 +18,6 @@ class Vocab(Serializable):
     vocab_file: file containing one word per line, and not containing <s>, </s>, <unk>
   """
 
-  yaml_tag = "!Vocab"
-
   SS = 0
   ES = 1
   PAD = 2

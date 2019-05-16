@@ -21,8 +21,6 @@ class PyramidalLSTMSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
     dropout: dropout probability; if None, use exp_global.dropout
     builder_layers: set automatically
   """
-  yaml_tag = '!PyramidalLSTMSeqTransducer'
-
   @xnmt.serializable_init
   def __init__(self,
                layers: int = 1,

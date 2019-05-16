@@ -5,6 +5,8 @@ import collections
 
 from typing import Optional, Any, Sequence
 
+import xnmt.structs.sentences as sent
+
 
 class Mask(object):
   """
@@ -69,6 +71,9 @@ class Batch(collections.Sequence):
   """
   An abstract base class for minibatches of things.
   """
+  def __init__(self, mask: Mask):
+    self.mask = mask
+    
   def batch_size(self) -> int: raise NotImplementedError()
   def sent_len(self) -> int: raise NotImplementedError()
   def __iter__(self): raise NotImplementedError()
@@ -88,10 +93,10 @@ class ListBatch(list, Batch):
     batch_elements: list of things
     mask: optional mask when  batch contains items of unequal size
   """
-  def __init__(self, batch_elements: collections.Sequence, mask: 'Mask'=None) -> None:
-    assert len(batch_elements)>0
-    super().__init__(batch_elements)
-    self.mask = mask
+  def __init__(self, batch_elements: collections.Sequence, mask: Mask=None) -> None:
+    Batch.__init__(mask)
+    list.__init__(list(batch_elements))
+    assert len(batch_elements) > 0
 
   def batch_size(self) -> int:
     return super().__len__()

@@ -11,26 +11,27 @@ import sys
 import socket
 import datetime
 import faulthandler
-faulthandler.enable()
 import traceback
 from typing import Optional, Sequence, Tuple
 
 import numpy as np
+import xnmt.models as models
 
-from xnmt.internal.settings import settings
 from xnmt import logger, file_logger
 from xnmt.internal import tee, utils
 from xnmt.internal.tee import log_preamble
+from xnmt.internal.settings import settings
 from xnmt.internal.param_collections import ParamManager
 from xnmt.internal.persistence import YamlPreloader, save_to_file, initialize_if_needed
-from xnmt.eval import metrics
+
 
 if settings.RESOURCE_WARNINGS:
   import warnings
   warnings.simplefilter('always', ResourceWarning)
 
 def main(overwrite_args: Optional[Sequence[str]] = None) -> None:
-
+  faulthandler.enable()
+  
   with tee.Tee(), tee.Tee(error=True):
     argparser = argparse.ArgumentParser()
     utils.add_dynet_argparse(argparser)
@@ -109,7 +110,7 @@ def main(overwrite_args: Optional[Sequence[str]] = None) -> None:
       finally:
         tee.unset_out_file()
 
-def print_results(results: Sequence[Tuple[str,Sequence[metrics.EvalScore]]]):
+def print_results(results: Sequence[Tuple[str,Sequence[models.EvalScore]]]):
   print("")
   print("{:<30}|{:<40}".format("Experiment", " Final Scores"))
   print("-" * (70 + 1))

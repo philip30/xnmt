@@ -1,4 +1,5 @@
 import dynet as dy
+
 from typing import Optional, Sequence
 
 import xnmt
@@ -11,7 +12,9 @@ class IdentityTransform(models.Transform, xnmt.Serializable):
   Identity transform. For use when you think it might be a better idea to
   not perform a specific transform in a place where you would normally do one.
   """
-  yaml_tag = "!IdentityTransform"
+  @xnmt.serializable_init
+  def __init__(self):
+    pass
 
   def transform(self, input_expr: dy.Expression) -> dy.Expression:
     return input_expr
@@ -28,8 +31,6 @@ class Linear(models.Transform, xnmt.Serializable):
     param_init: how to initialize weight matrices
     bias_init: how to initialize bias vectors
   """
-  yaml_tag = "!Linear"
-
   @xnmt.serializable_init
   def __init__(self,
                input_dim: int = xnmt.default_layer_dim,
@@ -65,9 +66,6 @@ class NonLinear(models.Transform, xnmt.Serializable):
     param_init: how to initialize weight matrices
     bias_init: how to initialize bias vectors
   """
-
-  yaml_tag = "!NonLinear"
-
   @xnmt.serializable_init
   def __init__(self,
                input_dim: int = xnmt.default_layer_dim,
@@ -110,9 +108,6 @@ class AuxNonLinear(NonLinear, xnmt.Serializable):
     param_init: how to initialize weight matrices
     bias_init: how to initialize bias vectors
   """
-
-  yaml_tag = "!AuxNonLinear"
-
   @xnmt.serializable_init
   def __init__(self,
                input_dim: int = xnmt.default_layer_dim,
@@ -140,8 +135,6 @@ class MLP(models.Transform, xnmt.Serializable):
   A multi-layer perceptron. Defined as one or more NonLinear transforms of equal hidden
   dimension and type, then a Linear transform to the output dimension.
   """
-  yaml_tag = "!MLP"
-
   @xnmt.serializable_init
   def __init__(self,
                input_dim: int = xnmt.default_layer_dim,
@@ -195,7 +188,6 @@ class Cwise(models.Transform, xnmt.Serializable):
   Args:
     op: arbitrary unary DyNet node
   """
-  yaml_tag = "!Cwise"
   @xnmt.serializable_init
   def __init__(self, op: str = "rectify") -> None:
     self.op = getattr(dy, op, None)

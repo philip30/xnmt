@@ -2,7 +2,7 @@ import xnmt
 import dynet as dy
 import xnmt.models.states as states
 
-from typing import Sequence
+from typing import Sequence, Optional
 
 
 class TrainableModel(object):
@@ -18,7 +18,7 @@ class TrainableModel(object):
       A (possibly batched) expression representing the loss.
     """
 
-class UnconditionedModel(object):
+class UnconditionedModel(TrainableModel):
   """
   A template class for trainable model that computes target losses without conditioning on other inputs.
   """
@@ -35,7 +35,7 @@ class UnconditionedModel(object):
       A (possibly batched) expression representing the loss.
     """
 
-class ConditionedModel(object):
+class ConditionedModel(TrainableModel):
 
   """
   A template class for a trainable model that computes target losses conditioned on a source input.
@@ -57,20 +57,28 @@ class ConditionedModel(object):
 
 class GeneratorModel(object):
 
-  def __init__(self, search_output_processor, eog_symbol=xnmt.Vocab.ES):
-    self.srch_out_prcs = search_output_processor
-    self.eog_symbol = eog_symbol
+  def __init__(self,
+               src_reader: Optional['xnmt.models.InputReader'] = xnmt.ref_src_reader,
+               trg_reader: Optional['xnmt.models.InputReader'] = xnmt.ref_trg_reader):
+    self.src_reader = src_reader
+    self.trg_reader = trg_reader
 
-  def generate(self, src: xnmt.Batch, search_strategy, is_sort=True) -> Sequence[Sequence[
-    xnmt.structs.sentences.ReadableSentence]]:
+  def generate(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy', is_sort=True) -> \
+      Sequence[xnmt.structs.sentences.ReadableSentence]:
     pass
 
   def initial_state(self, src: xnmt.Batch) -> states.UniDirectionalState:
     raise NotImplementedError()
 
-  def add_input(self, inp: xnmt.Batch, state: states.DecoderState) -> states.UniDirectionalState:
+  def best_k(self, dec_state: states.DecoderState, k: int, normalize_scores: bool) -> Sequence[states.SearchAction]:
+    raise NotImplementedError()
+  
+  def sample(self, dec_state: states.DecoderState, k: int) -> Sequence[states.SearchAction]:
+    raise NotImplementedError()
+
+class AutoRegressiveModel(object):
+  def add_input(self, inp: xnmt.Batch, state: states.DecoderState):
     raise NotImplementedError()
 
   def finish_generating(self, output: xnmt.Batch, dec_state: states.DecoderState):
     raise NotImplementedError()
-

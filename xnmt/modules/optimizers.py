@@ -13,10 +13,7 @@ from xnmt.internal.param_collections import ParamManager
 The purpose of this module is mostly to expose the DyNet trainers to YAML serialization,
 but may also be extended to customize optimizers / training schedules
 """
-
-
-
-class SimpleSGDTrainer(models.XnmtOptimizer, xnmt.Serializable):
+class SGDTrainer(models.XnmtOptimizer, xnmt.Serializable):
   """
   Stochastic gradient descent trainer
 
@@ -28,8 +25,6 @@ class SimpleSGDTrainer(models.XnmtOptimizer, xnmt.Serializable):
                           values, and abort a step if the norm of the gradient exceeds four standard deviations of the
                           moving average. Reference: https://arxiv.org/pdf/1804.09849.pdf
   """
-  yaml_tag = '!SimpleSGDTrainer'
-
   @xnmt.serializable_init
   def __init__(self, e0: numbers.Real = 0.1, skip_noisy: bool = False) -> None:
     super().__init__(optimizer=dy.SimpleSGDTrainer(ParamManager.global_collection(), e0),
@@ -49,8 +44,6 @@ class MomentumSGDTrainer(models.XnmtOptimizer, xnmt.Serializable):
                           values, and abort a step if the norm of the gradient exceeds four standard deviations of the
                           moving average. Reference: https://arxiv.org/pdf/1804.09849.pdf
   """
-  yaml_tag = '!MomentumSGDTrainer'
-
   @xnmt.serializable_init
   def __init__(self, e0: numbers.Real = 0.01, mom: numbers.Real = 0.9, skip_noisy: bool = False) -> None:
     super().__init__(optimizer=dy.MomentumSGDTrainer(ParamManager.global_collection(), e0, mom),
@@ -70,8 +63,6 @@ class AdagradTrainer(models.XnmtOptimizer, xnmt.Serializable):
                           values, and abort a step if the norm of the gradient exceeds four standard deviations of the
                           moving average. Reference: https://arxiv.org/pdf/1804.09849.pdf
   """
-  yaml_tag = '!AdagradTrainer'
-
   @xnmt.serializable_init
   def __init__(self, e0: numbers.Real = 0.1, eps: numbers.Real = 1e-20, skip_noisy: bool = False) -> None:
     super().__init__(optimizer=dy.AdagradTrainer(ParamManager.global_collection(), e0, eps=eps),
@@ -91,8 +82,6 @@ class AdadeltaTrainer(models.XnmtOptimizer, xnmt.Serializable):
                           values, and abort a step if the norm of the gradient exceeds four standard deviations of the
                           moving average. Reference: https://arxiv.org/pdf/1804.09849.pdf
   """
-  yaml_tag = '!AdadeltaTrainer'
-
   @xnmt.serializable_init
   def __init__(self, eps: numbers.Real = 1e-6, rho: numbers.Real = 0.95, skip_noisy: bool = False) -> None:
     super().__init__(optimizer=dy.AdadeltaTrainer(ParamManager.global_collection(), eps, rho),
@@ -114,8 +103,6 @@ class AdamTrainer(models.XnmtOptimizer, xnmt.Serializable):
                           values, and abort a step if the norm of the gradient exceeds four standard deviations of the
                           moving average. Reference: https://arxiv.org/pdf/1804.09849.pdf
   """
-  yaml_tag = '!AdamTrainer'
-
   @xnmt.serializable_init
   def __init__(self,
                alpha: numbers.Real = 0.001,
@@ -143,8 +130,6 @@ class NoamTrainer(models.XnmtOptimizer, xnmt.Serializable):
                           values, and abort a step if the norm of the gradient exceeds four standard deviations of the
                           moving average. Reference: https://arxiv.org/pdf/1804.09849.pdf
   """
-  yaml_tag = '!NoamTrainer'
-
   @xnmt.serializable_init
   def __init__(self,
                alpha: numbers.Real = 1.0,
@@ -182,8 +167,6 @@ class DummyTrainer(models.XnmtOptimizer, xnmt.Serializable):
   """
   A dummy trainer that does not perform any parameter updates.
   """
-  yaml_tag = "!DummyTrainer"
-
   @xnmt.serializable_init
   def __init__(self) -> None:
     pass

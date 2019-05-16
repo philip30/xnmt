@@ -15,7 +15,7 @@ from xnmt.modules.transducers import PyramidalLSTMSeqTransducer
 from xnmt.modules.nn.scorers import Softmax
 from xnmt.modules.transducers.self_attention import MultiHeadAttentionSeqTransducer
 from xnmt.modules.nn.transforms import NonLinear
-from xnmt.networks.translators.seq2seq import DefaultTranslator
+from xnmt.networks.seq2seq import DefaultTranslator
 from xnmt.structs.vocabs import Vocab
 from xnmt import event_trigger
 from xnmt.structs import batchers

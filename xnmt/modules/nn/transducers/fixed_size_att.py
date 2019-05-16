@@ -23,8 +23,6 @@ class FixedSizeAttSeqTransducer(models.SeqTransducer, xnmt.Serializable):
                  sequence length
     param_init: parameter initializer
   """
-  yaml_tag = "!FixedSizeAttSeqTransducer"
-
   @xnmt.serializable_init
   def __init__(self,
                hidden_dim: int = xnmt.default_layer_dim,

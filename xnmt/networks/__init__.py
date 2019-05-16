@@ -1,5 +1,3 @@
+import xnmt.networks.classifiers
+import xnmt.networks.seq2seq
 
-
-import xnmt.networks.base
-
-from xnmt.networks.base import ConditionedModel, GeneratorModel, CascadeGenerator

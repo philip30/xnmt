@@ -3,53 +3,44 @@ import scipy.stats as stats
 
 from typing import List
 
-import xnmt.internal.persistence as persistence
 import xnmt.thirdparty.dl4mt_simul_trans.reward as simult_reward
-import xnmt.eval.metrics as metrics
-import xnmt.networks.translators.simult_translators as sim_translator
-import xnmt.networks.base as model_base
+
+import xnmt
+import xnmt.eval.evaluators as evaluators
+import xnmt.models as models
 
 
-
-
-
-class SentenceEvalMeasureReward(RewardCalculator, persistence.Serializable):
-
-  yaml_tag = "!SentenceEvalMeasureReward"
-
-  @persistence.serializable_init
-  def __init__(self, eval_metrics: metrics.SentenceLevelEvaluator, inverse_eval=True):
+class SentenceEvalMeasureReward(models.RewardCalculator,xnmt.Serializable):
+  @xnmt.serializable_init
+  def __init__(self, eval_metrics: evaluators.SentenceLevelEvaluator, inverse_eval=True):
     super().__init__()
     self.eval_metrics = eval_metrics
     self.inverse_eval = inverse_eval
 
-  def calculate_single_reward(self, index, model, src, trg, ref) -> RewardValue:
+  def calculate_single_reward(self, index, model, src, trg, ref) -> models.RewardValue:
     value = self.eval_metrics.evaluate_one_sent(ref, trg)
 
     if self.inverse_eval:
       value *= -1
 
-    return RewardValue(value.value())
+    return models.RewardValue(value.value())
 
 
-class SimNMTReward(RewardCalculator, persistence.Serializable):
-
-  yaml_tag = "!SimNMTReward"
-
-  @persistence.serializable_init
+class SimNMTReward(models.RewardCalculator, xnmt.Serializable):
+  @xnmt.serializable_init
   def __init__(self):
     super().__init__()
 
-  def calculate_single_reward(self, index, model: sim_translator.SimultaneousTranslator, src, trg, ref):
+  def calculate_single_reward(self, index, model, src, trg, ref):
     action = model.actions[index]
     reward, bleu, delay, instant_reward = simult_reward.return_reward(trg, ref, action, src.len_unpadded())
-    return RewardValue(reward, {"bleu": bleu, "delay": delay, "instant_reward": instant_reward})
+    return models.RewardValue(reward, {"bleu": bleu, "delay": delay, "instant_reward": instant_reward})
 
 
-class CompositeReward(RewardCalculator):
+class CompositeReward(models.RewardCalculator):
 
-  @persistence.serializable_init
-  def __init__(self, reward_calculators:List[RewardCalculator], weights:List[float]=None):
+  @xnmt.serializable_init
+  def __init__(self, reward_calculators:List[models.RewardCalculator], weights:List[float]=None):
     self.reward_calculators = reward_calculators
 
     if weights is not None:
@@ -66,10 +57,10 @@ class CompositeReward(RewardCalculator):
       reward_value = reward_calculator.calculate_single_reward(index, model, src, trg, ref)
       values.append(reward_value.value)
       data.update(reward_value.data)
-    return RewardValue(float(np.sum(np.asarray(values) * self.weights)), data)
+    return models.RewardValue(float(np.sum(np.asarray(values) * self.weights)), data)
 
 
-class PoissonSrcLengthReward(RewardCalculator, persistence.Serializable):
+class PoissonSrcLengthReward(models.RewardCalculator, xnmt.Serializable):
   """
   A prior that tries the poisson probability of having a specific number of segment
   Given the expected number of segments.
@@ -77,14 +68,14 @@ class PoissonSrcLengthReward(RewardCalculator, persistence.Serializable):
   First we need to calculate the average number of characters inside its word from some corpus = lambda
   Then we expect the number of segments should be = #characters_in_input / lambda
   """
-
+  @xnmt.serializable_init
   def __init__(self, lmbd):
     super().__init__()
     self.lmbd = lmbd
 
-  def calculate_single_reward(self, index, model: model_base.PolicyConditionedModel, src, trg, ref):
+  def calculate_single_reward(self, index, model: models.PolicyConditionedModel, src, trg, ref):
     value = np.log(stats.poisson.pmf(model.actions[index], mu=src.len_unpadded()/ self.lmbd))
-    return RewardValue(value, {"src_len": src.len_unpadded(), "lmbd": self.lmbd})
+    return models.RewardValue(value, {"src_len": src.len_unpadded(), "lmbd": self.lmbd})
 
 
 

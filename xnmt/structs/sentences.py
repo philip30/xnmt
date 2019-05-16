@@ -9,6 +9,7 @@ import xnmt
 from .vocabs import Vocab
 from .graph import  HyperGraph, HyperNode, HyperEdge
 
+
 class Sentence(object):
   """
   A template class to represent a single data example of any type, used for both model input and output.

@@ -22,9 +22,6 @@ class AutoRegressiveDecoder(models.Decoder, xnmt.Serializable):
     transform: a layer of transformation between rnn and output scorer
     scorer: the method of scoring the output (usually softmax)
   """
-
-  yaml_tag = '!AutoRegressiveDecoder'
-
   @xnmt.serializable_init
   def __init__(self,
                input_dim: int = xnmt.default_layer_dim,
@@ -34,7 +31,8 @@ class AutoRegressiveDecoder(models.Decoder, xnmt.Serializable):
                bridge: models.Bridge = xnmt.bare(nn.CopyBridge),
                rnn: models.UniDiSeqTransducer = xnmt.bare(nn.UniLSTMSeqTransducer),
                transform: models.Transform = xnmt.bare(nn.AuxNonLinear),
-               scorer: models.Scorer = xnmt.bare(nn.Softmax)) -> None:
+               scorer: models.Scorer = xnmt.bare(nn.Softmax),
+               eog_symbol: int = xnmt.Vocab.ES) -> None:
     self.param_col = xnmt.param_manager(self)
     self.input_dim = input_dim
     self.embedder = embedder
@@ -45,6 +43,7 @@ class AutoRegressiveDecoder(models.Decoder, xnmt.Serializable):
     self.attender = attender
     # Input feeding
     self.input_feeding = input_feeding
+    self.eog_symbol = eog_symbol
     rnn_input_dim = embedder.emb_dim
     if input_feeding:
       rnn_input_dim += input_dim
@@ -106,11 +105,11 @@ class AutoRegressiveDecoder(models.Decoder, xnmt.Serializable):
     h = self._calc_transform(dec_state)
     return self.scorer.sample(h, n)
 
-  def calc_loss(self, dec_state: decoder_state.AutoRegressiveDecoderState, ref_action) -> dy.Expression:
+  def calc_loss(self, dec_state: decoder_state.AutoRegressiveDecoderState, ref_action: xnmt.Batch) -> dy.Expression:
     return self.scorer.calc_loss(self._calc_transform(dec_state), ref_action)
 
-  def finish_generating(self, output, dec_state, eog_symbol):
-    eog_symbol = eog_symbol
+  def finish_generating(self, output, dec_state):
+    eog_symbol = self.eog_symbol
     if type(output) == np.ndarray or type(output) == list:
       return [out_i == eog_symbol for out_i in output]
     else:

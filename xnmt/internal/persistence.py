@@ -251,8 +251,6 @@ class Ref(Serializable):
     path: reference by path
     name: reference by name. The name refers to a unique ``_xnmt_id`` property that must be set in exactly one component.
   """
-  yaml_tag = "!Ref"
-
   NO_DEFAULT = 1928437192847
 
   @serializable_init
@@ -437,7 +435,6 @@ class Repeat(Serializable):
   A common use case is a multi-layer neural architecture, where layer configurations are repeated many times.
   It is replaced in the preloader and cannot be instantiated directly.
   """
-  yaml_tag = "!Repeat"
   @serializable_init
   def __init__(self, times: numbers.Integral, content: Any) -> None:
     self.times = times
@@ -719,7 +716,6 @@ class PathError(Exception):
 
 
 class SavedFormatString(str, Serializable):
-  yaml_tag = "!SavedFormatString"
   @serializable_init
   def __init__(self, value: str, unformatted_value: str) -> None:
     self.unformatted_value = unformatted_value
@@ -746,8 +742,6 @@ def _init_fs_representer(dumper, obj):
 yaml.add_representer(FormatString, _init_fs_representer)
 
 class RandomParam(yaml.YAMLObject):
-  yaml_tag = '!RandomParam'
-
   def __init__(self, values: list) -> None:
     self.values = values
 
@@ -781,8 +775,6 @@ class LoadSerialized(Serializable):
                If ``path`` points to a list, it's possible append to that list by using ``append_val`` instead of
                ``val``.
   """
-  yaml_tag = "!LoadSerialized"
-
   @serializable_init
   def __init__(self, filename: str, path: str = "", overwrite: Optional[Dict[str,Any]] = None) -> None:
     if overwrite is None: overwrite = {}
@@ -1433,6 +1425,11 @@ def initialize_object(root: UninitializedYamlObject) -> Any:
   """
   return _YamlDeserializer().initialize_object(root)
 
+def load_experiment_from_path(model_path):
+  load_experiment = LoadSerialized(filename=model_path)
+  exp_dir = os.path.dirname(__file__)
+  uninitialized_experiment = YamlPreloader.preload_obj(load_experiment, exp_dir=exp_dir, exp_name="{EXP}")
+  return initialize_if_needed(uninitialized_experiment)
 
 class ComponentInitError(Exception):
   pass

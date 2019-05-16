@@ -24,8 +24,6 @@ class NinSeqTransducer(ModularSeqTransducer, Serializable):
     batch_norm: automatically set
     nonlinearity: automatically set
   """
-  yaml_tag = "!NinSeqTransducer"
-
   @serializable_init
   def __init__(self,
                input_dim: int = Ref("exp_global.default_layer_dim"),

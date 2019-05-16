@@ -10,8 +10,6 @@ class TransformSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
       downsample_by: if > 1, downsample the sequence via appropriate reshapes.
                      The transform must accept a respectively larger hidden dimension.
   """
-  yaml_tag = '!TransformSeqTransducer'
-
   @xnmt.serializable_init
   def __init__(self, transform: xnmt.models.Transform, downsample_by: int = 1) -> None:
     self.transform = transform

@@ -20,7 +20,7 @@ from xnmt.structs import batchers
 from xnmt.internal.param_collections import ParamManager
 from xnmt.modules.transducers import UniLSTMSeqTransducer
 from xnmt.modules.transducers import IdentitySeqTransducer
-from xnmt.networks.translators.seq2seq import DefaultTranslator
+from xnmt.networks.seq2seq import DefaultTranslator
 from xnmt.inferences.search_strategies import GreedySearch, BeamSearch
 from xnmt.train.loss_calculators import MLELoss
 from xnmt.modules.nn.transforms import AuxNonLinear

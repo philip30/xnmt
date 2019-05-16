@@ -17,7 +17,7 @@ import xnmt.structs.losses as losses
 from xnmt.internal.persistence import Serializable, bare, serializable_init
 
 from .auto_regressive import AutoRegressiveTranslator
-from .seq2seq import DefaultTranslator
+from xnmt.networks.seq2seq import DefaultTranslator
 
 
 class EnsembleTranslator(AutoRegressiveTranslator, Serializable):

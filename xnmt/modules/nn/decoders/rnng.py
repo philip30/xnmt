@@ -12,7 +12,6 @@ from .states import RNNGDecoderState
 
 # TODO Fix this
 class RNNGDecoder(models.Decoder, xnmt.Serializable):
-  yaml_tag = "!RNNGDecoder"
   RNNG_ACTION_SIZE = 6
 
   @xnmt.serializable_init

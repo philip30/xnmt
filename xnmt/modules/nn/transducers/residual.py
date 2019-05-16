@@ -12,9 +12,6 @@ class ResidualSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
     layer_norm: whether to perform layer normalization
     dropout: whether to apply residual dropout
   """
-
-  yaml_tag = '!ResidualSeqTransducer'
-
   @xnmt.serializable_init
   def __init__(self,
                child: xnmt.models.SeqTransducer,

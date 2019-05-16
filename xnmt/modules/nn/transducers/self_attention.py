@@ -15,8 +15,6 @@ class MultiHeadAttentionSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializab
     bias_init: how to initialize bias params
     num_heads: number of attention heads
   """
-  yaml_tag = '!MultiHeadAttentionSeqTransducer'
-
   @xnmt.serializable_init
   def __init__(self,
                input_dim: int = xnmt.default_layer_dim,

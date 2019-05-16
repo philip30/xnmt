@@ -13,9 +13,6 @@ class ModularSeqTransducer(models.SeqTransducer, xnmt.Serializable):
   Args:
     modules: list of SeqTransducer modules
   """
-
-  yaml_tag = '!ModularSeqTransducer'
-
   @xnmt.serializable_init
   def __init__(self, modules: List[models.SeqTransducer]):
     self.modules = modules

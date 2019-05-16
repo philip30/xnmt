@@ -5,9 +5,6 @@ class IdentitySeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
   """
   A transducer that simply returns the input.
   """
-
-  yaml_tag = '!IdentitySeqTransducer'
-
   @xnmt.serializable_init
   def __init__(self) -> None: pass
 

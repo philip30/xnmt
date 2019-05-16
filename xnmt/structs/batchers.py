@@ -123,7 +123,7 @@ class Batcher(object):
     else:
       return src_ret
 
-  def pack(self, src: Sequence[sent.Sentence], trg: Sequence[sent.Sentence]) \
+  def pack(self, src: Sequence[sent.Sentence], trg: Optional[Sequence[sent.Sentence]]) \
           -> Tuple[Sequence[batch.Batch], Sequence[batch.Batch]]:
     """
     Create a list of src/trg batches based on provided src/trg inputs.
@@ -137,6 +137,7 @@ class Batcher(object):
     """
     raise NotImplementedError("must be implemented by subclasses")
 
+
 class InOrderBatcher(Batcher, xnmt.Serializable):
   """
   A class to create batches in order of the original corpus, both across and within batches.
@@ -145,8 +146,6 @@ class InOrderBatcher(Batcher, xnmt.Serializable):
     batch_size: batch size
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
-  yaml_tag = "!InOrderBatcher"
-
   @xnmt.serializable_init
   def __init__(self,
                batch_size: int = 1,
@@ -245,8 +244,6 @@ class SrcBatcher(SortBatcher, xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
-  yaml_tag = "!SrcBatcher"
-
   @xnmt.serializable_init
   def __init__(self,
                batch_size: int,
@@ -267,8 +264,6 @@ class TrgBatcher(SortBatcher, xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
-  yaml_tag = "!TrgBatcher"
-
   @xnmt.serializable_init
   def __init__(self,
                batch_size: int,
@@ -290,8 +285,6 @@ class SrcTrgBatcher(SortBatcher, xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
-  yaml_tag = "!SrcTrgBatcher"
-
   @xnmt.serializable_init
   def __init__(self,
                batch_size: int,
@@ -313,8 +306,6 @@ class TrgSrcBatcher(SortBatcher, xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
-  yaml_tag = "!TrgSrcBatcher"
-
   @xnmt.serializable_init
   def __init__(self,
                batch_size: int,
@@ -337,8 +328,6 @@ class SentShuffleBatcher(ShuffleBatcher, xnmt.Serializable):
     batch_size: batch size
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
-  yaml_tag = "!SentShuffleBatcher"
-
   @xnmt.serializable_init
   def __init__(self, batch_size: int, pad_src_to_multiple: int = 1) -> None:
     super().__init__(batch_size, granularity='sent', pad_src_to_multiple=pad_src_to_multiple)
@@ -354,8 +343,6 @@ class WordShuffleBatcher(ShuffleBatcher, xnmt.Serializable):
     words_per_batch: number of src+trg words in each batch
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
-  yaml_tag = "!WordShuffleBatcher"
-
   @xnmt.serializable_init
   def __init__(self, words_per_batch: int, pad_src_to_multiple: int = 1) -> None:
     super().__init__(words_per_batch, granularity='word', pad_src_to_multiple=pad_src_to_multiple)
@@ -405,8 +392,6 @@ class WordSrcBatcher(WordSortBatcher, xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
-  yaml_tag = "!WordSrcBatcher"
-
   @xnmt.serializable_init
   def __init__(self,
                words_per_batch: Optional[int] = None,
@@ -435,8 +420,6 @@ class WordTrgBatcher(WordSortBatcher, xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
-  yaml_tag = "!WordTrgBatcher"
-
   @xnmt.serializable_init
   def __init__(self,
                words_per_batch: Optional[int] = None,
@@ -465,8 +448,6 @@ class WordSrcTrgBatcher(WordSortBatcher, xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
-  yaml_tag = "!WordSrcTrgBatcher"
-
   @xnmt.serializable_init
   def __init__(self,
                words_per_batch: Optional[int] = None,
@@ -495,8 +476,6 @@ class WordTrgSrcBatcher(WordSortBatcher, xnmt.xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
-  yaml_tag = "!WordTrgSrcBatcher"
-
   @xnmt.serializable_init
   def __init__(self,
                words_per_batch: Optional[int] = None,

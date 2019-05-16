@@ -14,8 +14,6 @@ class NoBridge(models.Bridge, xnmt.Serializable):
     dec_layers: number of decoder layers to initialize
     dec_dim: hidden dimension of decoder states
   """
-  yaml_tag = '!NoBridge'
-
   @xnmt.serializable_init
   def __init__(self,
                dec_layers: int = 1,
@@ -38,8 +36,6 @@ class CopyBridge(models.Bridge, xnmt.Serializable):
     dec_layers: number of decoder layers to initialize
     dec_dim: hidden dimension of decoder states
   """
-  yaml_tag = '!CopyBridge'
-
   @xnmt.serializable_init
   def __init__(self,
                dec_layers: int = 1,
@@ -74,9 +70,6 @@ class LinearBridge(models.Bridge, xnmt.Serializable):
     bias_init: how to initialize bias vectors; if None, use ``exp_global.bias_init``
     projector: linear projection (created automatically)
   """
-  yaml_tag = '!LinearBridge'
-
-
   @xnmt.serializable_init
   def __init__(self,
                dec_layers: int = 1,

@@ -17,7 +17,7 @@ import xnmt.structs.losses as losses
 
 from xnmt import logger
 from xnmt.networks.base import PolicyConditionedModel
-from xnmt.networks.translators.seq2seq import DefaultTranslator
+from xnmt.networks.seq2seq import DefaultTranslator
 from xnmt.internal.persistence import bare, Serializable, serializable_init
 from xnmt.rl import PolicyNetwork
 from xnmt.rl import PolicyAction

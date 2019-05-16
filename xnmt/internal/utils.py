@@ -112,11 +112,12 @@ class ReportOnException(object):
     if et is not None: # exception occurred
       logger.error("------ Error Report ------")
       for key, val in self.args.items():
-        logger.error(f"*** {key} ***")
         if callable(val):
+          logger.error(f"*** {key} ***")
           val()
         elif isinstance(val, collections.Iterable):
-          for sent in val:
+           logger.error(f"*** {key} ***")
+           for sent in val:
             if hasattr(sent, "idx"):
               print("{:>10}. {}".format(sent.idx, str(sent)[:100]))
             else:

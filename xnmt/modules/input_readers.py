@@ -4,7 +4,7 @@ import ast
 import numpy as np
 import h5py
 
-from typing import Iterator, Optional, Sequence, Union
+from typing import Iterator, Optional, Sequence, Union, List
 
 import xnmt
 import xnmt.models as models
@@ -14,6 +14,8 @@ import xnmt.modules.output_processors as output_processors
 
 
 class BaseTextReader(models.InputReader):
+  def __init__(self, vocab: Optional[xnmt.Vocab]):
+    self.vocab = vocab
 
   def read_sent(self, line: str, idx: int) -> xnmt.Sentence:
     """
@@ -26,13 +28,8 @@ class BaseTextReader(models.InputReader):
     """
     raise RuntimeError("Input readers must implement the read_sent function")
 
-  @functools.lru_cache(maxsize=1)
   def count_sents(self, filename: str) -> int:
-    newlines = 0
-    with open(filename, 'r+b') as f:
-      for _ in f:
-        newlines += 1
-    return newlines
+    return len(xnmt.file_manager.request_text_file(filename))
 
   def iterate_filtered(self, filename: str, filter_ids: Optional[Sequence[int]]=None) -> Iterator:
     """
@@ -46,13 +43,13 @@ class BaseTextReader(models.InputReader):
     if filter_ids is not None:
       max_id = max(filter_ids)
       filter_ids = set(filter_ids)
-    with open(filename, encoding='utf-8') as f:
-      for line in f:
-        if filter_ids is None or sent_count in filter_ids:
-          yield self.read_sent(line=line, idx=sent_count)
-        sent_count += 1
-        if max_id is not None and sent_count > max_id:
-          break
+    
+    for line in xnmt.file_manager.request_text_file(filename):
+      if filter_ids is None or sent_count in filter_ids:
+        yield self.read_sent(line=line, idx=sent_count)
+      sent_count += 1
+      if max_id is not None and sent_count > max_id:
+        break
 
 
 class PlainTextReader(BaseTextReader, xnmt.Serializable):
@@ -64,30 +61,39 @@ class PlainTextReader(BaseTextReader, xnmt.Serializable):
            space-separated integer ids.
     output_proc: output processors to revert the created sentences back to a readable string
   """
-  yaml_tag = '!PlainTextReader'
-
   @xnmt.serializable_init
   def __init__(self,
                vocab: Optional[xnmt.Vocab] = None,
-               output_proc: Sequence[models.OutputProcessor] = []):
-    self.vocab = vocab
+               output_proc: Optional[List[models.OutputProcessor]] = None,
+               add_eos: bool = True,
+               shift_n: int = 0):
+    super().__init__(vocab)
     self.output_procs = output_processors.get_output_processor(output_proc)
+    self.add_eos = add_eos
+    self.shift_n = shift_n
 
   def read_sent(self, line: str, idx: int) -> sentences.SimpleSentence:
+    words = [self.vocab.convert(word) for word in self.shift_word(line.strip().split())]
+    if self.add_eos:
+      words.append(xnmt.Vocab.ES)
     return sentences.SimpleSentence(idx=idx,
-                                    words=[self.vocab.convert(word) for word in line.strip().split()] + [xnmt.Vocab.ES],
+                                    words=words,
                                     vocab=self.vocab,
                                     output_procs=self.output_procs)
+  
+  def shift_word(self, words):
+    if self.shift_n > 0:
+      words = words[min(len(words), self.shift_n):]
+    return words
 
   def vocab_size(self) -> int:
     return len(self.vocab)
 
 
 class LengthTextReader(BaseTextReader, xnmt.Serializable):
-  yaml_tag = '!LengthTextReader'
-
   @xnmt.serializable_init
-  def __init__(self, output_proc: Sequence[xnmt.models.templates.OutputProcessor] = []):
+  def __init__(self, output_proc: Optional[List[xnmt.models.templates.OutputProcessor]] = None):
+    super().__init__(None, None)
     self.output_procs = output_processors.get_output_processor(output_proc)
 
   def read_sent(self, line:str, idx:int) -> sentences.ScalarSentence:
@@ -107,7 +113,6 @@ class CompoundReader(models.InputReader, xnmt.Serializable):
     readers: list of input readers to use
     vocab: not used by this reader, but some parent components may require access to the vocab.
   """
-  yaml_tag = "!CompoundReader"
   @xnmt.serializable_init
   def __init__(self, readers: Sequence[models.InputReader], vocab: Optional[xnmt.Vocab] = None):
     if len(readers) < 2: raise ValueError("need at least two readers")
@@ -142,16 +147,13 @@ class SentencePieceTextReader(BaseTextReader, xnmt.Serializable):
   for subword regularization, only at training time.
   https://arxiv.org/pdf/1804.10959.pdf
   """
-  yaml_tag = '!SentencePieceTextReader'
-
   @xnmt.serializable_init
   def __init__(self,
                model_file: str,
                sample_train: bool=False,
                l: int=-1,
                alpha: float=0.1,
-               vocab: Optional[xnmt.Vocab]=None,
-               output_proc=[output_processors.JoinPieceTextOutputProcessor]):
+               vocab: Optional[xnmt.Vocab]=None):
     """
     Args:
       model_file: The sentence piece model file
@@ -161,6 +163,7 @@ class SentencePieceTextReader(BaseTextReader, xnmt.Serializable):
       vocab: The vocabulary
       output_proc: output processors to revert the created sentences back to a readable string
     """
+    super().__init__(vocab)
     import sentencepiece as spm
     self.subword_model = spm.SentencePieceProcessor()
     self.subword_model.Load(model_file)
@@ -169,7 +172,7 @@ class SentencePieceTextReader(BaseTextReader, xnmt.Serializable):
     self.alpha = alpha
     self.vocab = vocab
     self.train = False
-    self.output_procs = output_processors.get_output_processor(output_proc)
+    self.output_procs = output_processors.get_output_processor([output_processors.JoinPieceTextOutputProcessor()])
 
   def read_sent(self, line: str, idx: int) -> sentences.SimpleSentence:
     if self.sample_train and self.train:
@@ -194,20 +197,18 @@ class RamlTextReader(BaseTextReader, xnmt.Serializable):
   https://arxiv.org/pdf/1808.07512.pdf
   https://arxiv.org/pdf/1609.00150.pdf
   """
-  yaml_tag = '!RamlTextReader'
-
   @xnmt.serializable_init
   def __init__(self,
                tau: Optional[float] = 1.,
                vocab: Optional[xnmt.Vocab] = None,
-               output_proc: Sequence[xnmt.models.templates.OutputProcessor]=[]):
+               output_proc: Optional[Sequence[models.OutputProcessor]] = None):
     """
     Args:
       tau: The temperature that controls peakiness of the sampling distribution
       vocab: The vocabulary
     """
+    super().__init__(vocab)
     self.tau = tau
-    self.vocab = vocab
     self.output_procs = output_processors.get_output_processor(output_proc)
 
   def read_sent(self, line: str, idx: int) -> sentences.SimpleSentence:
@@ -228,7 +229,7 @@ class RamlTextReader(BaseTextReader, xnmt.Serializable):
     sampled_words = np.random.choice(np.arange(2, len(self.vocab)), size=(num_words_to_sample,))
     word_ids[np.where(corrupt_pos==1)[0].tolist()] = sampled_words
     return sentences.SimpleSentence(idx=idx,
-                                    words=word_ids.tolist() + [xnmt.Vocab.ES],
+                                    words=list(word_ids.tolist()) + [xnmt.Vocab.ES],
                                     vocab=self.vocab,
                                     output_procs=self.output_procs)
 
@@ -241,7 +242,6 @@ class CharFromWordTextReader(PlainTextReader, xnmt.Serializable):
   Read in word based corpus and turned that into SegmentedSentence.
   SegmentedSentece's words are characters, but it contains the information of the segmentation.
   """
-  yaml_tag = "!CharFromWordTextReader"
   ONE_MB = 1000 * 1024
 
   @xnmt.serializable_init
@@ -250,9 +250,11 @@ class CharFromWordTextReader(PlainTextReader, xnmt.Serializable):
                char_vocab: xnmt.structs.vocabs.CharVocab = None,
                add_word_begin_marker = True,
                add_word_end_marker = True,
-               *args, **kwargs):
+               output_proc: Optional[List[models.OutputProcessor]] = None,
+               add_eos: bool = True,
+               shift_n: int = 0):
     assert char_vocab is not None and vocab is not None
-    super().__init__(vocab=vocab, *args, **kwargs)
+    super().__init__(vocab=vocab, add_eos=add_eos, shift_n=shift_n, output_proc=output_proc)
     self.char_vocab = char_vocab
     self.add_word_begin_marker = add_word_begin_marker
     self.add_word_end_marker = add_word_end_marker
@@ -265,7 +267,7 @@ class CharFromWordTextReader(PlainTextReader, xnmt.Serializable):
     words = []
     segs = []
     offset = 0
-    for word in line.strip().split():
+    for word in self.shift_word(line.strip().split()):
       chars = []
       # <SS>
       if self.add_word_begin_marker:
@@ -282,8 +284,9 @@ class CharFromWordTextReader(PlainTextReader, xnmt.Serializable):
       segs.append(offset-1)
       words.append(sentences.SegmentedWord(tuple(chars), self.vocab.convert(word)))
     # Adding EOS
-    segs.append(segs[-1]+1)
-    words.append(sentences.SegmentedWord(tuple([self.char_vocab.ES]), self.vocab.ES))
+    if self.add_eos:
+      segs.append(segs[-1]+1)
+      words.append(sentences.SegmentedWord(tuple([self.char_vocab.ES]), self.vocab.ES))
     # For segment actions
     segment = np.zeros(segs[-1]+1)
     segment[segs] = 1
@@ -292,11 +295,9 @@ class CharFromWordTextReader(PlainTextReader, xnmt.Serializable):
 
 
 class SimultActionTextReader(PlainTextReader, xnmt.Serializable):
-  yaml_tag = "!SimultActionTextReader"
-
   @xnmt.serializable_init
   def __init__(self):
-    self.vocab = xnmt.Vocab(i2w=["READ", "WRITE"])
+    super().__init__(xnmt.Vocab(i2w=["READ", "WRITE"]), [], False, 0)
 
   def read_sent(self, line: str, idx: int) -> xnmt.Sentence:
     try:
@@ -344,7 +345,6 @@ class H5Reader(models.InputReader, xnmt.Serializable):
     timestep_skip: stride over timesteps
     timestep_truncate: cut off timesteps if sequence is longer than specified value
   """
-  yaml_tag = u"!H5Reader"
   @xnmt.serializable_init
   def __init__(self,
                transpose: bool = False,
@@ -417,7 +417,6 @@ class NpzReader(models.InputReader, xnmt.Serializable):
     timestep_skip: stride over timesteps
     timestep_truncate: cut off timesteps if sequence is longer than specified value
   """
-  yaml_tag = u"!NpzReader"
   @xnmt.serializable_init
   def __init__(self,
                transpose: bool = False,
@@ -470,11 +469,9 @@ class IDReader(BaseTextReader, xnmt.Serializable):
 
   Files must be text files containing a single integer per line.
   """
-  yaml_tag = "!IDReader"
-
   @xnmt.serializable_init
   def __init__(self) -> None:
-    pass
+    super().__init__(None)
 
   def read_sent(self, line: str, idx: int) -> sentences.ScalarSentence:
     return sentences.ScalarSentence(idx=idx, value=int(line.strip()))
@@ -485,6 +482,7 @@ class IDReader(BaseTextReader, xnmt.Serializable):
 
 class GraphReader(BaseTextReader):
   def __init__(self, node_vocab, edge_vocab, value_vocab):
+    super().__init__(value_vocab)
     self._node_vocab = node_vocab
     self._edge_vocab = edge_vocab
     self._value_vocab = value_vocab
@@ -510,7 +508,6 @@ class CoNLLToRNNGActionsReader(GraphReader, xnmt.Serializable):
 
   A single line represents a single edge of dependency parse tree.
   """
-  yaml_tag = "!CoNLLToRNNGActionsReader"
   @xnmt.serializable_init
   def __init__(self, surface_vocab: xnmt.Vocab, nt_vocab: xnmt.Vocab, edg_vocab: xnmt.Vocab, output_procs=[]):
     super().__init__(nt_vocab, edg_vocab, surface_vocab)
@@ -521,22 +518,21 @@ class CoNLLToRNNGActionsReader(GraphReader, xnmt.Serializable):
     idx = 0
     lines = []
     # Loop all lines in the file
-    with open(filename) as fp:
-      for line in fp:
-        line = line.strip()
-        if len(line) <= 1:
-          yield self.emit_tree(idx, lines)
-          lines.clear()
-          idx += 1
-        else:
-          try:
-            node_id, form, lemma, pos, feat, head, deprel = line.strip().split("\t")
-            lines.append((int(node_id), form, lemma, pos, feat, int(head), deprel))
-          except ValueError:
-            xnmt.logger.error("Bad line: %s", line)
-            raise
-      if len(lines) != 0:
+    for line in xnmt.file_manager.request_text_file(filename):
+      line = line.strip()
+      if len(line) <= 1:
         yield self.emit_tree(idx, lines)
+        lines.clear()
+        idx += 1
+      else:
+        try:
+          node_id, form, lemma, pos, feat, head, deprel = line.strip().split("\t")
+          lines.append((int(node_id), form, lemma, pos, feat, int(head), deprel))
+        except ValueError:
+          xnmt.logger.error("Bad line: %s", line)
+          raise
+    if len(lines) != 0:
+      yield self.emit_tree(idx, lines)
 
 
   def emit_tree(self, idx, lines):
@@ -564,7 +560,6 @@ class CoNLLToRNNGActionsReader(GraphReader, xnmt.Serializable):
                                                  output_procs=self.output_procs)
 
 class PennTreeBankReader(GraphReader, xnmt.Serializable):
-  yaml_tag = "!PennTreeBankReader"
   @xnmt.serializable_init
   def __init__(self, word_vocab: xnmt.Vocab, head_vocab: xnmt.Vocab, output_procs=[]):
     super().__init__(head_vocab, None, word_vocab)
@@ -606,16 +601,15 @@ class PennTreeBankReader(GraphReader, xnmt.Serializable):
     return graph.HyperGraph(edges, nodes)
 
   def read_sents(self, filename: str, filter_ids: Sequence[int] = None):
-    with open(filename) as fp:
-      for idx, line in enumerate(fp):
-        yield sentences.ParseTreeRNNGSequenceSentence(idx=idx,
-                                                      score=None,
-                                                      graph=self._read_tree_from_line(line.strip()),
-                                                      surface_vocab=self.value_vocab,
-                                                      nt_vocab=self.node_vocab,
-                                                      edge_vocab=self.edge_vocab,
-                                                      all_surfaces=False,
-                                                      output_procs=self.output_procs)
+    for idx, line in enumerate(xnmt.file_manager.request_text_file(filename)):
+      yield sentences.ParseTreeRNNGSequenceSentence(idx=idx,
+                                                    score=None,
+                                                    graph=self._read_tree_from_line(line.strip()),
+                                                    surface_vocab=self.value_vocab,
+                                                    nt_vocab=self.node_vocab,
+                                                    edge_vocab=self.edge_vocab,
+                                                    all_surfaces=False,
+                                                    output_procs=self.output_procs)
 
 
 class LatticeReader(GraphReader, xnmt.Serializable):
@@ -641,8 +635,6 @@ class LatticeReader(GraphReader, xnmt.Serializable):
     text_input: If ``True``, assume a standard text file as input and convert it to a flat lattice.
     flatten: If ``True``, convert to a flat lattice, with all probabilities set to 1.
   """
-  yaml_tag = '!LatticeReader'
-
   @xnmt.serializable_init
   def __init__(self, vocab: xnmt.Vocab, text_input: bool = False, flatten = False, output_procs=[]):
     super().__init__(None, None, vocab)

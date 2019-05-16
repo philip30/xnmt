@@ -1,12 +1,14 @@
-from typing import Optional, Union
 import time
 import numbers
+import collections
 
-from collections import defaultdict
-from xnmt import logger
-from xnmt.internal import events, utils
-from xnmt.structs import sentences, batchers
-from xnmt.eval import metrics
+from typing import Optional, Dict
+
+import xnmt
+import xnmt.models as models
+import xnmt.internal.events as events
+import xnmt.internal.utils as utils
+
 
 class AccumTimeTracker(object):
   def __init__(self) -> None:
@@ -24,6 +26,7 @@ class AccumTimeTracker(object):
     self.accum_time = 0.0
     return ret
 
+
 class TrainLossTracker(object):
 
   REPORT_TEMPLATE_SPEED = 'Epoch {epoch:.4f}: {data_name}_loss/word={loss:.6f} (words={words}, words/sec={words_per_sec:.2f}, time={time})'
@@ -32,11 +35,11 @@ class TrainLossTracker(object):
   REPORT_EVERY = 1000
 
   @events.register_xnmt_handler
-  def __init__(self, training_task: 'xnmt.train.tasks.TrainingTask') -> None:
+  def __init__(self, training_task: models.TrainingTask):
     self.training_task = training_task
 
-    self.epoch_loss = defaultdict(float)
-    self.epoch_words = defaultdict(int)
+    self.epoch_loss = collections.defaultdict(float)
+    self.epoch_words = collections.defaultdict(int)
     self.last_report_sents_into_epoch = 0
     self.last_report_sents_since_start = 0
 
@@ -54,7 +57,7 @@ class TrainLossTracker(object):
       self.last_report_sents_since_start = 0
       self.last_report_words = 0
 
-  def report(self, loss_data, trg) -> None:
+  def report(self, loss_data: Dict[str, int], trg: xnmt.Batch) -> None:
     """
     Accumulate training loss and report every REPORT_EVERY sentences.
     """
@@ -62,7 +65,7 @@ class TrainLossTracker(object):
       self.epoch_words[loss_name] += units
       self.epoch_loss[loss_name] += loss_value
 
-    self.epoch_words["__TRG__"] += self.count_trg_words(trg)
+    self.epoch_words["__TRG__"] += sum(inp.len_unpadded() for inp in trg)
 
     sent_num_not_report = self.training_task.training_state.sents_since_start - self.last_report_sents_since_start
     should_report = sent_num_not_report >= TrainLossTracker.REPORT_EVERY \
@@ -92,17 +95,11 @@ class TrainLossTracker(object):
                                              data_name="train",
                                              task_name=self.name,
                                              loss_name=loss_name,
-                                             loss=loss_values / self.epoch_words[loss_name],
-                                             )
+                                             loss=loss_values / self.epoch_words[loss_name])
 
       self.last_report_words = self.epoch_words["__TRG__"]
       self.last_report_sents_since_start = self.training_task.training_state.sents_since_start
-
-  def count_trg_words(self, trg_words: Union[sentences.Sentence, batchers.Batch]) -> int:
-    if isinstance(trg_words, batchers.Batch):
-      return sum(inp.len_unpadded() for inp in trg_words)
-    else:
-      return trg_words.len_unpadded()
+      
 
 class DevLossTracker(object):
 
@@ -111,9 +108,9 @@ class DevLossTracker(object):
   REPORT_TEMPLATE_TIME_NEEDED = '             checkpoint took {time_needed}'
 
   def __init__(self,
-               training_task: 'xnmt.train.tasks.TrainingTask',
-               eval_every: numbers.Integral,
-               name: Optional[str]=None) -> None:
+               training_task: models.TrainingTask,
+               eval_every: int,
+               name: Optional[str]=None):
     self.training_task = training_task
     self.eval_dev_every = eval_every
 
@@ -127,10 +124,10 @@ class DevLossTracker(object):
     self.name = name
     self.time_tracker = AccumTimeTracker()
 
-  def set_dev_score(self, dev_score: metrics.EvalScore) -> None:
+  def set_dev_score(self, dev_score: models.EvalScore):
     self.dev_score = dev_score
 
-  def add_aux_score(self, score: metrics.EvalScore) -> None:
+  def add_aux_score(self, score: models.EvalScore):
     self.aux_scores.append(score)
 
   def should_report_dev(self) -> bool:
@@ -160,7 +157,7 @@ class DevLossTracker(object):
                                          data_name="dev",
                                          task_name=self.name,
                                          score=score)
-    logger.info(DevLossTracker.REPORT_TEMPLATE_TIME_NEEDED.format(time_needed= utils.format_time(dev_time),
+    xnmt.logger.info(DevLossTracker.REPORT_TEMPLATE_TIME_NEEDED.format(time_needed= utils.format_time(dev_time),
                                                                   extra={"task_name" : self.name}))
     self.aux_scores = []
 

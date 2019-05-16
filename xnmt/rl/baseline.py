@@ -2,14 +2,13 @@ import dynet as dy
 
 from typing import List
 
-import xnmt.internal.persistence as persistence
-import xnmt.modules.nn.transforms as transforms
+import xnmt
+import xnmt.models as models
 
 
-
-
-class TransformBaseline(Baseline, persistence.Serializable):
-  def __init__(self, transform: transforms.Transform=None):
+class TransformBaseline(models.Baseline, xnmt.Serializable):
+  @xnmt.serializable_init
+  def __init__(self, transform: models.Transform=xnmt.bare(xnmt.modules.nn.Linear)):
     super().__init__()
     self.transform = self.add_serializable_component("transform", transform, lambda: transform)
 
