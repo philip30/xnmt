@@ -10,6 +10,7 @@ import xnmt.models.templates
 
 
 class FixedSizeAttSeqTransducer(models.SeqTransducer, xnmt.Serializable):
+  yaml_tag = "!FixedSizeAttSeqTransducer"
   """
   A fixed-size attention-based representation of a sequence.
 

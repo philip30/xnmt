@@ -8,6 +8,7 @@ import xnmt.models as models
 
 
 class NoNormalization(models.LengthNormalization, xnmt.Serializable):
+  yaml_tag = "!NoNormalization"
   """
   Adding no form of length normalization.
   """
@@ -21,6 +22,7 @@ class NoNormalization(models.LengthNormalization, xnmt.Serializable):
 
 
 class AdditiveNormalization(models.LengthNormalization, xnmt.Serializable):
+  yaml_tag = "!AdditiveNormalization"
   """
   Adding a fixed word penalty everytime the word is added.
   """
@@ -41,6 +43,7 @@ class AdditiveNormalization(models.LengthNormalization, xnmt.Serializable):
 
 
 class PolynomialNormalization(models.LengthNormalization, xnmt.Serializable):
+  yaml_tag = "!PolynomialNormalization"
   """
   Dividing by the length (raised to some power)
   """
@@ -71,6 +74,7 @@ class PolynomialNormalization(models.LengthNormalization, xnmt.Serializable):
 
 
 class MultinomialNormalization(models.LengthNormalization, xnmt.Serializable):
+  yaml_tag = "!MultinomialNormalization"
   """
   The algorithm followed by:
   Tree-to-Sequence Attentional Neural Machine Translation
@@ -100,6 +104,7 @@ class MultinomialNormalization(models.LengthNormalization, xnmt.Serializable):
 
 
 class GaussianNormalization(models.LengthNormalization, xnmt.Serializable):
+  yaml_tag = "!GaussianNormalization"
   """
    The Gaussian regularization encourages the inference
    to select sents that have similar lengths as the
@@ -128,6 +133,7 @@ class GaussianNormalization(models.LengthNormalization, xnmt.Serializable):
 
 
 class EosBooster(xnmt.Serializable):
+  yaml_tag = "!EosBooster"
   """
   Callable that applies boosting of end-of-sequence token, can be used with :class:`xnmt.search_strategy.BeamSearch`.
 

@@ -18,6 +18,7 @@ from xnmt.internal.settings import settings
 
 
 class TransformerTranslator(AutoRegressiveTranslator, Serializable, Reportable):
+  yaml_tag = "!TransformerTranslator"
   """
   A translator based on the transformer model.
   Args:

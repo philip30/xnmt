@@ -15,6 +15,7 @@ __all__ = ["LayerNorm", "BatchNorm"]
 
 
 class LayerNorm(xnmt.Serializable, models.Transform):
+  yaml_tag = "!LayerNorm"
   @xnmt.serializable_init
   def __init__(self, d_hid: int):
     subcol = xnmt.param_manager(self)
@@ -28,6 +29,7 @@ class LayerNorm(xnmt.Serializable, models.Transform):
 
 
 class BatchNorm(xnmt.Serializable, models.Transform, models.SeqTransducer):
+  yaml_tag = "!BatchNorm"
   """
   Implements batch normalization according to Ioffe and Szegedy, 2015.
 

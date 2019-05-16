@@ -81,6 +81,7 @@ class WordEmbedder(models.Embedder):
 
 
 class LookupEmbedder(WordEmbedder, transforms.Linear, xnmt.Serializable):
+  yaml_tag = "!LookupEmbedder"
   @xnmt.serializable_init
   def __init__(self,
                emb_dim: int = xnmt.default_layer_dim,
@@ -184,6 +185,7 @@ class LookupEmbedder(WordEmbedder, transforms.Linear, xnmt.Serializable):
 
 
 class BagOfWordsEmbedder(WordEmbedder, xnmt.Serializable):
+  yaml_tag = "!BagOfWordsEmbedder"
 
   ONE_MB = 1000 * 1024
 
@@ -259,6 +261,7 @@ class BagOfWordsEmbedder(WordEmbedder, xnmt.Serializable):
     return False
 
 class CharCompositionEmbedder(WordEmbedder, xnmt.Serializable):
+  yaml_tag = "!CharCompositionEmbedder"
   @xnmt.serializable_init
   def __init__(self,
                char_vocab: Optional[xnmt.structs.vocabs.CharVocab] = xnmt.Ref("model.src_reader.char_vocab", default=None),
@@ -291,6 +294,7 @@ class CharCompositionEmbedder(WordEmbedder, xnmt.Serializable):
     return False
 
 class CompositeEmbedder(models.Embedder, xnmt.Serializable):
+  yaml_tag = "!CompositeEmbedder"
   @xnmt.serializable_init
   def __init__(self, embedders):
     self.embedders = embedders
@@ -315,6 +319,7 @@ class CompositeEmbedder(models.Embedder, xnmt.Serializable):
 
 
 class NoopEmbedder(models.Embedder, xnmt.Serializable):
+  yaml_tag = "!NoopEmbedder"
   """
   This embedder performs no lookups but only passes through the inputs.
 
@@ -353,6 +358,7 @@ class NoopEmbedder(models.Embedder, xnmt.Serializable):
 
 
 class PositionEmbedder(models.Embedder, xnmt.Serializable):
+  yaml_tag = "!PositionEmbedder"
   @xnmt.serializable_init
   def __init__(self,
                max_pos: int,

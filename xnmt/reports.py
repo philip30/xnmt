@@ -29,6 +29,7 @@ from xnmt.thirdparty.charcut import charcut
 
 
 class ReferenceDiffReporter(models.Reporter, xnmt.Serializable):
+  yaml_tag = "!ReferenceDiffReporter"
   """
   Reporter that uses the CharCut tool for nicely displayed difference highlighting between outputs and references.
 
@@ -84,6 +85,7 @@ class ReferenceDiffReporter(models.Reporter, xnmt.Serializable):
       self.hyp_sents, self.ref_sents, self.src_sents = [], [], []
 
 class CompareMtReporter(models.Reporter, xnmt.Serializable):
+  yaml_tag = "!CompareMtReporter"
   """
   Reporter that uses the compare-mt.py script to analyze and compare MT results.
 
@@ -259,6 +261,7 @@ class HtmlReporter(models.Reporter):
 
 
 class AttentionReporter(HtmlReporter, xnmt.Serializable):
+  yaml_tag = "!AttentionReporter"
   """
   Reporter that writes attention matrices to HTML.
 
@@ -345,6 +348,7 @@ class AttentionReporter(HtmlReporter, xnmt.Serializable):
 
 
 class OOVStatisticsReporter(models.Reporter, xnmt.Serializable):
+  yaml_tag = "!OOVStatisticsReporter"
   """
   A reporter that prints OOV statistics: recovered OOVs, fantasized new words, etc.
 

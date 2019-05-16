@@ -4,6 +4,7 @@ from typing import Any, List, Optional, Sequence
 from xnmt.internal.persistence import serializable_init, Serializable
 
 class Vocab(Serializable):
+  yaml_tag = "!Vocab"
   """
   An open vocabulary that converts between strings and integer ids.
 

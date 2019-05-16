@@ -11,6 +11,7 @@ import xnmt.train as train
 
 
 class SimpleTrainingRegimen(train.SimpleTrainingTask, models.TrainingRegimen, xnmt.Serializable):
+  yaml_tag = "!SimpleTrainingRegimen"
   """
   Args:
     model: the model
@@ -349,6 +350,7 @@ class MultiTaskTrainingRegimen(models.TrainingRegimen):
 
 
 class SameBatchMultiTaskTrainingRegimen(MultiTaskTrainingRegimen, xnmt.Serializable):
+  yaml_tag = "!SameBatchMultiTaskTrainingRegimen"
   """
   Multi-task training where gradients are accumulated and weight updates are thus performed jointly for each task.
   The relative weight between tasks can be configured setting the number of steps to accumulate over for each task.
@@ -439,6 +441,7 @@ class SameBatchMultiTaskTrainingRegimen(MultiTaskTrainingRegimen, xnmt.Serializa
 
 
 class AlternatingBatchMultiTaskTrainingRegimen(MultiTaskTrainingRegimen, xnmt.Serializable):
+  yaml_tag = "!AlternatingBatchMultiTaskTrainingRegimen"
   """
   Multi-task training where training steps are performed one after another.
 
@@ -519,6 +522,7 @@ class AlternatingBatchMultiTaskTrainingRegimen(MultiTaskTrainingRegimen, xnmt.Se
 
 
 class SerialMultiTaskTrainingRegimen(MultiTaskTrainingRegimen, xnmt.Serializable):
+  yaml_tag = "!SerialMultiTaskTrainingRegimen"
   """
   Trains only first task until stopping criterion met, then the same for the second task, etc.
 

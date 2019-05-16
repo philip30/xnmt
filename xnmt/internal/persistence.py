@@ -242,6 +242,7 @@ def bare(class_type: Type[T], **kwargs: Any) -> T:
 
 
 class Ref(Serializable):
+  yaml_tag = "!Ref"
   """
   A reference to somewhere in the component hierarchy.
 
@@ -427,6 +428,7 @@ class Path(object):
     return ret
 
 class Repeat(Serializable):
+  yaml_tag = "!Repeat"
   """
   A special object that is replaced by a list of components with identical configuration but not with shared params.
 
@@ -715,6 +717,7 @@ class PathError(Exception):
 
 
 class SavedFormatString(str, Serializable):
+  yaml_tag = "!SavedFormatString"
   @serializable_init
   def __init__(self, value: str, unformatted_value: str) -> None:
     self.unformatted_value = unformatted_value
@@ -754,6 +757,7 @@ class RandomParam(yaml.YAMLObject):
 
 
 class LoadSerialized(Serializable):
+  yaml_tag = "!LoadSerialized"
   """
   Load content from an external YAML file.
 

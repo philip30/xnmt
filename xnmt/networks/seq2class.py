@@ -4,6 +4,7 @@ import xnmt.modules.nn as nn
 
 
 class Seq2Class(models.ConditionedModel, models.GeneratorModel, xnmt.Serializable):
+  yaml_tag = "!Seq2Class"
   """
   A sequence classifier.
 

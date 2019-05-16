@@ -9,6 +9,7 @@ from typing import List, Union, Optional
 
 
 class SumComposer(models.SequenceComposer, xnmt.Serializable):
+  yaml_tag = "!SumComposer"
   @xnmt.serializable_init
   def __init__(self):
     super().__init__()
@@ -21,6 +22,7 @@ class SumComposer(models.SequenceComposer, xnmt.Serializable):
 
 
 class AverageComposer(models.SequenceComposer, xnmt.Serializable):
+  yaml_tag = "!AverageComposer"
   @xnmt.serializable_init
   def __init__(self):
     super().__init__()
@@ -33,6 +35,7 @@ class AverageComposer(models.SequenceComposer, xnmt.Serializable):
 
 
 class MaxComposer(models.SequenceComposer, xnmt.Serializable):
+  yaml_tag = "!MaxComposer"
   @xnmt.serializable_init
   def __init__(self):
     super().__init__()
@@ -44,6 +47,7 @@ class MaxComposer(models.SequenceComposer, xnmt.Serializable):
 
 
 class SeqTransducerComposer(models.SequenceComposer, xnmt.Serializable):
+  yaml_tag = "!SeqTransducerComposer"
   @xnmt.serializable_init
   def __init__(self, seq_transducer: models.SeqTransducer = xnmt.bare(recurrent.BiLSTMSeqTransducer)):
     super().__init__()
@@ -57,6 +61,7 @@ class SeqTransducerComposer(models.SequenceComposer, xnmt.Serializable):
 
 
 class DyerHeadComposer(models.SequenceComposer, xnmt.Serializable):
+  yaml_tag = "!DyerHeadComposer"
   @xnmt.serializable_init
   def __init__(self,
                fwd_combinator: models.UniDiSeqTransducer = xnmt.bare(recurrent.UniLSTMSeqTransducer),
@@ -85,6 +90,7 @@ class DyerHeadComposer(models.SequenceComposer, xnmt.Serializable):
 
 
 class ConvolutionComposer(models.SequenceComposer, xnmt.Serializable):
+  yaml_tag = "!ConvolutionComposer"
   @xnmt.serializable_init
   def __init__(self,
                ngram_size: Optional[int] = 4,

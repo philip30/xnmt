@@ -2,6 +2,7 @@ import dynet as dy
 import xnmt
 
 class TransformSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
+  yaml_tag = "!TransformSeqTransducer"
   """
   A sequence transducer that applies a given transformation to the sequence's tensor representation
 

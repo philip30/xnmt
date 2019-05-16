@@ -3,6 +3,7 @@ import xnmt
 
 
 class ResidualSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
+  yaml_tag = "!ResidualSeqTransducer"
   """
   A sequence transducer that wraps a :class:`xnmt.transducers.base.SeqTransducer` in an additive residual
   connection, and optionally performs some variety of normalization.

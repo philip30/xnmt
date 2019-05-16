@@ -53,6 +53,7 @@ class BaseTextReader(models.InputReader):
 
 
 class PlainTextReader(BaseTextReader, xnmt.Serializable):
+  yaml_tag = "!PlainTextReader"
   """
   Handles the typical case of reading plain text files, with one sent per line.
 
@@ -91,6 +92,7 @@ class PlainTextReader(BaseTextReader, xnmt.Serializable):
 
 
 class LengthTextReader(BaseTextReader, xnmt.Serializable):
+  yaml_tag = "!LengthTextReader"
   @xnmt.serializable_init
   def __init__(self, output_proc: Optional[List[xnmt.models.templates.OutputProcessor]] = None):
     super().__init__(None)
@@ -101,6 +103,7 @@ class LengthTextReader(BaseTextReader, xnmt.Serializable):
 
 
 class CompoundReader(models.InputReader, xnmt.Serializable):
+  yaml_tag = "!CompoundReader"
   """
   A compound reader reads inputs using several input readers at the same time.
 
@@ -142,6 +145,7 @@ class CompoundReader(models.InputReader, xnmt.Serializable):
 
 
 class SentencePieceTextReader(BaseTextReader, xnmt.Serializable):
+  yaml_tag = "!SentencePieceTextReader"
   """
   Read in text and segment it with sentencepiece. Optionally perform sampling
   for subword regularization, only at training time.
@@ -191,6 +195,7 @@ class SentencePieceTextReader(BaseTextReader, xnmt.Serializable):
 
 
 class RamlTextReader(BaseTextReader, xnmt.Serializable):
+  yaml_tag = "!RamlTextReader"
   """
   Handles the RAML sampling, can be used on the target side, or on both the source and target side.
   Randomly replaces words according to Hamming Distance.
@@ -238,6 +243,7 @@ class RamlTextReader(BaseTextReader, xnmt.Serializable):
 
 
 class CharFromWordTextReader(PlainTextReader, xnmt.Serializable):
+  yaml_tag = "!CharFromWordTextReader"
   """
   Read in word based corpus and turned that into SegmentedSentence.
   SegmentedSentece's words are characters, but it contains the information of the segmentation.
@@ -295,6 +301,7 @@ class CharFromWordTextReader(PlainTextReader, xnmt.Serializable):
 
 
 class SimultActionTextReader(PlainTextReader, xnmt.Serializable):
+  yaml_tag = "!SimultActionTextReader"
   @xnmt.serializable_init
   def __init__(self):
     super().__init__(xnmt.Vocab(i2w=["READ", "WRITE"]), [], False, 0)
@@ -325,6 +332,7 @@ class SimultActionTextReader(PlainTextReader, xnmt.Serializable):
 
 
 class H5Reader(models.InputReader, xnmt.Serializable):
+  yaml_tag = "!H5Reader"
   """
   Handles the case where sents are sequences of continuous-space vectors.
 
@@ -391,6 +399,7 @@ class H5Reader(models.InputReader, xnmt.Serializable):
 
 
 class NpzReader(models.InputReader, xnmt.Serializable):
+  yaml_tag = "!NpzReader"
   """
   Handles the case where sents are sequences of continuous-space vectors.
 
@@ -464,6 +473,7 @@ class NpzReader(models.InputReader, xnmt.Serializable):
 
 
 class IDReader(BaseTextReader, xnmt.Serializable):
+  yaml_tag = "!IDReader"
   """
   Handles the case where we need to read in a single ID (like retrieval problems).
 
@@ -501,6 +511,7 @@ class GraphReader(BaseTextReader):
 
 
 class CoNLLToRNNGActionsReader(GraphReader, xnmt.Serializable):
+  yaml_tag = "!CoNLLToRNNGActionsReader"
   """
   Handles the reading of CoNLL File Format:
 
@@ -560,6 +571,7 @@ class CoNLLToRNNGActionsReader(GraphReader, xnmt.Serializable):
                                                  output_procs=self.output_procs)
 
 class PennTreeBankReader(GraphReader, xnmt.Serializable):
+  yaml_tag = "!PennTreeBankReader"
   @xnmt.serializable_init
   def __init__(self, word_vocab: xnmt.Vocab, head_vocab: xnmt.Vocab, output_procs=[]):
     super().__init__(head_vocab, None, word_vocab)
@@ -613,6 +625,7 @@ class PennTreeBankReader(GraphReader, xnmt.Serializable):
 
 
 class LatticeReader(GraphReader, xnmt.Serializable):
+  yaml_tag = "!LatticeReader"
   """
   Reads lattices from a text file.
 

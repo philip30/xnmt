@@ -6,6 +6,7 @@ import xnmt.modules.nn.transducers.recurrent as recurrent
 
 
 class PyramidalLSTMSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
+  yaml_tag = "!PyramidalLSTMSeqTransducer"
   """
   Builder for pyramidal RNNs that delegates to ``UniLSTMSeqTransducer`` objects and wires them together.
   See https://arxiv.org/abs/1508.01211

@@ -7,6 +7,7 @@ import xnmt.models as models
 
 
 class MlpAttender(models.Attender, xnmt.Serializable):
+  yaml_tag = "!MlpAttender"
   """
   Implements the attention model of Bahdanau et. al (2014)
 
@@ -52,6 +53,7 @@ class MlpAttender(models.Attender, xnmt.Serializable):
 
 
 class DotAttender(models.Attender, xnmt.Serializable):
+  yaml_tag = "!DotAttender"
   """
   Implements dot product attention of https://arxiv.org/abs/1508.04025
   Also (optionally) perform scaling of https://arxiv.org/abs/1706.03762
@@ -78,6 +80,7 @@ class DotAttender(models.Attender, xnmt.Serializable):
 
 
 class BilinearAttender(models.Attender, xnmt.Serializable):
+  yaml_tag = "!BilinearAttender"
   """
   Implements a bilinear attention, equivalent to the 'general' linear
   attention of https://arxiv.org/abs/1508.04025
@@ -111,6 +114,7 @@ class BilinearAttender(models.Attender, xnmt.Serializable):
 
 
 class LatticeBiasedMlpAttender(MlpAttender, xnmt.Serializable):
+  yaml_tag = "!LatticeBiasedMlpAttender"
   """
   Modified MLP attention, where lattices are assumed as input and the attention is biased toward confident nodes.
 

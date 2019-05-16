@@ -14,6 +14,7 @@ The purpose of this module is mostly to expose the DyNet trainers to YAML serial
 but may also be extended to customize optimizers / training schedules
 """
 class SGDTrainer(models.XnmtOptimizer, xnmt.Serializable):
+  yaml_tag = "!SGDTrainer"
   """
   Stochastic gradient descent trainer
 
@@ -32,6 +33,7 @@ class SGDTrainer(models.XnmtOptimizer, xnmt.Serializable):
 
 
 class MomentumSGDTrainer(models.XnmtOptimizer, xnmt.Serializable):
+  yaml_tag = "!MomentumSGDTrainer"
   """
   Stochastic gradient descent with momentum
 
@@ -51,6 +53,7 @@ class MomentumSGDTrainer(models.XnmtOptimizer, xnmt.Serializable):
 
 
 class AdagradTrainer(models.XnmtOptimizer, xnmt.Serializable):
+  yaml_tag = "!AdagradTrainer"
   """
   Adagrad optimizer
 
@@ -70,6 +73,7 @@ class AdagradTrainer(models.XnmtOptimizer, xnmt.Serializable):
 
 
 class AdadeltaTrainer(models.XnmtOptimizer, xnmt.Serializable):
+  yaml_tag = "!AdadeltaTrainer"
   """
   AdaDelta optimizer
 
@@ -89,6 +93,7 @@ class AdadeltaTrainer(models.XnmtOptimizer, xnmt.Serializable):
 
 
 class AdamTrainer(models.XnmtOptimizer, xnmt.Serializable):
+  yaml_tag = "!AdamTrainer"
   """
   Adam optimizer
 
@@ -115,6 +120,7 @@ class AdamTrainer(models.XnmtOptimizer, xnmt.Serializable):
 
 
 class NoamTrainer(models.XnmtOptimizer, xnmt.Serializable):
+  yaml_tag = "!NoamTrainer"
   """
   Proposed in the paper "Attention is all you need" (https://papers.nips.cc/paper/7181-attention-is-all-you-need.pdf) [Page 7, Eq. 3]
   In this the learning rate of Adam Optimizer is increased for the first warmup steps followed by a gradual decay
@@ -164,6 +170,7 @@ class NoamTrainer(models.XnmtOptimizer, xnmt.Serializable):
 
 
 class DummyTrainer(models.XnmtOptimizer, xnmt.Serializable):
+  yaml_tag = "!DummyTrainer"
   """
   A dummy trainer that does not perform any parameter updates.
   """

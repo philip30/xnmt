@@ -11,6 +11,7 @@ import xnmt.models as models
 
 
 class SentenceEvalMeasureReward(models.RewardCalculator,xnmt.Serializable):
+  yaml_tag = "!SentenceEvalMeasureReward"
   @xnmt.serializable_init
   def __init__(self, eval_metrics: evaluators.SentenceLevelEvaluator, inverse_eval=True):
     super().__init__()
@@ -27,6 +28,7 @@ class SentenceEvalMeasureReward(models.RewardCalculator,xnmt.Serializable):
 
 
 class SimNMTReward(models.RewardCalculator, xnmt.Serializable):
+  yaml_tag = "!SimNMTReward"
   @xnmt.serializable_init
   def __init__(self):
     super().__init__()
@@ -61,6 +63,7 @@ class CompositeReward(models.RewardCalculator):
 
 
 class PoissonSrcLengthReward(models.RewardCalculator, xnmt.Serializable):
+  yaml_tag = "!PoissonSrcLengthReward"
   """
   A prior that tries the poisson probability of having a specific number of segment
   Given the expected number of segments.

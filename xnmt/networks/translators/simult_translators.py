@@ -26,6 +26,7 @@ from xnmt.simultaneous.simult_state import SimultaneousState
 
 
 class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializable):
+  yaml_tag = "!SimultaneousTranslator"
   yaml_tag = '!SimultaneousTranslator'
 
   class Action(Enum):

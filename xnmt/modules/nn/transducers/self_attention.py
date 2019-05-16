@@ -4,6 +4,7 @@ import xnmt
 
 
 class MultiHeadAttentionSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
+  yaml_tag = "!MultiHeadAttentionSeqTransducer"
   """
   This implements the Multi-headed attention layer of "Attention is All You Need":
   https://papers.nips.cc/paper/7181-attention-is-all-you-need.pdf

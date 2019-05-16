@@ -8,6 +8,7 @@ import xnmt.models as models
 
 
 class MLELoss(models.LossCalculator, xnmt.Serializable):
+  yaml_tag = "!MLELoss"
   """
   Max likelihood loss calculator.
   """
@@ -23,6 +24,7 @@ class MLELoss(models.LossCalculator, xnmt.Serializable):
 
 
 class PolicyMLELoss(models.LossCalculator, xnmt.Serializable):
+  yaml_tag = "!PolicyMLELoss"
   @xnmt.serializable_init
   def __init__(self, model='model_base.PolicyConditionedModel'):
     self.model = model
@@ -38,6 +40,7 @@ class PolicyMLELoss(models.LossCalculator, xnmt.Serializable):
 
 
 class GlobalFertilityLoss(models.LossCalculator, xnmt.Serializable):
+  yaml_tag = "!GlobalFertilityLoss"
   """
   A fertility loss according to Cohn+, 2016.
   Incorporating Structural Alignment Biases into an Attentional Neural Translation Model
@@ -65,6 +68,7 @@ class GlobalFertilityLoss(models.LossCalculator, xnmt.Serializable):
 
 
 class CompositeLoss(models.LossCalculator, xnmt.Serializable):
+  yaml_tag = "!CompositeLoss"
   """
   Summing losses from multiple LossCalculator.
   """

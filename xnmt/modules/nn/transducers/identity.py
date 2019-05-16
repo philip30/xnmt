@@ -2,6 +2,7 @@ import xnmt
 
 
 class IdentitySeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
+  yaml_tag = "!IdentitySeqTransducer"
   """
   A transducer that simply returns the input.
   """

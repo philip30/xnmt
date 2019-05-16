@@ -6,6 +6,7 @@ import xnmt.models as models
 
 
 class ExpGlobal(xnmt.Serializable):
+  yaml_tag = "!ExpGlobal"
   """
   An object that holds global settings that can be referenced by components wherever appropriate.
 
@@ -60,6 +61,7 @@ class ExpGlobal(xnmt.Serializable):
 
 
 class Experiment(xnmt.Serializable):
+  yaml_tag = "!Experiment"
   """
   A default experiment that performs preprocessing, training, and evaluation.
 

@@ -6,6 +6,7 @@ import xnmt.modules.nn as nn
 
 
 class LabelEmitter(models.Decoder, xnmt.Serializable):
+  yaml_tag = "!LabelEmitter"
   @xnmt.serializable_init
   def __init__(self,
                transform: models.Transform = xnmt.bare(nn.NonLinear),

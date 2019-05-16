@@ -6,6 +6,7 @@ import xnmt.inferences.length_norm as norms
 
 
 class GreedySearch(models.SearchStrategy, xnmt.Serializable):
+  yaml_tag = "!GreedySearch"
   """
   Performs greedy search (aka beam search with beam size 1)
 
@@ -36,6 +37,7 @@ class GreedySearch(models.SearchStrategy, xnmt.Serializable):
 
 
 class BeamSearch(models.SearchStrategy, xnmt.Serializable):
+  yaml_tag = "!BeamSearch"
   """
   Performs beam search.
 
@@ -97,6 +99,7 @@ class BeamSearch(models.SearchStrategy, xnmt.Serializable):
 
 
 class SamplingSearch(models.SearchStrategy, xnmt.Serializable):
+  yaml_tag = "!SamplingSearch"
   """
   Performs search based on the softmax probability distribution.
   Similar to greedy searchol

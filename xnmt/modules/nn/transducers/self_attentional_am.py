@@ -46,6 +46,7 @@ class SAAMTimeDistributed(object):
 
 
 class SAAMPositionwiseFeedForward(xnmt.xnmt.Serializable):
+  yaml_tag = "!SAAMPositionwiseFeedForward"
   """
   Interleaved feed-forward components of the transformer, computed as layer_norm(dropout(linear(relu(linear))) + x).
 
@@ -78,6 +79,7 @@ class SAAMPositionwiseFeedForward(xnmt.xnmt.Serializable):
 
 
 class SAAMMultiHeadedSelfAttention(xnmt.xnmt.Serializable):
+  yaml_tag = "!SAAMMultiHeadedSelfAttention"
   """
   Args:
     head_count: number of self-att heads
@@ -358,6 +360,7 @@ class SAAMMultiHeadedSelfAttention(xnmt.xnmt.Serializable):
 
 
 class TransformerEncoderLayer(xnmt.xnmt.Serializable):
+  yaml_tag = "!TransformerEncoderLayer"
   @xnmt.serializable_init
   def __init__(self,
                hidden_dim,
@@ -460,6 +463,7 @@ class TransformerEncoderLayer(xnmt.xnmt.Serializable):
 
 
 class SAAMSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
+  yaml_tag = "!SAAMSeqTransducer"
   """
   Args:
     input_dim: input dimension

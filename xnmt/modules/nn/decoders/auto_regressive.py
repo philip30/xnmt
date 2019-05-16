@@ -10,6 +10,7 @@ import xnmt.modules.nn as nn
 import xnmt.modules.nn.decoders.states as decoder_state
 
 class AutoRegressiveDecoder(models.Decoder, xnmt.Serializable):
+  yaml_tag = "!AutoRegressiveDecoder"
   """
   Standard autoregressive-decoder.
 
@@ -109,7 +110,7 @@ class AutoRegressiveDecoder(models.Decoder, xnmt.Serializable):
     sample_k  = self.scorer.sample(h, n)
     ret  = [models.SearchAction(dec_state, best_word, best_score, None) for best_word, best_score in sample_k]
     return ret
-  
+
   def calc_loss(self, dec_state: decoder_state.AutoRegressiveDecoderState, ref_action: xnmt.Batch) -> dy.Expression:
     return self.scorer.calc_loss(self._calc_transform(dec_state), ref_action)
 

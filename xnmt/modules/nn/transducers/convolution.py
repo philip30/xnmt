@@ -5,6 +5,7 @@ import xnmt.models.states as states
 
 
 class ConvConnectedSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
+  yaml_tag = "!ConvConnectedSeqTransducer"
   """
     Input goes through through a first convolution in time and space, no stride,
     dimension is not reduced, then CNN layer for each frame several times

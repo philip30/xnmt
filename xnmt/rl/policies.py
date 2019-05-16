@@ -6,6 +6,7 @@ import xnmt.modules.nn as nn
 
 
 class PolicyNetwork(models.Policy, xnmt.Serializable):
+  yaml_tag = "!PolicyNetwork"
   @xnmt.serializable_init
   def __init__(self, policy_network: models.Transform = xnmt.bare(nn.Linear)):
     self.policy_network = policy_network

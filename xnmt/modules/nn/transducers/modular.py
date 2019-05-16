@@ -6,6 +6,7 @@ import xnmt.models.states as states
 
 
 class ModularSeqTransducer(models.SeqTransducer, xnmt.Serializable):
+  yaml_tag = "!ModularSeqTransducer"
   """
   A sequence transducer that stacks several :class:`xnmt.transducer.SeqTransducer` objects, all of which must
   accept exactly one argument (an :class:`expression_seqs.ExpressionSequence`) in their transduce method.

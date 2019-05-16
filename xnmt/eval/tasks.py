@@ -10,6 +10,7 @@ import xnmt.eval.evaluate as evaluate
 
 
 class LossEvalTask(models.EvalTask, xnmt.Serializable):
+  yaml_tag = "!LossEvalTask"
   """
   A task that does evaluation of the loss function.
 
@@ -101,6 +102,7 @@ class LossEvalTask(models.EvalTask, xnmt.Serializable):
 
 
 class AccuracyEvalTask(models.EvalTask, xnmt.Serializable):
+  yaml_tag = "!AccuracyEvalTask"
   """
   A task that does evaluation of some measure of accuracy.
 
@@ -155,6 +157,7 @@ class AccuracyEvalTask(models.EvalTask, xnmt.Serializable):
     return eval_scores
 
 class DecodingEvalTask(models.EvalTask, xnmt.Serializable):
+  yaml_tag = "!DecodingEvalTask"
   """
   A task that does performs decoding without comparing against a reference.
 

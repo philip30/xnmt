@@ -14,6 +14,7 @@ import xnmt.train as train
 
 
 class SimpleTrainingTask(models.TrainingTask, xnmt.Serializable):
+  yaml_tag = "!SimpleTrainingTask"
   """
   Args:
     model: a trainable supervised model

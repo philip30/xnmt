@@ -10,6 +10,7 @@ from .transform import TransformSeqTransducer
 
 
 class NinSeqTransducer(ModularSeqTransducer, Serializable):
+  yaml_tag = "!NinSeqTransducer"
   """
   Network-in-network transducer following Lin et al. (2013): Network in Network; https://arxiv.org/pdf/1312.4400.pdf
 

@@ -8,6 +8,7 @@ import xnmt.modules as modules
 
 
 class IdentityTransform(models.Transform, xnmt.Serializable):
+  yaml_tag = "!IdentityTransform"
   """
   Identity transform. For use when you think it might be a better idea to
   not perform a specific transform in a place where you would normally do one.
@@ -21,6 +22,7 @@ class IdentityTransform(models.Transform, xnmt.Serializable):
 
 
 class Linear(models.Transform, xnmt.Serializable):
+  yaml_tag = "!Linear"
   """
   Linear projection with optional bias.
 
@@ -55,6 +57,7 @@ class Linear(models.Transform, xnmt.Serializable):
 
 
 class NonLinear(models.Transform, xnmt.Serializable):
+  yaml_tag = "!NonLinear"
   """
   Linear projection with optional bias and non-linearity.
 
@@ -94,6 +97,7 @@ class NonLinear(models.Transform, xnmt.Serializable):
 # TODO: can we come up with a more elegant way to handle things that doesn't require this?
 #       currently this is necessary because of this: https://github.com/neulab/xnmt/issues/441#issuecomment-400051066
 class AuxNonLinear(NonLinear, xnmt.Serializable):
+  yaml_tag = "!AuxNonLinear"
   """
   NonLinear with an additional auxiliary input.
 
@@ -131,6 +135,7 @@ class AuxNonLinear(NonLinear, xnmt.Serializable):
 
 
 class MLP(models.Transform, xnmt.Serializable):
+  yaml_tag = "!MLP"
   """
   A multi-layer perceptron. Defined as one or more NonLinear transforms of equal hidden
   dimension and type, then a Linear transform to the output dimension.
@@ -182,6 +187,7 @@ class MLP(models.Transform, xnmt.Serializable):
 
 
 class Cwise(models.Transform, xnmt.Serializable):
+  yaml_tag = "!Cwise"
   """
   A component-wise transformation that can be an arbitrary unary DyNet operation.
 

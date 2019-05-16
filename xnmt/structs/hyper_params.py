@@ -4,6 +4,7 @@ import xnmt
 
 
 class Scalar(xnmt.Serializable):
+  yaml_tag = "!Scalar"
   """
   Scalar class for hyper parameter that support 1 value serialization.
   This class is actually a base class and does not have any different with simple python float/int.
@@ -48,6 +49,7 @@ class Scalar(xnmt.Serializable):
   def __floordiv__(self, b): return self.value // b
 
 class DefinedSequence(Scalar, xnmt.Serializable):
+  yaml_tag = "!DefinedSequence"
   """
   Class that represents a fixed defined sequence from config files.
   If update has been made more than the length of the sequence, the last element of the sequence will be returned instead

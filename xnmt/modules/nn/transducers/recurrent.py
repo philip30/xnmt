@@ -128,6 +128,7 @@ class UniLSTMState(models.UniDirectionalState):
 
 
 class UniLSTMSeqTransducer(xnmt.models.UniDiSeqTransducer, xnmt.Serializable):
+  yaml_tag = "!UniLSTMSeqTransducer"
   """
   This implements a single LSTM layer based on the memory-friendly dedicated DyNet nodes.
   It works similar to DyNet's CompactVanillaLSTMBuilder, but in addition supports
@@ -211,6 +212,7 @@ class UniLSTMSeqTransducer(xnmt.models.UniDiSeqTransducer, xnmt.Serializable):
 
 
 class BiLSTMSeqTransducer(models.BidiSeqTransducer, xnmt.Serializable):
+  yaml_tag = "!BiLSTMSeqTransducer"
   """
   This implements a bidirectional LSTM and requires about 8.5% less memory per timestep
   than DyNet's CompactVanillaLSTMBuilder due to avoiding concat operations.

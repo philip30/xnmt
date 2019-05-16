@@ -7,6 +7,7 @@ import xnmt.modules.nn.transforms as transforms
 
 
 class NoBridge(models.Bridge, xnmt.Serializable):
+  yaml_tag = "!NoBridge"
   """
   This bridge initializes the decoder with zero vectors, disregarding the encoder final states.
 
@@ -26,6 +27,7 @@ class NoBridge(models.Bridge, xnmt.Serializable):
 
 
 class CopyBridge(models.Bridge, xnmt.Serializable):
+  yaml_tag = "!CopyBridge"
   """
   This bridge copies final states from the encoder to the decoder initial states.
   Requires that:
@@ -58,6 +60,7 @@ class CopyBridge(models.Bridge, xnmt.Serializable):
 
 
 class LinearBridge(models.Bridge, xnmt.Serializable):
+  yaml_tag = "!LinearBridge"
   """
   This bridge does a linear transform of final states from the encoder to the decoder initial states.
   Requires that  num encoder layers >= num decoder layers (if unequal, we disregard final states at the encoder bottom)

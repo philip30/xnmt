@@ -24,6 +24,7 @@ class PreprocTask(object):
     ...
 
 class PreprocRunner(Serializable):
+  yaml_tag = "!PreprocRunner"
   """
   Preprocess and filter the input files, and create the vocabulary.
 
@@ -47,6 +48,7 @@ class PreprocRunner(Serializable):
       task.run_preproc_task(overwrite = overwrite)
 
 class PreprocExtract(PreprocTask, Serializable):
+  yaml_tag = "!PreprocExtract"
   @serializable_init
   def __init__(self, in_files: Sequence[str], out_files: Sequence[str], specs: Sequence['Tokenizer']) -> None:
     self.in_files = in_files
@@ -69,6 +71,7 @@ class PreprocExtract(PreprocTask, Serializable):
             out_stream.write(f"{line}\n")
 
 class PreprocNormalize(PreprocTask, Serializable):
+  yaml_tag = "!PreprocNormalize"
   @serializable_init
   def __init__(self, in_files: Sequence[str], out_files: Sequence[str], specs: Sequence['Normalizer']):
     self.in_files = in_files
@@ -92,6 +95,7 @@ class PreprocNormalize(PreprocTask, Serializable):
             out_stream.write(line + "\n")
 
 class PreprocFilter(PreprocTask, Serializable):
+  yaml_tag = "!PreprocFilter"
   @serializable_init
   def __init__(self, in_files: Sequence[str], out_files: Sequence[str], specs: Sequence['SentenceFilterer']):
     self.in_files = in_files
@@ -116,6 +120,7 @@ class PreprocFilter(PreprocTask, Serializable):
 
 
 class PreprocVocab(PreprocTask, Serializable):
+  yaml_tag = "!PreprocVocab"
   @serializable_init
   def __init__(self, in_files: Sequence[str], out_files: Sequence[str], specs: Sequence[dict]) -> None:
     self.in_files = in_files
@@ -152,6 +157,7 @@ class Normalizer(object):
     raise RuntimeError("Subclasses of Normalizer must implement the normalize() function")
 
 class NormalizerLower(Normalizer, Serializable):
+  yaml_tag = "!NormalizerLower"
   """Lowercase the text."""
 
   @serializable_init
@@ -162,6 +168,7 @@ class NormalizerLower(Normalizer, Serializable):
     return sent.lower()
 
 class NormalizerRemovePunct(Normalizer, Serializable):
+  yaml_tag = "!NormalizerRemovePunct"
   """Remove punctuation from the text.
 
   Args:
@@ -210,6 +217,7 @@ class Tokenizer(Normalizer):
       yield self.tokenize(line.strip())
 
 class BPETokenizer(Tokenizer, Serializable):
+  yaml_tag = "!BPETokenizer"
   """
   Class for byte-pair encoding tokenizer.
 
@@ -225,6 +233,7 @@ class BPETokenizer(Tokenizer, Serializable):
     raise NotImplementedError("BPETokenizer is not implemented")
 
 class CharacterTokenizer(Tokenizer, Serializable):
+  yaml_tag = "!CharacterTokenizer"
   """
   Tokenize into characters, with __ indicating blank spaces
   """
@@ -237,6 +246,7 @@ class CharacterTokenizer(Tokenizer, Serializable):
     return ' '.join([('__' if x == ' ' else x) for x in sent])
 
 class UnicodeTokenizer(Tokenizer, Serializable):
+  yaml_tag = "!UnicodeTokenizer"
   """
   Tokenizer that inserts whitespace between words and punctuation.
 
@@ -298,6 +308,7 @@ class UnicodeTokenizer(Tokenizer, Serializable):
     return not (unicodedata.category(c)[0] in 'LMN' or c.isspace())
 
 class ExternalTokenizer(Tokenizer, Serializable):
+  yaml_tag = "!ExternalTokenizer"
   """
   Class for arbitrary external tokenizer that accepts untokenized text to stdin and
   emits tokenized tezt to stdout, with passable parameters.
@@ -348,6 +359,7 @@ class ExternalTokenizer(Tokenizer, Serializable):
     return stdout
 
 class SentencepieceTokenizer(Tokenizer, Serializable):
+  yaml_tag = "!SentencepieceTokenizer"
   """
   Sentencepiece tokenizer
   The options supported by the SentencepieceTokenizer are almost exactly those presented in the Sentencepiece `readme <https://github.com/google/sentencepiece/blob/master/README.md>`_, namely:
@@ -479,6 +491,7 @@ class SentenceFiltererMatchingRegex(SentenceFilterer):
     return True
 
 class SentenceFiltererLength(SentenceFilterer, Serializable):
+  yaml_tag = "!SentenceFiltererLength"
   """Filters sentences by length"""
 
   @serializable_init
@@ -545,6 +558,7 @@ class VocabFilterer(object):
     raise RuntimeError("Subclasses of VocabFilterer must implement the filter() function")
 
 class VocabFiltererFreq(VocabFilterer, Serializable):
+  yaml_tag = "!VocabFiltererFreq"
   """Filter the vocabulary, removing words below a particular minimum frequency"""
   @serializable_init
   def __init__(self, min_freq: numbers.Integral) -> None:
@@ -555,6 +569,7 @@ class VocabFiltererFreq(VocabFilterer, Serializable):
     return {k: v for k, v in vocab.items() if v >= self.min_freq}
 
 class VocabFiltererRank(VocabFilterer, Serializable):
+  yaml_tag = "!VocabFiltererRank"
   """Filter the vocabulary, removing words above a particular frequency rank"""
   @serializable_init
   def __init__(self, max_rank: numbers.Integral) -> None:
@@ -575,6 +590,7 @@ class Extractor(object):
     raise RuntimeError("Subclasses of Extractor must implement the extract_to() function")
 
 class MelFiltExtractor(Extractor, Serializable):
+  yaml_tag = "!MelFiltExtractor"
   @serializable_init
   def __init__(self, nfilt: numbers.Integral = 40, delta: bool = False):
     self.delta = delta
@@ -622,6 +638,7 @@ class MelFiltExtractor(Extractor, Serializable):
     logger.debug(f"feature extraction took {time.time()-start_time:.3f} seconds")
 
 class LatticeFromPlfExtractor(Extractor, Serializable):
+  yaml_tag = "!LatticeFromPlfExtractor"
   """
   Creates node-labeled lattices that can be read by the ``LatticeInputReader``.
 

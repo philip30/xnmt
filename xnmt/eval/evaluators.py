@@ -47,6 +47,7 @@ class SentenceLevelEvaluator(models.Evaluator):
 
 
 class FastBLEUEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
+  yaml_tag = "!FastBLEUEvaluator"
   """
   Class for computing BLEU scores using a fast Cython implementation.
 
@@ -78,6 +79,7 @@ class FastBLEUEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
 
 
 class BLEUEvaluator(models.Evaluator, xnmt.Serializable):
+  yaml_tag = "!BLEUEvaluator"
   """
   Compute BLEU scores against one or several references.
 
@@ -246,6 +248,7 @@ class BLEUEvaluator(models.Evaluator, xnmt.Serializable):
 
 
 class GLEUEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
+  yaml_tag = "!GLEUEvaluator"
   """
   Class for computing GLEU (Google BLEU) Scores.
 
@@ -321,6 +324,7 @@ class GLEUEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
 
 
 class WEREvaluator(SentenceLevelEvaluator, xnmt.Serializable):
+  yaml_tag = "!WEREvaluator"
   """
   A class to evaluate the quality of output in terms of word error rate.
 
@@ -350,6 +354,7 @@ class WEREvaluator(SentenceLevelEvaluator, xnmt.Serializable):
 
 
 class CEREvaluator(SentenceLevelEvaluator, xnmt.Serializable):
+  yaml_tag = "!CEREvaluator"
   """
   A class to evaluate the quality of output in terms of character error rate.
 
@@ -389,6 +394,7 @@ class CEREvaluator(SentenceLevelEvaluator, xnmt.Serializable):
 
 
 class ExternalEvaluator(models.Evaluator, xnmt.Serializable):
+  yaml_tag = "!ExternalEvaluator"
   """
   A class to evaluate the quality of the output according to an external evaluation script.
 
@@ -422,6 +428,7 @@ class ExternalEvaluator(models.Evaluator, xnmt.Serializable):
 
 
 class RecallEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
+  yaml_tag = "!RecallEvaluator"
   """
   Compute recall by counting true positives.
 
@@ -448,6 +455,7 @@ class RecallEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
 
 
 class SequenceAccuracyEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
+  yaml_tag = "!SequenceAccuracyEvaluator"
   """
   A class to evaluate the quality of output in terms of sequence accuracy.
 
@@ -481,6 +489,7 @@ class SequenceAccuracyEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
 
 
 class FMeasureEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
+  yaml_tag = "!FMeasureEvaluator"
   """
   A class to evaluate the quality of output in terms of classification F-score.
 
@@ -511,6 +520,7 @@ class FMeasureEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
 
 
 class SegmentationFMeasureEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
+  yaml_tag = "!SegmentationFMeasureEvaluator"
   @xnmt.serializable_init
   def __init__(self, write_sentence_scores: Optional[str] = None) -> None:
     super().__init__(write_sentence_scores=write_sentence_scores)
@@ -550,6 +560,7 @@ class SegmentationFMeasureEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
 
 
 class RNNGParseFMeasureEvaluator(SentenceLevelEvaluator, xnmt.Serializable):
+  yaml_tag = "!RNNGParseFMeasureEvaluator"
   @xnmt.serializable_init
   def __init__(self, ignore_word_in_gen=False, write_sentence_scores: Optional[str]=None):
     super().__init__(write_sentence_scores=write_sentence_scores)

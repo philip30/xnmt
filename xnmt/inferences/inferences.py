@@ -6,6 +6,7 @@ from typing import Optional, Sequence, Union
 
 
 class IndependentOutputInference(models.Inference, xnmt.Serializable):
+  yaml_tag = "!IndependentOutputInference"
   """
   Inference when outputs are produced independently, including for classifiers that produce only a single output.
 
@@ -59,6 +60,7 @@ class IndependentOutputInference(models.Inference, xnmt.Serializable):
 
 
 class AutoRegressiveInference(models.Inference, xnmt.Serializable):
+  yaml_tag = "!AutoRegressiveInference"
   """
   Performs inference for auto-regressive networks that expand based on their own previous outputs.
 
@@ -115,6 +117,7 @@ class AutoRegressiveInference(models.Inference, xnmt.Serializable):
 
 
 class CascadeInference(models.Inference, xnmt.Serializable):
+  yaml_tag = "!CascadeInference"
   """Inference class that performs inference as a series of independent inference steps.
 
   Steps are performed using a list of inference sub-objects and a list of networks.

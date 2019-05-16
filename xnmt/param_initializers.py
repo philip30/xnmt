@@ -24,6 +24,7 @@ class ParamInitializer(object):
 #### DYNET DEFAULT INITIALIZERS ####
 
 class NormalInitializer(ParamInitializer, xnmt.Serializable):
+  yaml_tag = "!NormalInitializer"
   """
   Wraps DyNet's NormalInitializer: http://dynet.readthedocs.io/en/latest/python_ref.html#dynet.NormalInitializer
 
@@ -43,6 +44,7 @@ class NormalInitializer(ParamInitializer, xnmt.Serializable):
 
 
 class UniformInitializer(ParamInitializer, xnmt.Serializable):
+  yaml_tag = "!UniformInitializer"
   """
   Wraps DyNet's UniformInitializer: http://dynet.readthedocs.io/en/latest/python_ref.html#dynet.UniformInitializer
 
@@ -59,6 +61,7 @@ class UniformInitializer(ParamInitializer, xnmt.Serializable):
 
 
 class ConstInitializer(ParamInitializer, xnmt.Serializable):
+  yaml_tag = "!ConstInitializer"
   """
   Wraps DyNet's ConstInitializer: http://dynet.readthedocs.io/en/latest/python_ref.html#dynet.ConstInitializer
 
@@ -76,6 +79,7 @@ class ConstInitializer(ParamInitializer, xnmt.Serializable):
 
 
 class GlorotInitializer(ParamInitializer, xnmt.Serializable):
+  yaml_tag = "!GlorotInitializer"
   """
   Wraps DyNet's GlorotInitializer: http://dynet.readthedocs.io/en/latest/python_ref.html#dynet.GlorotInitializer
 
@@ -123,6 +127,7 @@ class GlorotInitializer(ParamInitializer, xnmt.Serializable):
 
 
 class FromFileInitializer(ParamInitializer, xnmt.Serializable):
+  yaml_tag = "!FromFileInitializer"
   """
   Wraps DyNet's FromFileInitializer: http://dynet.readthedocs.io/en/latest/python_ref.html#dynet.FromFileInitializer
 
@@ -140,6 +145,7 @@ class FromFileInitializer(ParamInitializer, xnmt.Serializable):
 
 
 class NumpyInitializer(ParamInitializer, xnmt.Serializable):
+  yaml_tag = "!NumpyInitializer"
   """
   Wraps DyNet's NumpyInitializer: http://dynet.readthedocs.io/en/latest/python_ref.html#dynet.NumpyInitializer
 
@@ -161,6 +167,7 @@ class NumpyInitializer(ParamInitializer, xnmt.Serializable):
 #### XNMT CUSTOM INITIALIZERS ####
 
 class ZeroInitializer(ParamInitializer, xnmt.Serializable):
+  yaml_tag = "!ZeroInitializer"
   """
   Initializes parameter matrix to zero (most appropriate for bias parameters).
   """
@@ -173,6 +180,7 @@ class ZeroInitializer(ParamInitializer, xnmt.Serializable):
 
 
 class LeCunUniformInitializer(ParamInitializer, xnmt.Serializable):
+  yaml_tag = "!LeCunUniformInitializer"
   """
   Reference: LeCun 98, Efficient Backprop
   http://yann.lecun.com/exdb/publis/pdf/lecun-98b.pdf

@@ -9,6 +9,7 @@ import xnmt.models as models
 import xnmt.rl.baseline as baselines
 
 class PolicyGradient(xnmt.Serializable):
+  yaml_tag = "!PolicyGradient"
 
   yaml_tag = '!PolicyGradient'
 

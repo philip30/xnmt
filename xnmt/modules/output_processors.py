@@ -28,6 +28,7 @@ def get_output_processor(spec: Optional[Union[str, List[models.OutputProcessor]]
 
 
 class JoinCharTextOutputProcessor(models.OutputProcessor, xnmt.Serializable):
+  yaml_tag = "!JoinCharTextOutputProcessor"
   """
   Assumes a single-character vocabulary and joins them to form words.
 
@@ -42,6 +43,7 @@ class JoinCharTextOutputProcessor(models.OutputProcessor, xnmt.Serializable):
 
 
 class JoinBpeTextOutputProcessor(models.OutputProcessor, xnmt.Serializable):
+  yaml_tag = "!JoinBpeTextOutputProcessor"
   """
   Assumes a bpe-based vocabulary and outputs the merged words.
 
@@ -56,6 +58,7 @@ class JoinBpeTextOutputProcessor(models.OutputProcessor, xnmt.Serializable):
 
 
 class JoinPieceTextOutputProcessor(models.OutputProcessor, xnmt.Serializable):
+  yaml_tag = "!JoinPieceTextOutputProcessor"
   """
   Assumes a sentence-piece vocabulary and joins them to form words.
 
@@ -70,6 +73,7 @@ class JoinPieceTextOutputProcessor(models.OutputProcessor, xnmt.Serializable):
 
 
 class DependencyLeavesOutputProcessor(models.OutputProcessor, xnmt.Serializable):
+  yaml_tag = "!DependencyLeavesOutputProcessor"
   @xnmt.serializable_init
   def __init__(self, string_processor: models.OutputProcessor = None):
     self.string_processor = string_processor
@@ -91,6 +95,7 @@ class DependencyLeavesOutputProcessor(models.OutputProcessor, xnmt.Serializable)
 
 
 class SyntaxLeavesOutputProcessor(DependencyLeavesOutputProcessor, xnmt.Serializable):
+  yaml_tag = "!SyntaxLeavesOutputProcessor"
   @xnmt.serializable_init
   def __init__(self, string_processor: models.OutputProcessor = None):
     super().__init__(string_processor)

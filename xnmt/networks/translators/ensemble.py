@@ -21,6 +21,7 @@ from xnmt.networks.seq2seq import DefaultTranslator
 
 
 class EnsembleTranslator(AutoRegressiveTranslator, Serializable):
+  yaml_tag = "!EnsembleTranslator"
   """
   A translator that decodes from an ensemble of DefaultTranslator networks.
   Args:

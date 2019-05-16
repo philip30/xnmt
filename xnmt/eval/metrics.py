@@ -49,6 +49,7 @@ class SentenceLevelEvalScore(models.EvalScore):
 
 
 class LossScore(models.EvalScore, xnmt.Serializable):
+  yaml_tag = "!LossScore"
   """
   Score indicating the value of the loss function of a neural network.
 
@@ -82,6 +83,7 @@ class LossScore(models.EvalScore, xnmt.Serializable):
 
 
 class BLEUScore(models.EvalScore, xnmt.Serializable):
+  yaml_tag = "!BLEUScore"
   """
   Class to keep a BLEU score.
 
@@ -127,6 +129,7 @@ class BLEUScore(models.EvalScore, xnmt.Serializable):
 
 
 class GLEUScore(SentenceLevelEvalScore, xnmt.Serializable):
+  yaml_tag = "!GLEUScore"
   """
   Class to keep a GLEU (Google BLEU) score.
 
@@ -217,6 +220,7 @@ class LevenshteinScore(SentenceLevelEvalScore):
 
 
 class WERScore(LevenshteinScore, xnmt.Serializable):
+  yaml_tag = "!WERScore"
   """
   Class to keep a word error rate.
   """
@@ -224,6 +228,7 @@ class WERScore(LevenshteinScore, xnmt.Serializable):
 
 
 class CERScore(LevenshteinScore, xnmt.Serializable):
+  yaml_tag = "!CERScore"
   """
   Class to keep a character error rate.
   """
@@ -231,6 +236,7 @@ class CERScore(LevenshteinScore, xnmt.Serializable):
 
 
 class RecallScore(SentenceLevelEvalScore, xnmt.Serializable):
+  yaml_tag = "!RecallScore"
   """
   Class to keep a recall score.
 
@@ -273,6 +279,7 @@ class RecallScore(SentenceLevelEvalScore, xnmt.Serializable):
 
 
 class ExternalScore(models.EvalScore, xnmt.Serializable):
+  yaml_tag = "!ExternalScore"
   """
   Class to keep a score computed with an external tool.
 
@@ -296,6 +303,7 @@ class ExternalScore(models.EvalScore, xnmt.Serializable):
 
 
 class SequenceAccuracyScore(SentenceLevelEvalScore, xnmt.Serializable):
+  yaml_tag = "!SequenceAccuracyScore"
   """
   Class to keep a sequence accuracy score.
 
@@ -328,6 +336,7 @@ class SequenceAccuracyScore(SentenceLevelEvalScore, xnmt.Serializable):
 
 
 class FMeasureScore(SentenceLevelEvalScore, xnmt.Serializable):
+  yaml_tag = "!FMeasureScore"
   @xnmt.serializable_init
   def __init__(self,
                true_pos: int,

@@ -7,6 +7,7 @@ import xnmt.models as models
 
 
 class TransformBaseline(models.Baseline, xnmt.Serializable):
+  yaml_tag = "!TransformBaseline"
   @xnmt.serializable_init
   def __init__(self, transform: models.Transform=xnmt.bare(xnmt.modules.nn.Linear)):
     super().__init__()

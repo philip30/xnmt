@@ -137,6 +137,7 @@ class Batcher(object):
     raise NotImplementedError("must be implemented by subclasses")
 
 class InOrderBatcher(Batcher, xnmt.Serializable):
+  yaml_tag = "!InOrderBatcher"
   """
   A class to create batches in order of the original corpus, both across and within batches.
 
@@ -234,6 +235,7 @@ class SortBatcher(Batcher):
     return self.break_ties_randomly
 
 class SrcBatcher(SortBatcher, xnmt.Serializable):
+  yaml_tag = "!SrcBatcher"
   """
   A batcher that creates fixed-size batches, grouped by src len.
 
@@ -256,6 +258,7 @@ class SrcBatcher(SortBatcher, xnmt.Serializable):
 
 
 class TrgBatcher(SortBatcher, xnmt.Serializable):
+  yaml_tag = "!TrgBatcher"
   """
   A batcher that creates fixed-size batches, grouped by trg len.
 
@@ -279,6 +282,7 @@ class TrgBatcher(SortBatcher, xnmt.Serializable):
 
 
 class SrcTrgBatcher(SortBatcher, xnmt.Serializable):
+  yaml_tag = "!SrcTrgBatcher"
   """
   A batcher that creates fixed-size batches, grouped by src len, then trg len.
 
@@ -302,6 +306,7 @@ class SrcTrgBatcher(SortBatcher, xnmt.Serializable):
 
 
 class TrgSrcBatcher(SortBatcher, xnmt.Serializable):
+  yaml_tag = "!TrgSrcBatcher"
   """
   A batcher that creates fixed-size batches, grouped by trg len, then src len.
 
@@ -326,6 +331,7 @@ class TrgSrcBatcher(SortBatcher, xnmt.Serializable):
 
 
 class SentShuffleBatcher(ShuffleBatcher, xnmt.Serializable):
+  yaml_tag = "!SentShuffleBatcher"
   """
 
   A batcher that creates fixed-size batches of random order.
@@ -344,6 +350,7 @@ class SentShuffleBatcher(ShuffleBatcher, xnmt.Serializable):
 
 
 class WordShuffleBatcher(ShuffleBatcher, xnmt.Serializable):
+  yaml_tag = "!WordShuffleBatcher"
   """
   A batcher that creates fixed-size batches, grouped by src len.
 
@@ -393,6 +400,7 @@ class WordSortBatcher(SortBatcher):
 
 
 class WordSrcBatcher(WordSortBatcher, xnmt.Serializable):
+  yaml_tag = "!WordSrcBatcher"
   """
   A batcher that creates variable-sized batches with given average (src+trg) words per batch, grouped by src len.
 
@@ -423,6 +431,7 @@ class WordSrcBatcher(WordSortBatcher, xnmt.Serializable):
 
 
 class WordTrgBatcher(WordSortBatcher, xnmt.Serializable):
+  yaml_tag = "!WordTrgBatcher"
   """
   A batcher that creates variable-sized batches with given average (src+trg) words per batch, grouped by trg len.
 
@@ -453,6 +462,7 @@ class WordTrgBatcher(WordSortBatcher, xnmt.Serializable):
 
 
 class WordSrcTrgBatcher(WordSortBatcher, xnmt.Serializable):
+  yaml_tag = "!WordSrcTrgBatcher"
   """
   A batcher that creates variable-sized batches with given average number of src + trg words per batch, grouped by src len, then trg len.
 
@@ -483,6 +493,7 @@ class WordSrcTrgBatcher(WordSortBatcher, xnmt.Serializable):
 
 
 class WordTrgSrcBatcher(WordSortBatcher, xnmt.xnmt.Serializable):
+  yaml_tag = "!WordTrgSrcBatcher"
   """
   A batcher that creates variable-sized batches with given average number of src + trg words per batch, grouped by trg len, then src len.
 

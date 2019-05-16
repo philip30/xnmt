@@ -78,17 +78,17 @@ class GeneratorModel(object):
               if src.batch_size() > 1 else src
       xnmt.event_trigger.start_sent(src)
       search_hyps = self.create_trajectory(src_i, search_strategy)
-      
+
       if is_sort and len(search_hyps) > 1:
         search_hyps = sorted(search_hyps, key=lambda x: x.score, reverse=True)
-      
+
       outputs.append(search_hyps)
     return outputs
-  
+
   def create_trajectory(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy') \
       -> Sequence[states.Hypothesis]:
     raise NotImplementedError()
-    
+
   def hyp_to_readable(self, hyps: List[states.Hypothesis], idx: int) -> List[xnmt.structs.sentences.ReadableSentence]:
     raise NotImplementedError()
 

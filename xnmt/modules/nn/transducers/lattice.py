@@ -6,6 +6,7 @@ import xnmt.models as models
 
 
 class LatticeLSTMTransducer(models.UniDiSeqTransducer, xnmt.Serializable):
+  yaml_tag = "!LatticeLSTMTransducer"
   """
   A lattice LSTM.
 
@@ -102,6 +103,7 @@ class LatticeLSTMTransducer(models.UniDiSeqTransducer, xnmt.Serializable):
 
 
 class BiLatticeLSTMTransducer(models.BidiSeqTransducer, xnmt.Serializable):
+  yaml_tag = "!BiLatticeLSTMTransducer"
   """
   A multi-layered bidirectional lattice LSTM.
 

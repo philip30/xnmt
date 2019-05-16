@@ -9,6 +9,7 @@ from typing import List
 class Seq2Seq(models.ConditionedModel, models.GeneratorModel,
                    models.AutoRegressiveModel,
                    xnmt.Serializable):
+  yaml_tag = "!Seq2Seq"
   @xnmt.serializable_init
   def __init__(self,
                src_reader: models.InputReader = xnmt.ref_src_reader,
@@ -58,10 +59,10 @@ class Seq2Seq(models.ConditionedModel, models.GeneratorModel,
         dec_state = self.initial_state(src)
       decoder_states.append(dec_state)
     return decoder_states
-  
+
   def create_trajectory(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy') -> List[models.Hypothesis]:
     return search_strategy.generate_output(self, self.decoder.initial_state(self.encoder.encode(src)))
-    
+
   def hyp_to_readable(self, search_hyps: List[models.Hypothesis], idx: int):
     ret = []
     for search_hyp in search_hyps:
@@ -79,7 +80,7 @@ class Seq2Seq(models.ConditionedModel, models.GeneratorModel,
       else:
         ret.append(xnmt.structs.sentences.NbestSentence(sent, idx))
     return ret
-    
+
 
 #        if self.is_reporting:
 #          attentions = np.concatenate([x.npvalue() for x in attentions], axis=1)

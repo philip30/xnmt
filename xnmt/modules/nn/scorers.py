@@ -9,6 +9,7 @@ import xnmt.modules.nn.transforms as transforms
 
 
 class Softmax(models.Scorer, xnmt.Serializable):
+  yaml_tag = "!Softmax"
   """
   A class that does an affine transform from the input to the vocabulary size,
   and calculates a softmax.
@@ -56,11 +57,11 @@ class Softmax(models.Scorer, xnmt.Serializable):
       scores = np.expand_dims(scores, axis=1)
     k = min(len(scores), k)
     top_words = np.argpartition(scores, -k, axis=0)[-k:]
-    
+
     ret = []
     for word in top_words:
       ret.append((word, dy.pick(scores_expr, word)))
-    
+
     return ret
 
 
