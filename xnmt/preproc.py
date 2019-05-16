@@ -153,11 +153,11 @@ class Normalizer(object):
 
 class NormalizerLower(Normalizer, Serializable):
   """Lowercase the text."""
-  
+
   @serializable_init
   def __init__(self):
     pass
-  
+
   def normalize(self, sent: str) -> str:
     return sent.lower()
 
@@ -632,7 +632,7 @@ class LatticeFromPlfExtractor(Extractor, Serializable):
   @serializable_init
   def __init__(self):
     pass
-  
+
   def extract_to(self, in_file: str, out_file: str):
 
     output_file = open(out_file, "w")

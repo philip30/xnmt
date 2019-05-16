@@ -23,10 +23,10 @@ class GreedySearch(models.SearchStrategy, xnmt.Serializable):
     hyp = models.Hypothesis(0, models.SearchAction(initial_state))
     for length in range(self.max_len):
       prev_word = hyp.action.action_id
-      
+
       if generator.finish_generating(prev_word, hyp.action.decoder_state):
         break
-      
+
       next_state = generator.add_input(prev_word, hyp.action.decoder_state)
       next_action = generator.best_k(next_state, 1, normalize_scores=True)[0]
       next_score = hyp.score + next_action.log_likelihood
@@ -91,7 +91,7 @@ class BeamSearch(models.SearchStrategy, xnmt.Serializable):
     for hyp, score in zip(completed_hyp, normalized_scores):
       normalized_hyp.append(models.Hypothesis(score, hyp.action, hyp.timestep, hyp.parent))
     normalized_hyp = sorted(normalized_hyp, key=lambda x: x.score, reverse=True)
-    
+
     return normalized_hyp
 
 
@@ -115,7 +115,7 @@ class SamplingSearch(models.SearchStrategy, xnmt.Serializable):
     hyp = models.Hypothesis(0, models.SearchAction(initial_state))
     hyps = [hyp] * self.sample_size
     done_flag = [False] * self.sample_size
-   
+
     # Sample to the max length
     for length in range(self.max_len):
       new_hyps = []
@@ -132,10 +132,10 @@ class SamplingSearch(models.SearchStrategy, xnmt.Serializable):
           hyp = models.Hypothesis(score=next_score, action=next_action, timestep=hyp.timestep+1, parent=hyp)
           new_hyps.append(hyp)
       hyps = new_hyps
-      
+
       if all(done_flag):
         break
-      
+
     return hyps
 
 

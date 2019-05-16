@@ -56,7 +56,7 @@ class Seq2SeqModel(models.ConditionedModel, models.GeneratorModel,
         dec_state = self.initial_state(src)
       decoder_states.append(dec_state)
     return decoder_states
-  
+
   def generate(self, src: xnmt.Batch, search_strategy: models.SearchStrategy, is_sort=True):
     outputs = []
     for i in range(src.batch_size()):

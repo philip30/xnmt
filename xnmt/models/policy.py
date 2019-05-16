@@ -87,6 +87,6 @@ class PolicyConditionedModel(object):
 
 
 class Baseline(object):
-  
+
   def calculate_baseline(self, input_states: List[dy.Expression]):
     pass

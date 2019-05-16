@@ -73,7 +73,7 @@ class Batch(collections.Sequence):
   """
   def __init__(self, mask: Mask):
     self.mask = mask
-    
+
   def batch_size(self) -> int: raise NotImplementedError()
   def sent_len(self) -> int: raise NotImplementedError()
   def __iter__(self): raise NotImplementedError()

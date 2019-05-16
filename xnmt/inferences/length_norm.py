@@ -56,14 +56,14 @@ class PolynomialNormalization(models.LengthNormalization, xnmt.Serializable):
       return [hyp.score for hyp in completed_hyps]
     else:
       return [(hyp.score / pow(hyp.timestep, self.m)) for hyp in completed_hyps]
-    
+
   def normalize_partial_topk(self, score_so_far, score_to_add, new_len):
     if self.apply_during_search:
       self.update_pows(new_len)
       return (score_so_far * self.pows[new_len-1] + score_to_add) / self.pows[new_len]
     else:
       return score_so_far + score_to_add
- 
+
   def update_pows(self, new_len):
     if len(self.pows) < new_len+1:
       for i in range(len(self.pows), new_len+1):
@@ -138,6 +138,6 @@ class EosBooster(xnmt.Serializable):
   @xnmt.serializable_init
   def __init__(self, boost_val: float):
     self.boost_val = boost_val
-  
+
   def __call__(self, scores:np.ndarray):
     scores[xnmt.Vocab.ES] += self.boost_val

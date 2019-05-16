@@ -25,7 +25,7 @@ class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, xnmt.Se
                transform: models.Transform = xnmt.bare(nn.NonLinear),
                scorer: models.Scorer = xnmt.bare(nn.Softmax)):
     models.GeneratorModel.__init__(self)
-    
+
     super().__init__()
     self.encoder = encoder
     self.transform = transform
@@ -65,8 +65,8 @@ class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, xnmt.Se
 
   def best_k(self, dec_state: models.DecoderState, k: int, normalize_scores: bool):
     return self.scorer.best_k(dec_state.as_vector(), k, normalize_scores)
-  
+
   def sample(self, dec_state: models.DecoderState, k: int):
     raise self.scorer.sample(dec_state.as_vector(), k)
-  
+
 

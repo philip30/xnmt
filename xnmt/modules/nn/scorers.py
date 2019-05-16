@@ -116,7 +116,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
       if self.label_smoothing > 0:
         ls_loss = -dy.mean_elems(log_prob)
         loss = ((1 - self.label_smoothing) * loss) + (self.label_smoothing * ls_loss)
-    
+
     return loss
 
   def calc_probs(self, x: dy.Expression) -> dy.Expression:

@@ -72,7 +72,7 @@ class GeneratorModel(object):
 
   def best_k(self, dec_state: states.DecoderState, k: int, normalize_scores: bool) -> Sequence[states.SearchAction]:
     raise NotImplementedError()
-  
+
   def sample(self, dec_state: states.DecoderState, k: int) -> Sequence[states.SearchAction]:
     raise NotImplementedError()
 

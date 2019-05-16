@@ -52,7 +52,7 @@ class ExpGlobal(xnmt.Serializable):
     self.save_num_checkpoints = save_num_checkpoints
     self.loss_comb_method = loss_comb_method
     self.placeholders = placeholders
-    
+
     if commandline_args is None:
       self.commandline_args = {}
     if placeholders is None:

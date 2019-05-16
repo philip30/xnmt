@@ -42,7 +42,7 @@ class InputReader(object):
     Returns: iterator over sentences from filename
     """
     return self.iterate_filtered(filename, filter_ids)
-  
+
   def read_sent(self, line: Any, idx: int):
     raise NotImplementedError()
 
@@ -233,7 +233,7 @@ class SearchStrategy(object):
       List of (word_ids, attentions, score, logsoftmaxes)
     """
     raise NotImplementedError('generate_output must be implemented in SearchStrategy subclasses')
-  
+
 
 class XnmtOptimizer(object):
   """
@@ -405,10 +405,10 @@ class ReportInfo(object):
   def __init__(self, sent_info: Optional[Sequence[Dict[str, Any]]] = None, glob_info: Optional[Dict[str, Any]] = None):
     if sent_info is None: sent_info = []
     if glob_info is None: glob_info = {}
-    
+
     self.sent_info = sent_info
     self.glob_info = glob_info
-    
+
 
 class Reportable(object):
   """
@@ -430,7 +430,7 @@ class Reportable(object):
     self._sent_info_list = []
     self._glob_info_list = {}
     self._is_reporting = False
-  
+
   def report_sent_info(self, sent_info: Dict[str, Any]) -> None:
     """
     Add key/value pairs belonging to the current sentence for reporting.

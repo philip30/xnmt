@@ -38,27 +38,27 @@ class DecoderState(object):
 class ClassifierState(DecoderState):
   def __init__(self, h: dy.Expression):
     self._h = h
-  
+
   def as_vector(self) -> dy.Expression:
     return self._h
-  
+
   @property
   def context(self):
     return self._h
-  
+
 
 class LabelerState(DecoderState):
   def __init__(self, encodings: List[dy.Expression], timestep=0):
     self.encodings = encodings
     self.timestep = timestep
-    
+
   def as_vector(self) -> dy.Expression:
     return self.encodings[self.timestep]
-  
+
   def context(self):
     return self.encodings[self.timestep]
-    
-  
+
+
 
 class SentenceStats(object):
   """
@@ -172,7 +172,7 @@ class Hypothesis(object):
     self._action = action
     self._timestep = timestep
     self._parent = parent
-  
+
   @property
   def score(self):
     return self._score
@@ -180,15 +180,15 @@ class Hypothesis(object):
   @property
   def action(self):
     return self._action
-  
+
   @property
   def timestep(self):
     return self._timestep
-  
+
   @property
   def parent(self):
     return self._parent
-  
+
   @functools.lru_cache(maxsize=1)
   def actions(self):
     actions = []
@@ -197,7 +197,7 @@ class Hypothesis(object):
       actions.append(now.action)
       now = now.parent
     return list(reversed(actions))
-  
+
 
 class TrainingState(object):
   """

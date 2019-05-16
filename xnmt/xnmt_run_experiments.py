@@ -31,7 +31,7 @@ if settings.RESOURCE_WARNINGS:
 
 def main(overwrite_args: Optional[Sequence[str]] = None) -> None:
   faulthandler.enable()
-  
+
   with tee.Tee(), tee.Tee(error=True):
     argparser = argparse.ArgumentParser()
     utils.add_dynet_argparse(argparser)

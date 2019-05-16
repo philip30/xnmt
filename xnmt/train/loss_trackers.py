@@ -99,7 +99,7 @@ class TrainLossTracker(object):
 
       self.last_report_words = self.epoch_words["__TRG__"]
       self.last_report_sents_since_start = self.training_task.training_state.sents_since_start
-      
+
 
 class DevLossTracker(object):
 

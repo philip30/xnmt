@@ -502,7 +502,7 @@ class AlternatingBatchMultiTaskTrainingRegimen(MultiTaskTrainingRegimen, xnmt.Se
             self.backward(loss=loss_expr, dynet_profiling=self.dynet_profiling)
             cur_train_loss_tracker.report(loss_value, trg)
           self.update(trainer=self.trainer)
-         
+
         self.checkpoint_and_save(cur_task, cur_task_i, save_fct, dev_zero)
         if self.tasks[0].should_stop_training(): break
 

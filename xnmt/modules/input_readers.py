@@ -43,7 +43,7 @@ class BaseTextReader(models.InputReader):
     if filter_ids is not None:
       max_id = max(filter_ids)
       filter_ids = set(filter_ids)
-    
+
     for line in xnmt.file_manager.request_text_file(filename):
       if filter_ids is None or sent_count in filter_ids:
         yield self.read_sent(line=line, idx=sent_count)
@@ -80,7 +80,7 @@ class PlainTextReader(BaseTextReader, xnmt.Serializable):
                                     words=words,
                                     vocab=self.vocab,
                                     output_procs=self.output_procs)
-  
+
   def shift_word(self, words):
     if self.shift_n > 0:
       words = words[min(len(words), self.shift_n):]
