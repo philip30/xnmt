@@ -23,13 +23,14 @@ class GreedySearch(models.SearchStrategy, xnmt.Serializable):
     hyp = models.Hypothesis(0, models.SearchAction(initial_state))
     for length in range(self.max_len):
       prev_word = hyp.action.action_id
-
       if generator.finish_generating(prev_word, hyp.action.decoder_state):
         break
-
-      next_state = generator.add_input(prev_word, hyp.action.decoder_state)
+      if prev_word is not None:
+        next_state = generator.add_input(prev_word, hyp.action.decoder_state)
+      else:
+        next_state = initial_state
       next_action = generator.best_k(next_state, 1, normalize_scores=True)[0]
-      next_score = hyp.score + next_action.log_likelihood
+      next_score = hyp.score + next_action.log_likelihood.value()
       hyp = models.Hypothesis(score=next_score, action=next_action, timestep=hyp.timestep+1, parent=hyp)
     return [hyp]
 
@@ -76,7 +77,7 @@ class BeamSearch(models.SearchStrategy, xnmt.Serializable):
         next_actions = generator.best_k(next_state, self.beam_size, normalize_scores=True)
         # Queue next states
         for action in next_actions:
-          new_score = self.len_norm.normalize_partial_topk(hyp.score, action.log_likelihood, length+1)
+          new_score = self.len_norm.normalize_partial_topk(hyp.score, action.log_likelihood.value(), length+1)
           new_set.append(models.Hypothesis(new_score, action, hyp.timestep+1, hyp))
       # Next top hypothesis
       active_hyp = sorted(new_set, key=lambda x: x.score, reverse=True)[:self.beam_size]
@@ -128,7 +129,7 @@ class SamplingSearch(models.SearchStrategy, xnmt.Serializable):
         else:
           next_state = generator.add_input(xnmt.mark_as_batch(prev_word), hyp.action.decoder_state)
           next_action = generator.sample(next_state, 1)[0]
-          next_score = hyp.score + next_action.log_likelihood
+          next_score = hyp.score + next_action.log_likelihood.value()
           hyp = models.Hypothesis(score=next_score, action=next_action, timestep=hyp.timestep+1, parent=hyp)
           new_hyps.append(hyp)
       hyps = new_hyps

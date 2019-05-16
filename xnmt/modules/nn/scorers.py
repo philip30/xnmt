@@ -1,4 +1,4 @@
-from typing import List, Union, Optional
+from typing import List, Tuple, Optional
 
 import numpy as np
 import dynet as dy
@@ -49,28 +49,22 @@ class Softmax(models.Scorer, xnmt.Serializable):
   def calc_scores(self, x: dy.Expression) -> dy.Expression:
     return self.output_projector.transform(x)
 
-  def best_k(self, x: dy.Expression, k: int, normalize_scores: bool = False):
+  def best_k(self, x: dy.Expression, k: int, normalize_scores: bool = False) -> List[Tuple[int, dy.Expression]]:
     scores_expr = self.calc_log_probs(x) if normalize_scores else self.calc_scores(x)
     scores = scores_expr.npvalue()
+    if len(scores.shape) == 1:
+      scores = np.expand_dims(scores, axis=1)
     k = min(len(scores), k)
     top_words = np.argpartition(scores, -k, axis=0)[-k:]
-
-    if len(scores.shape) > 1:
-      assert top_words.shape == (k, scores.shape[1]), \
-        'top_words has shape %s, expected (%d, %d)' % (str(top_words.shape), k, scores.shape[1])
-      # top_words is (k, batch_size)
-      # scores is (#classes, batch_size)
-      top_scores = []
-      for i in range(top_words.shape[1]):
-        top_scores.append(scores[top_words[:, i], i])
-      top_scores = np.array(top_scores).T
-    else:
-      assert top_words.shape == (k,)
-      top_scores = scores[top_words]
-    return top_words, top_scores
+    
+    ret = []
+    for word in top_words:
+      ret.append((word, dy.pick(scores_expr, word)))
+    
+    return ret
 
 
-  def sample(self, x: dy.Expression, n: int, temperature: float=1.0):
+  def sample(self, x: dy.Expression, n: int, temperature: float=1.0) -> List[Tuple[int, dy.Expression]]:
     assert temperature != 0.0
     scores_expr = self.calc_log_probs(x)
     if temperature != 1.0:
@@ -85,10 +79,10 @@ class Softmax(models.Scorer, xnmt.Serializable):
     a = range(scores.shape[0])
     samples = np.random.choice(a, (n,), replace=True, p=scores)
 
-    r = []
+    ret = []
     for word in samples:
-      r.append((word, dy.pick(scores_expr, word)))
-    return r
+      ret.append((word, dy.pick(scores, word)))
+    return ret
 
   def can_loss_be_derived_from_scores(self):
     """

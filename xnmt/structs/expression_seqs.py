@@ -1,6 +1,7 @@
 
 import dynet as dy
 import numpy as np
+import functools
 
 from typing import List, Optional, Sequence
 
@@ -103,6 +104,7 @@ class ExpressionSequence(object):
     """
     return self.expr_list is not None
 
+  @functools.lru_cache(maxsize=1)
   def as_tensor(self) -> dy.Expression:
     """Get a tensor.
     Returns:

@@ -252,7 +252,6 @@ class Ref(Serializable):
     name: reference by name. The name refers to a unique ``_xnmt_id`` property that must be set in exactly one component.
   """
   NO_DEFAULT = 1928437192847
-
   @serializable_init
   def __init__(self, path: Union[None, 'Path', str] = None, name: Optional[str] = None,
                default: Any = NO_DEFAULT) -> None:
@@ -776,8 +775,8 @@ class LoadSerialized(Serializable):
                ``val``.
   """
   @serializable_init
-  def __init__(self, filename: str, path: str = "", overwrite: Optional[Dict[str,Any]] = None) -> None:
-    if overwrite is None: overwrite = {}
+  def __init__(self, filename: str, path: str = "", overwrite: Optional[List[Dict[str,Any]]] = None) -> None:
+    if overwrite is None: overwrite = []
     self.filename = filename
     self.path = path
     self.overwrite = overwrite
@@ -982,10 +981,9 @@ class YamlPreloader(object):
                 new_ref = Ref(path.add_path(referenced_path[len(cur_path):]), default=sub_node.get_default())
                 _set_descendant(loaded_trg, sub_path[len(cur_path):], new_ref)
                 self_inserted_ref_ids.add(id(new_ref))
-
-        for overwrite_path, overwrite_val in getattr(node, "overwrite", {}).items():
-          overwrite_path = Path(overwrite_path)
-          _set_descendant(loaded_trg, overwrite_path, overwrite_val)
+        for d in getattr(node, "overwrite", []):
+          overwrite_path = Path(d["path"])
+          _set_descendant(loaded_trg, overwrite_path, d["val"])
         if len(path) == 0:
           root = loaded_trg
         else:

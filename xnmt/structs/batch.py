@@ -94,9 +94,9 @@ class ListBatch(list, Batch):
     mask: optional mask when  batch contains items of unequal size
   """
   def __init__(self, batch_elements: collections.Sequence, mask: Mask=None) -> None:
-    Batch.__init__(mask)
-    list.__init__(list(batch_elements))
+    Batch.__init__(self, mask)
     assert len(batch_elements) > 0
+    super().__init__(batch_elements)
 
   def batch_size(self) -> int:
     return super().__len__()

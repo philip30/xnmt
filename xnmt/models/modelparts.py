@@ -33,7 +33,7 @@ class Attender(object):
     Args:
     """
     attention = self.calc_attention(decoder_context, attender_state)
-    context = attender_state.curr_sent * attention
+    context = attender_state.curr_sent.as_tensor() * attention
     return context, states.AttenderState(attender_state.curr_sent, attender_state.sent_context, attender_state.attention)
 
 
@@ -56,22 +56,22 @@ class Decoder(object):
   A template class to convert a prefix of previously generated words and
   a context vector into a probability distribution over possible next words.
   """
-  def initial_state(self, enc_results: states.EncoderState):
+  def initial_state(self, enc_results: states.EncoderState) -> states.DecoderState:
     raise NotImplementedError('must be implemented by subclasses')
 
-  def add_input(self, dec_state: states.DecoderState, trg_word: Optional[xnmt.Batch]):
+  def add_input(self, dec_state: states.DecoderState, trg_word: Optional[xnmt.Batch]) -> states.DecoderState:
     raise NotImplementedError('must be implemented by subclasses')
 
   def calc_loss(self, dec_state: states.DecoderState, ref_action: xnmt.Batch):
     raise NotImplementedError('must be implemented by subclasses')
 
-  def best_k(self, dec_state: states.DecoderState, k: int, normalize_scores=False):
+  def best_k(self, dec_state: states.DecoderState, k: int, normalize_scores=False) -> List[states.SearchAction]:
     raise NotImplementedError('must be implemented by subclasses')
 
-  def sample(self, dec_state: states.DecoderState, n: int, temperature=1.0):
+  def sample(self, dec_state: states.DecoderState, n: int, temperature=1.0) -> List[states.SearchAction]:
     raise NotImplementedError('must be implemented by subclasses')
 
-  def finish_generating(self, dec_output: Any, dec_state: states.DecoderState):
+  def finish_generating(self, dec_output: Any, dec_state: states.DecoderState) -> bool:
     raise NotImplementedError('must be implemented by subclasses')
 
 
@@ -247,7 +247,7 @@ class Scorer(object):
     """
     raise NotImplementedError('calc_scores must be implemented by subclasses of Scorer')
 
-  def best_k(self, x: dy.Expression, k: int, normalize_scores: bool = False):
+  def best_k(self, x: dy.Expression, k: int, normalize_scores: bool = False) -> List[Tuple[int, dy.Expression]]:
     """
     Returns a list of the k items with the highest scores. The items may not be
     in sorted order.
@@ -259,7 +259,7 @@ class Scorer(object):
     """
     raise NotImplementedError('best_k must be implemented by subclasses of Scorer')
 
-  def sample(self, x: dy.Expression, n: int):
+  def sample(self, x: dy.Expression, n: int) -> List[Tuple[int, dy.Expression]]:
     """
     Return samples from the scores that are treated as probability distributions.
     """

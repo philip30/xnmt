@@ -9,13 +9,13 @@ from xnmt.modules.nn.bridges import CopyBridge
 from xnmt.modules.nn.decoders import AutoRegressiveDecoder
 from xnmt.modules.nn.embedders import LookupEmbedder
 from xnmt.modules.input_readers import PlainTextReader
-from xnmt.modules.transducers import UniLSTMSeqTransducer, BiLSTMSeqTransducer
+from xnmt.modules.nn.transducers import UniLSTMSeqTransducer, BiLSTMSeqTransducer
 from xnmt.internal.param_collections import ParamManager
-from xnmt.modules.transducers import PyramidalLSTMSeqTransducer
+from xnmt.modules.nn.transducers import PyramidalLSTMSeqTransducer
 from xnmt.modules.nn.scorers import Softmax
-from xnmt.modules.transducers.self_attention import MultiHeadAttentionSeqTransducer
+from xnmt.modules.nn.transducers.self_attention import MultiHeadAttentionSeqTransducer
 from xnmt.modules.nn.transforms import NonLinear
-from xnmt.networks.seq2seq import DefaultTranslator
+from xnmt.networks.seq2seq import Seq2Seq
 from xnmt.structs.vocabs import Vocab
 from xnmt import event_trigger
 from xnmt.structs import batchers

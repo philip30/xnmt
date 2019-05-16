@@ -16,7 +16,7 @@ class AttenderState(object):
 
 
 class UniDirectionalState(object):
-  def add_input(self, word, mask: xnmt.Mask=None) -> 'UniDirectionalState':
+  def add_input(self, word: dy.Expression, mask: Optional[xnmt.Mask] = None) -> 'UniDirectionalState':
     raise NotImplementedError()
 
   def output(self) -> dy.Expression:

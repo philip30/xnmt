@@ -13,7 +13,7 @@ from xnmt.modules.nn.composers import SumComposer, SeqTransducerComposer, DyerHe
 from xnmt.modules.nn.composers import MaxComposer, AverageComposer, ConvolutionComposer
 from xnmt.modules.nn.transforms import NonLinear, AuxNonLinear
 from xnmt.structs.sentences import SegmentedWord
-from xnmt.modules.transducers import BiLSTMSeqTransducer, UniLSTMSeqTransducer
+from xnmt.modules.nn.transducers import BiLSTMSeqTransducer, UniLSTMSeqTransducer
 from xnmt.internal.param_collections import ParamManager
 
 from xnmt import event_trigger
@@ -103,7 +103,8 @@ class TestEmbedder(unittest.TestCase):
     
   def test_transducer_composer(self):
     composer = SeqTransducerComposer(seq_transducer=BiLSTMSeqTransducer(input_dim=self.layer_dim,
-                                                                        hidden_dim=self.layer_dim))
+                                                                        hidden_dim=self.layer_dim,
+                                                                        decoder_input_dim=self.layer_dim))
     embedder = CharCompositionEmbedder(emb_dim=self.layer_dim,
                                        composer=composer,
                                        char_vocab=self.src_char_vocab)

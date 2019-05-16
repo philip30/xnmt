@@ -7,7 +7,6 @@ import xnmt
 
 from typing import Callable, Optional, Sequence, Tuple, Union
 
-import xnmt.structs.expression_seqs as expr_seq
 import xnmt.structs.batch as batch
 import xnmt.structs.sentences as sent
 
@@ -43,7 +42,7 @@ class Batcher(object):
   def create_single_batch(self,
                           src_sents: Sequence[sent.Sentence],
                           trg_sents: Optional[Sequence[sent.Sentence]] = None,
-                          sort_by_trg_len: bool = False) -> Union[batch.Batch, Tuple[batch.Batch, batch.Batch]]:
+                          sort_by_trg_len: bool = False) -> Union[xnmt.Batch, Tuple[xnmt.Batch, xnmt.Batch]]:
     """
     Create a single batch, either source-only or source-and-target.
 
@@ -75,7 +74,7 @@ class Batcher(object):
   def _pack_by_order(self,
                      src: Sequence[sent.Sentence],
                      trg: Optional[Sequence[sent.Sentence]],
-                     order: Sequence[int]) -> Tuple[Sequence[batch.Batch], Sequence[batch.Batch]]:
+                     order: Sequence[int]) -> Tuple[Sequence[xnmt.Batch], Sequence[xnmt.Batch]]:
     """
     Pack batches by given order.
 
@@ -118,14 +117,13 @@ class Batcher(object):
       self._add_single_batch(src_curr, trg_curr, src_ret, trg_ret, sort_by_trg_len=self.sort_within_by_trg_len)
     else:
       raise RuntimeError("Illegal granularity specification {}".format(self.granularity))
-    
     if trg:
       return src_ret, trg_ret
     else:
       return src_ret
 
-  def pack(self, src: Sequence[sent.Sentence], trg: Optional[Sequence[sent.Sentence]]) \
-          -> Tuple[Sequence[batch.Batch], Sequence[batch.Batch]]:
+  def pack(self, src: Sequence[sent.Sentence], trg: Sequence[sent.Sentence]) \
+          -> Tuple[Sequence[xnmt.Batch], Sequence[xnmt.Batch]]:
     """
     Create a list of src/trg batches based on provided src/trg inputs.
 
@@ -138,7 +136,6 @@ class Batcher(object):
     """
     raise NotImplementedError("must be implemented by subclasses")
 
-
 class InOrderBatcher(Batcher, xnmt.Serializable):
   """
   A class to create batches in order of the original corpus, both across and within batches.
@@ -147,6 +144,8 @@ class InOrderBatcher(Batcher, xnmt.Serializable):
     batch_size: batch size
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
+  yaml_tag = "!InOrderBatcher"
+
   @xnmt.serializable_init
   def __init__(self,
                batch_size: int = 1,
@@ -154,7 +153,7 @@ class InOrderBatcher(Batcher, xnmt.Serializable):
     super().__init__(batch_size, pad_src_to_multiple=pad_src_to_multiple, sort_within_by_trg_len=False)
 
   def pack(self, src: Sequence[sent.Sentence], trg: Optional[Sequence[sent.Sentence]]) \
-          -> Tuple[Sequence[batch.Batch], Sequence[batch.Batch]]:
+          -> Tuple[Sequence[xnmt.Batch], Sequence[xnmt.Batch]]:
     """
     Pack batches. Unlike other batches, the trg sentences are optional.
 
@@ -189,7 +188,7 @@ class ShuffleBatcher(Batcher):
                      sort_within_by_trg_len=True)
 
   def pack(self, src: Sequence[sent.Sentence], trg: Optional[Sequence[sent.Sentence]]) -> \
-      Tuple[Sequence[batch.Batch], Sequence[batch.Batch]]:
+      Tuple[Sequence[xnmt.Batch], Sequence[xnmt.Batch]]:
     order = list(range(len(src)))
     np.random.shuffle(order)
     return self._pack_by_order(src, trg, order)
@@ -224,7 +223,7 @@ class SortBatcher(Batcher):
     self.break_ties_randomly = break_ties_randomly
 
   def pack(self, src: Sequence[sent.Sentence], trg: Optional[Sequence[sent.Sentence]]) \
-          -> Tuple[Sequence[batch.Batch], Sequence[batch.Batch]]:
+          -> Tuple[Sequence[xnmt.Batch], Sequence[xnmt.Batch]]:
     if self.break_ties_randomly:
       order = np.argsort([self.sort_key(x) + random.uniform(-SortBatcher.__tiebreaker_eps, SortBatcher.__tiebreaker_eps) for x in zip(src,trg)])
     else:
@@ -245,6 +244,8 @@ class SrcBatcher(SortBatcher, xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
+  yaml_tag = "!SrcBatcher"
+
   @xnmt.serializable_init
   def __init__(self,
                batch_size: int,
@@ -265,6 +266,8 @@ class TrgBatcher(SortBatcher, xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
+  yaml_tag = "!TrgBatcher"
+
   @xnmt.serializable_init
   def __init__(self,
                batch_size: int,
@@ -286,6 +289,8 @@ class SrcTrgBatcher(SortBatcher, xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
+  yaml_tag = "!SrcTrgBatcher"
+
   @xnmt.serializable_init
   def __init__(self,
                batch_size: int,
@@ -307,6 +312,8 @@ class TrgSrcBatcher(SortBatcher, xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
+  yaml_tag = "!TrgSrcBatcher"
+
   @xnmt.serializable_init
   def __init__(self,
                batch_size: int,
@@ -329,6 +336,8 @@ class SentShuffleBatcher(ShuffleBatcher, xnmt.Serializable):
     batch_size: batch size
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
+  yaml_tag = "!SentShuffleBatcher"
+
   @xnmt.serializable_init
   def __init__(self, batch_size: int, pad_src_to_multiple: int = 1) -> None:
     super().__init__(batch_size, granularity='sent', pad_src_to_multiple=pad_src_to_multiple)
@@ -344,6 +353,8 @@ class WordShuffleBatcher(ShuffleBatcher, xnmt.Serializable):
     words_per_batch: number of src+trg words in each batch
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
+  yaml_tag = "!WordShuffleBatcher"
+
   @xnmt.serializable_init
   def __init__(self, words_per_batch: int, pad_src_to_multiple: int = 1) -> None:
     super().__init__(words_per_batch, granularity='word', pad_src_to_multiple=pad_src_to_multiple)
@@ -393,6 +404,8 @@ class WordSrcBatcher(WordSortBatcher, xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
+  yaml_tag = "!WordSrcBatcher"
+
   @xnmt.serializable_init
   def __init__(self,
                words_per_batch: Optional[int] = None,
@@ -421,6 +434,8 @@ class WordTrgBatcher(WordSortBatcher, xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
+  yaml_tag = "!WordTrgBatcher"
+
   @xnmt.serializable_init
   def __init__(self,
                words_per_batch: Optional[int] = None,
@@ -449,6 +464,8 @@ class WordSrcTrgBatcher(WordSortBatcher, xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
+  yaml_tag = "!WordSrcTrgBatcher"
+
   @xnmt.serializable_init
   def __init__(self,
                words_per_batch: Optional[int] = None,
@@ -477,6 +494,8 @@ class WordTrgSrcBatcher(WordSortBatcher, xnmt.xnmt.Serializable):
     break_ties_randomly: if True, randomly shuffle sentences of the same src length before creating batches.
     pad_src_to_multiple: pad source sentences so its length is multiple of this integer.
   """
+  yaml_tag = "!WordTrgSrcBatcher"
+
   @xnmt.serializable_init
   def __init__(self,
                words_per_batch: Optional[int] = None,
@@ -497,7 +516,7 @@ class WordTrgSrcBatcher(WordSortBatcher, xnmt.xnmt.Serializable):
 #### Module level functions
 ######################################
 
-def pad(batch_sent: collections.Sequence, pad_to_multiple: int = 1) -> batch.Batch:
+def pad(batch_sent: collections.Sequence, pad_to_multiple: int = 1) -> xnmt.Batch:
   """
   Apply padding to sentences in a batch.
 
@@ -527,7 +546,7 @@ def pad(batch_sent: collections.Sequence, pad_to_multiple: int = 1) -> batch.Bat
   return batch.ListBatch(padded_items, mask=xnmt.Mask(masks))
 
 
-def pad_embedding(embeddings) -> expr_seq.ExpressionSequence:
+def pad_embedding(embeddings) -> xnmt.ExpressionSequence:
   max_col = max(len(xs) for xs in embeddings)
   p0 = dy.zeros(embeddings[0][0].dim()[0][0])
   masks = np.zeros((len(embeddings), max_col), dtype=int)
@@ -541,7 +560,7 @@ def pad_embedding(embeddings) -> expr_seq.ExpressionSequence:
       modified = True
     ret.append(dy.concatenate_cols(xs))
   mask = xnmt.Mask(masks) if modified else None
-  return expr_seq.ExpressionSequence(expr_tensor=dy.concatenate_to_batch(ret), mask=mask)
+  return xnmt.ExpressionSequence(expr_tensor=dy.concatenate_to_batch(ret), mask=mask)
 
 
 def _len_or_zero(val):

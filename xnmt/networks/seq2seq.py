@@ -4,7 +4,9 @@ import xnmt
 import xnmt.models as models
 import xnmt.modules.nn as nn
 
-class Seq2SeqModel(models.ConditionedModel, models.GeneratorModel,
+from typing import List
+
+class Seq2Seq(models.ConditionedModel, models.GeneratorModel,
                    models.AutoRegressiveModel,
                    xnmt.Serializable):
   @xnmt.serializable_init
@@ -40,10 +42,10 @@ class Seq2SeqModel(models.ConditionedModel, models.GeneratorModel,
   def add_input(self, word, state: models.DecoderState) -> models.DecoderState:
     return self.decoder.add_input(state, word)
 
-  def best_k(self, state: models.DecoderState, k: int, normalize_scores: bool = False):
+  def best_k(self, state: models.DecoderState, k: int, normalize_scores: bool = False) -> List[models.SearchAction]:
     return self.decoder.best_k(state, k, normalize_scores)
 
-  def sample(self, state: models.DecoderState, n: int, temperature: float = 1.0):
+  def sample(self, state: models.DecoderState, n: int, temperature: float = 1.0) -> List[models.SearchAction]:
     return self.decoder.sample(state, n, temperature)
 
   def auto_regressive_states(self, src: xnmt.Batch, trg: xnmt.Batch):
@@ -56,30 +58,28 @@ class Seq2SeqModel(models.ConditionedModel, models.GeneratorModel,
         dec_state = self.initial_state(src)
       decoder_states.append(dec_state)
     return decoder_states
-
-  def generate(self, src: xnmt.Batch, search_strategy: models.SearchStrategy, is_sort=True):
-    outputs = []
-    for i in range(src.batch_size()):
-      src_i = xnmt.mark_as_batch(src[i])
-      xnmt.event_trigger.start_sent(src_i)
-      enc_result = self.encoder.encode(src_i)
-      search_hyps = search_strategy.generate_output(self, self.decoder.initial_state(enc_result))
-      for search_hyp in search_hyps:
-        actions = search_hyp.actions()
-        word_ids = [action.action_id[0] for action in actions]
-        if hasattr(actions[0].decoder_state, "attender_state"):
-          attentions = [action.decoder_state.attender_state.attention for action in actions]
-        else:
-          attentions = None
-        sent = xnmt.structs.sentences.SimpleSentence(
-             word_ids, src[i].idx, vocab=getattr(self.trg_reader, "vocab", None),
-             output_procs=self.trg_reader.output_procs, score=search_hyp.score)
-        if len(search_hyps) == 1:
-          outputs.append(sent)
-        else:
-          outputs.append(xnmt.structs.sentences.NbestSentence(sent, src[i].idx))
-    return outputs
-
+  
+  def create_trajectory(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy') -> List[models.Hypothesis]:
+    return search_strategy.generate_output(self, self.decoder.initial_state(self.encoder.encode(src)))
+    
+  def hyp_to_readable(self, search_hyps: List[models.Hypothesis], idx: int):
+    ret = []
+    for search_hyp in search_hyps:
+      actions = search_hyp.actions()
+      word_ids = [action.action_id[0] for action in actions]
+      if hasattr(actions[0].decoder_state, "attender_state"):
+        attentions = [action.decoder_state.attender_state.attention for action in actions]
+      else:
+        attentions = None
+      sent = xnmt.structs.sentences.SimpleSentence(
+           word_ids, idx, vocab=getattr(self.trg_reader, "vocab", None),
+           output_procs=self.trg_reader.output_procs, score=search_hyp.score)
+      if len(search_hyps) == 1:
+        ret.append(sent)
+      else:
+        ret.append(xnmt.structs.sentences.NbestSentence(sent, idx))
+    return ret
+    
 
 #        if self.is_reporting:
 #          attentions = np.concatenate([x.npvalue() for x in attentions], axis=1)

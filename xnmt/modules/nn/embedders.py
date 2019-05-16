@@ -69,7 +69,7 @@ class WordEmbedder(models.Embedder):
       dy.forward(all_embeddings)
       all_embeddings.clear()
       # Pad the results
-      expr = xnmt.modules.bat.pad_embedding(embeddings)
+      expr = xnmt.structs.batchers.pad_embedding(embeddings)
 
     return expr
 
@@ -272,8 +272,8 @@ class CharCompositionEmbedder(WordEmbedder, xnmt.Serializable):
     self.composer = composer
     # Embedding Parameters
     pcol = xnmt.param_manager(self)
-    emb_mtr = (self.vocab_size, self.emb_dim)
     self.vocab_size = self.choose_vocab_size(vocab_size, char_vocab, '', None, None)
+    emb_mtr = (self.vocab_size, self.emb_dim)
     self.embeddings = pcol.add_lookup_parameters(emb_mtr,
                                                  init=param_init.initializer(emb_mtr,  is_lookup=True))
     # Model States

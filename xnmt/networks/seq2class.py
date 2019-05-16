@@ -3,7 +3,7 @@ import xnmt.models as models
 import xnmt.modules.nn as nn
 
 
-class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, xnmt.Serializable):
+class Seq2Class(models.ConditionedModel, models.GeneratorModel, xnmt.Serializable):
   """
   A sequence classifier.
 
@@ -15,9 +15,6 @@ class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, xnmt.Se
     transform: A transform performed before the scoring function
     scorer: A scoring function over the multiple choices
   """
-
-  yaml_tag = '!SequenceClassifier'
-
   @xnmt.serializable_init
   def __init__(self,
                encoder: models.Encoder = xnmt.bare(nn.SentenceEncoder),
@@ -39,13 +36,7 @@ class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, xnmt.Se
     loss_expr = self.scorer.calc_loss(h.as_vector(), ids)
     return xnmt.LossExpr(loss_expr, units)
 
-  def generate(self, src: xnmt.Batch, search_strategy: models.SearchStrategy, normalize_scores: bool = False):
-    xnmt.event_trigger.start_sent(src)
-    h = self.initial_state(src)
-    best_words, best_scores = self.best_k(h, 1, normalize_scores)
-    assert best_words.shape == (1, src.batch_size())
-    assert best_scores.shape == (1, src.batch_size())
-
+  def generate_single(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy', is_sort: bool=True):
     outputs = []
     for batch_i in range(src.batch_size()):
       if src.batch_size() > 1:
@@ -55,7 +46,6 @@ class SequenceClassifier(models.ConditionedModel, models.GeneratorModel, xnmt.Se
         word = best_words[0]
         score = best_scores[0]
       outputs.append(xnmt.structs.sentences.ScalarSentence(value=word, score=score))
-    return outputs
 
   def initial_state(self, src: xnmt.Batch) -> models.DecoderState:
     xnmt.event_trigger.start_sent(src)

@@ -93,7 +93,7 @@ class PlainTextReader(BaseTextReader, xnmt.Serializable):
 class LengthTextReader(BaseTextReader, xnmt.Serializable):
   @xnmt.serializable_init
   def __init__(self, output_proc: Optional[List[xnmt.models.templates.OutputProcessor]] = None):
-    super().__init__(None, None)
+    super().__init__(None)
     self.output_procs = output_processors.get_output_processor(output_proc)
 
   def read_sent(self, line:str, idx:int) -> sentences.ScalarSentence:

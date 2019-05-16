@@ -6,7 +6,7 @@ import xnmt.modules.nn.embedders as embedders
 import xnmt.modules.nn.transducers.recurrent as recurrent
 
 
-class SentenceEncoder(xnmt.Serializable):
+class SentenceEncoder(models.Encoder, xnmt.Serializable):
   @xnmt.serializable_init
   def __init__(self,
                embedder: models.Embedder = xnmt.bare(embedders.LookupEmbedder),

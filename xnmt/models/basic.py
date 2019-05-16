@@ -1,8 +1,9 @@
+import itertools
 import xnmt
 import dynet as dy
 import xnmt.models.states as states
 
-from typing import Sequence, Optional
+from typing import Sequence, Optional, List
 
 
 class TrainableModel(object):
@@ -63,9 +64,33 @@ class GeneratorModel(object):
     self.src_reader = src_reader
     self.trg_reader = trg_reader
 
-  def generate(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy', is_sort=True) -> \
-      Sequence[xnmt.structs.sentences.ReadableSentence]:
-    pass
+  def generate(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy', is_sort=True) \
+      -> List[xnmt.structs.sentences.ReadableSentence]:
+    hyps = self.create_trajectories(src, search_strategy, is_sort)
+    return list(itertools.chain.from_iterable([self.hyp_to_readable(hyps[i], src[i].idx) for i in range(len(hyps))]))
+
+  def create_trajectories(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy', is_sort=True) -> \
+      List[List[states.Hypothesis]]:
+    outputs = []
+    for i in range(src.batch_size()):
+      src_i = xnmt.mark_as_batch(data=[src[i]],
+                                 mask=None if src.mask is None else src.mask.transpose()[src[i].idx]) \
+              if src.batch_size() > 1 else src
+      xnmt.event_trigger.start_sent(src)
+      search_hyps = self.create_trajectory(src_i, search_strategy)
+      
+      if is_sort and len(search_hyps) > 1:
+        search_hyps = sorted(search_hyps, key=lambda x: x.score, reverse=True)
+      
+      outputs.append(search_hyps)
+    return outputs
+  
+  def create_trajectory(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy') \
+      -> Sequence[states.Hypothesis]:
+    raise NotImplementedError()
+    
+  def hyp_to_readable(self, hyps: List[states.Hypothesis], idx: int) -> List[xnmt.structs.sentences.ReadableSentence]:
+    raise NotImplementedError()
 
   def initial_state(self, src: xnmt.Batch) -> states.UniDirectionalState:
     raise NotImplementedError()

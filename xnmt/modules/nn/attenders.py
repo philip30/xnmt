@@ -37,14 +37,18 @@ class MlpAttender(models.Attender, xnmt.Serializable):
     sent_input = sent.as_tensor()
     inp_context = dy.affine_transform([self.pb, self.pW, sent_input])
 
-    if len(inp_context.dim()[1]) == 1:
+    if inp_context.dim()[1] == 1:
       inp_context = dy.concatenate([inp_context], d=1)
 
     return models.AttenderState(sent, inp_context)
 
   def calc_attention(self, decoder_context: dy.Expression, attender_state: models.AttenderState) -> dy.Expression:
+    curr_sent_mask = attender_state.curr_sent.mask
     h = dy.tanh(dy.colwise_add(attender_state.sent_context, self.pV * decoder_context))
-    return dy.softmax(dy.transpose(self.pU * h))
+    scores = dy.transpose(self.pU * h)
+    if curr_sent_mask is not None:
+      scores = curr_sent_mask.add_to_tensor_expr(scores, multiplicator=-xnmt.globals.INF)
+    return dy.softmax(scores)
 
 
 class DotAttender(models.Attender, xnmt.Serializable):
@@ -68,8 +72,8 @@ class DotAttender(models.Attender, xnmt.Serializable):
     scores = attender_state.sent_context * decoder_context
     if self.scale:
       scores /= math.sqrt(decoder_context.dim()[0][0])
-    if self.curr_sent.mask is not None:
-      scores = curr_sent_mask.add_to_tensor_expr(scores, multiplicator=-100.0)
+    if curr_sent_mask is not None:
+      scores = curr_sent_mask.add_to_tensor_expr(scores, multiplicator=-xnmt.globals.INF)
     return dy.softmax(scores)
 
 
@@ -98,8 +102,12 @@ class BilinearAttender(models.Attender, xnmt.Serializable):
     return models.AttenderState(sent, sent.as_tensor())
 
   def calc_attention(self, decoder_context: dy.Expression, attender_state: models.AttenderState) -> dy.Expression:
+    curr_sent_mask = attender_state.curr_sent.mask
     h = dy.transpose(decoder_context) * self.pWa
-    return dy.transpose(dy.softmax(h * attender_state.sent_context))
+    scores = h * attender_state.sent_context
+    if curr_sent_mask is not None:
+      scores = curr_sent_mask.add_to_tensor_expr(scores, multiplicator=-xnmt.globals.INF)
+    return dy.softmax(scores)
 
 
 class LatticeBiasedMlpAttender(MlpAttender, xnmt.Serializable):

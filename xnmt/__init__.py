@@ -35,6 +35,11 @@ from xnmt.internal import utils
 from xnmt.internal.settings import settings
 import xnmt.internal.file_manager as file_manager
 
+def refresh_internal():
+  xnmt.internal.events.clear()
+  xnmt.internal.param_collections.ParamManager.init_param_col()
+  xnmt.internal.file_manager.clear_cache()
+
 import xnmt.structs
 from xnmt.structs.batch import Batch, Mask, mark_as_batch, is_batched
 from xnmt.structs.vocabs import Vocab
@@ -46,6 +51,7 @@ from xnmt.structs.batchers import Batcher
 ref_src_reader = Ref("model.src_reader", default=None)
 ref_trg_reader = Ref("model.trg_reader", default=None)
 default_layer_dim = Ref("exp_global.default_layer_dim")
+default_layer_dim_optional = Ref("exp_global.default_layer_dim", default=None)
 default_weight_noise = Ref("exp_global.weight_noise", default=0.0)
 default_dropout = Ref("exp_global.dropout", default=0.0)
 param_manager = lambda x: xnmt.internal.param_collections.ParamManager.my_params(x)
@@ -88,11 +94,9 @@ def init_representer(dumper, obj):
 import yaml
 seen_yaml_tags = set()
 for serializable_child in Serializable.__subclasses__():
-  if hasattr(serializable_child, "yaml_tag") and serializable_child.yaml_tag is not None and\
-      serializable_child.yaml_tag == f"{serializable_child.__name__}":
-    logger.warning("Setting yaml_tag manually is obsolete:",
-                   f"{serializable_child.__module__}.{serializable_child.__name__}", serializable_child.yaml_tag)
-  setattr(serializable_child, "yaml_tag", f"!{serializable_child.__name__}")
+  assert hasattr(serializable_child,
+                 "yaml_tag") and serializable_child.yaml_tag == f"!{serializable_child.__name__}", \
+    f"missing or misnamed yaml_tag attribute for {serializable_child.__module__}.{serializable_child.__name__}"
   assert serializable_child.yaml_tag not in seen_yaml_tags, \
     f"encountered naming conflict: more than one class with yaml_tag='{serializable_child.yaml_tag}'. " \
     f"Change to a unique class name."

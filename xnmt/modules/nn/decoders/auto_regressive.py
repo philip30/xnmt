@@ -1,7 +1,7 @@
 import numpy as np
 import dynet as dy
 
-from typing import Any
+from typing import Any, List
 
 import xnmt
 import xnmt.models as models
@@ -87,8 +87,8 @@ class AutoRegressiveDecoder(models.Decoder, xnmt.Serializable):
     """
     trg_embedding = self.embedder.embed(trg_word)
     context = trg_embedding if not self.input_feeding else dy.concatenate([trg_embedding, dec_state.context])
-    rnn_state = dec_state.rnn_state.add_inp(context)
-    context, attender_state = self.attender.calc_context(rnn_state, dec_state.attender_state)
+    rnn_state = dec_state.rnn_state.add_input(context)
+    context, attender_state = self.attender.calc_context(rnn_state.output(), dec_state.attender_state)
     return decoder_state.AutoRegressiveDecoderState(rnn_state=rnn_state, context=context, attender_state=attender_state)
 
 
@@ -96,15 +96,20 @@ class AutoRegressiveDecoder(models.Decoder, xnmt.Serializable):
     h = dy.concatenate([dec_state.as_vector(), dec_state.context])
     return self.transform.transform(h)
 
-  def best_k(self, dec_state: decoder_state.AutoRegressiveDecoderState, k: int, normalize_scores: bool = False):
+  def best_k(self, dec_state: decoder_state.AutoRegressiveDecoderState, k: int, normalize_scores: bool = False) \
+      -> List[models.SearchAction]:
     h = self._calc_transform(dec_state)
-    best_words, best_scores = self.scorer.best_k(h, k, normalize_scores=normalize_scores)
-    return best_words, best_scores
+    best_k = self.scorer.best_k(h, k, normalize_scores=normalize_scores)
+    ret  = [models.SearchAction(dec_state, best_word, best_score, None) for best_word, best_score in best_k]
+    return ret
 
-  def sample(self, dec_state: decoder_state.AutoRegressiveDecoderState, n: int, temperature=1.0):
+  def sample(self, dec_state: decoder_state.AutoRegressiveDecoderState, n: int, temperature=1.0) \
+      -> List[models.SearchAction]:
     h = self._calc_transform(dec_state)
-    return self.scorer.sample(h, n)
-
+    sample_k  = self.scorer.sample(h, n)
+    ret  = [models.SearchAction(dec_state, best_word, best_score, None) for best_word, best_score in sample_k]
+    return ret
+  
   def calc_loss(self, dec_state: decoder_state.AutoRegressiveDecoderState, ref_action: xnmt.Batch) -> dy.Expression:
     return self.scorer.calc_loss(self._calc_transform(dec_state), ref_action)
 

@@ -155,8 +155,9 @@ class ReadableSentence(Sentence):
     if custom_output_procs is not None:
       pps = custom_output_procs
     if isinstance(pps, xnmt.OutputProcessor): pps = [pps]
-    for pp in pps:
-      out_str = pp.process(out_str)
+    if pps is not None:
+      for pp in pps:
+        out_str = pp.process(out_str)
     return out_str
 
   def __repr__(self):
