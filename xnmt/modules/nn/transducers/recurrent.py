@@ -259,7 +259,7 @@ class BiLSTMSeqTransducer(models.BidiSeqTransducer, xnmt.Serializable):
                            param_init=param_init if not isinstance(param_init, abc.Sequence) else param_init[i],
                            bias_init=bias_init if not isinstance(bias_init, abc.Sequence) else bias_init[i],
                            layers = layers))
-            
+
 
   def transduce(self, es: xnmt.ExpressionSequence) -> models.EncoderState:
      # first layer
@@ -276,8 +276,8 @@ class BiLSTMSeqTransducer(models.BidiSeqTransducer, xnmt.Serializable):
                                                 cell_expr=dy.concatenate([fwd_final_state.cell_expr(),
                                                                           bwd_final_state.cell_expr()])) \
                     for fwd_final_state, bwd_final_state in zip(fwd_final_states, bwd_final_states)]
-      
-     
+
+
     expr_seq = xnmt.ExpressionSequence(expr_list=expr_list, mask=es.mask)
     return models.EncoderState(expr_seq, final_states)
 

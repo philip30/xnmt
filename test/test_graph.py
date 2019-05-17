@@ -10,7 +10,7 @@ class TestGraph(unittest.TestCase):
              3:HyperNode('c', 3),
              4:HyperNode('d', 4),
              5:HyperNode('e', 5)}
-    
+
     edg_list = [HyperEdge(1, [2]),
                 HyperEdge(1, [3]),
                 HyperEdge(2, [4]),
@@ -20,13 +20,13 @@ class TestGraph(unittest.TestCase):
 
   def _extract_id(self, graph):
     return {k: [y[0] for y in v] for k, v in graph.items()}
-    
+
   def test_construction(self):
     pred_list = {2: [1], 3: [1], 4: [2], 5: [2]}
     adj_list = {1: [2, 3], 2: [4, 5]}
     self.assertDictEqual(adj_list, self._extract_id(self.graph._succ_list))
     self.assertDictEqual(pred_list, self._extract_id(self.graph._pred_list))
-    
+
   def test_reverse(self):
     reverse_graph = self.graph.reverse()
     # Now we reverse the expected adj_list & predec list
@@ -34,7 +34,7 @@ class TestGraph(unittest.TestCase):
     adj_list = {2: [1], 3: [1], 4: [2], 5: [2]}
     self.assertDictEqual(adj_list, self._extract_id(reverse_graph._succ_list))
     self.assertDictEqual(pred_list, self._extract_id(reverse_graph._pred_list))
-  
+
   def test_toposort(self):
     # Taken from https://www.geeksforgeeks.org/topological-sorting/
     nodes = {}
@@ -46,7 +46,7 @@ class TestGraph(unittest.TestCase):
              HyperEdge(3, [1])]
     graph = HyperGraph(edges, nodes)
     self.assertListEqual(graph.topo_sort(), [5, 4, 2, 3, 1, 0])
-    
+
   def test_leaves(self):
     self.assertListEqual(self.graph.leaves(), [3, 4, 5])
 

@@ -28,7 +28,7 @@ from xnmt.structs.vocabs import Vocab
 
 
 class TestGraphToGraph(unittest.TestCase):
-  
+
   def setUp(self):
     # Seeding
     numpy.random.seed(2)
@@ -36,16 +36,16 @@ class TestGraphToGraph(unittest.TestCase):
     layer_dim = 32
     xnmt.internal.events.clear()
     ParamManager.init_param_col()
-    
+
     edge_vocab = Vocab(vocab_file="examples/data/parse/head.en.edge_vocab")
     node_vocab = Vocab(vocab_file="examples/data/parse/head.en.node_vocab")
     value_vocab = Vocab(vocab_file="examples/data/head.en.vocab")
-    
+
     self.src_reader = input_readers.PlainTextReader(vocab=value_vocab)
     self.trg_reader = input_readers.CoNLLToRNNGActionsReader(surface_vocab=value_vocab,
                                                              nt_vocab=node_vocab,
                                                              edg_vocab=edge_vocab)
-    
+
     self.layer_dim = layer_dim
     self.src_data = list(self.src_reader.read_sents("examples/data/head.en"))
     self.trg_data = list(self.trg_reader.read_sents("examples/data/parse/head.en.conll"))
@@ -55,7 +55,7 @@ class TestGraphToGraph(unittest.TestCase):
       bwd_combinator=UniLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim),
       transform=AuxNonLinear(input_dim=layer_dim, aux_input_dim=layer_dim, output_dim=layer_dim)
     )
-  
+
     self.model = DefaultTranslator(
       src_reader=self.src_reader,
       trg_reader=self.trg_reader,
@@ -75,7 +75,7 @@ class TestGraphToGraph(unittest.TestCase):
     my_batcher = batchers.TrgBatcher(batch_size=1)
     self.src, self.trg = my_batcher.pack(self.src_data, self.trg_data)
     dy.renew_cg(immediate_compute=True, check_validity=True)
-  
+
   def test_train_nll(self):
     event_trigger.set_train(True)
     event_trigger.start_sent(self.src[0])
@@ -85,10 +85,10 @@ class TestGraphToGraph(unittest.TestCase):
   def test_rnng_greedy(self):
     event_trigger.set_train(False)
     self.model.generate(batchers.mark_as_batch([self.src_data[0]]), GreedySearch())
-   
+
   def test_rnng_beam(self):
     event_trigger.set_train(False)
     self.model.generate(batchers.mark_as_batch([self.src_data[0]]), BeamSearch())
-   
+
 if __name__ == "__main__":
   unittest.main()

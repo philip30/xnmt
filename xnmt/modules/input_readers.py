@@ -44,7 +44,8 @@ class BaseTextReader(models.InputReader):
       max_id = max(filter_ids)
       filter_ids = set(filter_ids)
 
-    for line in xnmt.file_manager.request_text_file(filename):
+    lines = xnmt.file_manager.request_text_file(filename)
+    for line in lines:
       if filter_ids is None or sent_count in filter_ids:
         yield self.read_sent(line=line, idx=sent_count)
       sent_count += 1

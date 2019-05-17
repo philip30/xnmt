@@ -54,7 +54,7 @@ class TestEncoder(unittest.TestCase):
   def test_uni_lstm_encoder_len(self):
     self.model.encoder.seq_transducer = nn.UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim=self.layer_dim)
     self.assert_in_out_len_equal(self.model)
-  
+
   def test_res_lstm_encoder_len(self):
     self.model.encoder.seq_transducer = nn.ResidualSeqTransducer(
       input_dim=self.layer_dim,
@@ -71,6 +71,6 @@ class TestEncoder(unittest.TestCase):
   def test_identity(self):
     self.model.encoder.seq_transducer = nn.IdentitySeqTransducer()
     self.assert_in_out_len_equal(self.model)
-    
+
 if __name__ == '__main__':
   unittest.main()

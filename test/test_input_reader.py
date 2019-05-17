@@ -29,7 +29,7 @@ class TestInputReader(unittest.TestCase):
 
 
 class TestCoNLLInputReader(unittest.TestCase):
-  
+
   def test_read_tree(self):
     vocab = vocabs.Vocab(vocab_file="examples/data/head.en.vocab")
     reader = input_readers.CoNLLToRNNGActionsReader(vocab, vocab, None)

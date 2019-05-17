@@ -35,7 +35,7 @@ class ArbSeqLenDecoderState(models.DecoderState):
   @property
   def rnn_state(self):
     return self._rnn_state
- 
+
   @property
   def timestep(self):
     return self._timestep
@@ -60,11 +60,11 @@ class FixSeqLenDecoderState(models.DecoderState):
   @property
   def context(self):
     return self._encodings[self.timestep]
-  
+
   @property
   def timestep(self):
     return self._timestep
-  
+
 
 class RNNGDecoderState(models.DecoderState):
   """A state holding all the information needed for RNNGDecoder

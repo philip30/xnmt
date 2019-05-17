@@ -56,7 +56,7 @@ class Seq2Class(models.ConditionedModel, models.GeneratorModel, models.AutoRegre
   def finish_generating(self, output: xnmt.Batch, dec_state: xnmt.modules.nn.decoders.states.FixSeqLenDecoderState):
     assert dec_state.timestep <= 1
     return dec_state.timestep == 1
-    
+
   def initial_state(self, src: xnmt.Batch) -> xnmt.modules.nn.decoders.states.FixSeqLenDecoderState:
     xnmt.event_trigger.start_sent(src)
     encoding_result = self.encoder.encode(src)

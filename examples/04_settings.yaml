@@ -2,10 +2,10 @@
 # These are defined under xnmt/settings.py, and include "standard", "debug", and "unittest" settings.
 # These specify things like verbosity, default paths, whether experiments should be skipped if the log file already
 # exists, and whether to activate the DyNet check_validity and immediate_compute options.
-# 
+#
 # As the name suggests, e.g. when debugging one might use XNMT as follows:
 # ``xnmt --settings=debug examples/04_settings.yaml``
-# 
+#
 # It is easy to change behavior by either changing these configurations, or adding a new configuration to the module.
 !Experiment
   name: settings-exp

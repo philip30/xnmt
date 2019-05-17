@@ -57,11 +57,11 @@ class TestEmbedder(unittest.TestCase):
     self.src_char_vocab = CharVocab(vocab_file="examples/data/head.ja.vocab")
     self.ngram_vocab = Vocab(vocab_file="examples/data/head.ngramcount.ja")
     self.trg_vocab = Vocab(vocab_file="examples/data/head.en.vocab")
-    
+
     self.src_reader = CharFromWordTextReader(vocab= self.src_vocab, char_vocab= self.src_char_vocab)
     self.trg_reader = PlainTextReader(vocab=self.trg_vocab)
-    
-    
+
+
     self.layer_dim = layer_dim
     self.src_data = list(self.src_reader.read_sents("examples/data/head.ja"))
     self.trg_data = list(self.trg_reader.read_sents("examples/data/head.en"))
@@ -72,7 +72,7 @@ class TestEmbedder(unittest.TestCase):
     embedder = LookupEmbedder(emb_dim=self.layer_dim, vocab_size=100)
     embedder.embed_sent(self.src[1])
     embedder.embed(self.src[1][1][1])
-    
+
   def test_sum_composer(self):
     embedder = CharCompositionEmbedder(emb_dim=self.layer_dim,
                                        composer=SumComposer(),
@@ -90,7 +90,7 @@ class TestEmbedder(unittest.TestCase):
                                        composer=MaxComposer(),
                                        char_vocab=self.src_char_vocab)
     embedder.embed_sent(self.src[1])
-    
+
   def test_conv_composer(self):
     composer = ConvolutionComposer(ngram_size=2,
                                    transform=NonLinear(self.layer_dim, self.layer_dim, activation="relu"),
@@ -100,7 +100,7 @@ class TestEmbedder(unittest.TestCase):
                                        composer=composer,
                                        char_vocab=self.src_char_vocab)
     embedder.embed_sent(self.src[1])
-    
+
   def test_transducer_composer(self):
     composer = SeqTransducerComposer(seq_transducer=BiLSTMSeqTransducer(input_dim=self.layer_dim,
                                                                         hidden_dim=self.layer_dim))
@@ -163,7 +163,7 @@ class TestEmbedder(unittest.TestCase):
     self.assertEqual(a, 10)
     self.assertNotEqual(a, c)
     self.assertNotEqual(a, d)
-    
+
     self.assertNotEqual(type(self.src[0][0][0]), SegmentedWord)
     self.assertEqual(type(self.src[0][0].words[0]), SegmentedWord)
 

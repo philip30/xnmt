@@ -30,7 +30,7 @@ import xnmt.rl.policies as network
 
 
 class TestSimultaneousTranslation(unittest.TestCase):
-  
+
   def setUp(self):
     # Seeding
     numpy.random.seed(2)
@@ -38,7 +38,7 @@ class TestSimultaneousTranslation(unittest.TestCase):
     layer_dim = 32
     xnmt.internal.events.clear()
     ParamManager.init_param_col()
-    
+
     self.src_reader = PlainTextReader(vocab=Vocab(vocab_file="examples/data/head.ja.vocab"))
     self.trg_reader = PlainTextReader(vocab=Vocab(vocab_file="examples/data/head.en.vocab"))
     self.layer_dim = layer_dim
@@ -47,7 +47,7 @@ class TestSimultaneousTranslation(unittest.TestCase):
     self.input_vocab_size = len(self.src_reader.vocab.i2w)
     self.output_vocab_size = len(self.trg_reader.vocab.i2w)
     self.loss_calculator = loss_calculators.MLELoss()
-    
+
     self.model = SimultaneousTranslator(
       src_reader=self.src_reader,
       trg_reader=self.trg_reader,
@@ -67,12 +67,12 @@ class TestSimultaneousTranslation(unittest.TestCase):
       read_before_write=True,
     )
     event_trigger.set_train(True)
-    
+
 
     my_batcher = batchers.TrgBatcher(batch_size=3)
     self.src, self.trg = my_batcher.pack(self.src_data, self.trg_data)
     dy.renew_cg(immediate_compute=True, check_validity=True)
-  
+
   def test_train_nll(self):
     event_trigger.set_train(True)
     mle_loss = loss_calculators.MLELoss()
@@ -85,7 +85,7 @@ class TestSimultaneousTranslation(unittest.TestCase):
     mle_loss = loss_calculators.MLELoss()
     mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
     self.model.generate(batchers.mark_as_batch([self.src_data[0]]), BeamSearch(beam_size=2))
-   
+
 
 class TestSimultTranslationWithGivenAction(unittest.TestCase):
   def setUp(self):
@@ -95,14 +95,14 @@ class TestSimultTranslationWithGivenAction(unittest.TestCase):
     layer_dim = 32
     xnmt.internal.events.clear()
     ParamManager.init_param_col()
-   
+
     src_vocab = Vocab(vocab_file="examples/data/head.ja.vocab")
     self.src_reader = CompoundReader(readers=[
       PlainTextReader(vocab=src_vocab),
       SimultActionTextReader()
     ], vocab=src_vocab)
-    
-    
+
+
     self.trg_reader = PlainTextReader(vocab=Vocab(vocab_file="examples/data/head.en.vocab"))
     self.layer_dim = layer_dim
     self.src_data = list(self.src_reader.read_sents(["examples/data/head.ja", "examples/data/simult/head.jaen.actions"]))
@@ -110,7 +110,7 @@ class TestSimultTranslationWithGivenAction(unittest.TestCase):
     self.input_vocab_size = len(self.src_reader.vocab.i2w)
     self.output_vocab_size = len(self.trg_reader.vocab.i2w)
     self.loss_calculator = loss_calculators.MLELoss()
-    
+
     self.model = SimultaneousTranslator(
       src_reader=self.src_reader,
       trg_reader=self.trg_reader,
@@ -130,29 +130,29 @@ class TestSimultTranslationWithGivenAction(unittest.TestCase):
       policy_test_oracle=True
     )
     event_trigger.set_train(True)
-    
+
 
     my_batcher = batchers.TrgBatcher(batch_size=3)
     self.src, self.trg = my_batcher.pack(self.src_data, self.trg_data)
     dy.renew_cg(immediate_compute=True, check_validity=True)
-    
+
   def test_train_nll(self):
     event_trigger.set_train(True)
     mle_loss = loss_calculators.MLELoss()
     mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
-    
+
     pol_loss = loss_calculators.PolicyMLELoss()
     pol_loss._perform_calc_loss(self.model, self.src[0], self.trg[0])
 
     event_trigger.set_train(False)
     self.model.generate(batchers.mark_as_batch([self.src_data[0]]), GreedySearch())
-   
+
   def test_train_mle_only(self):
     self.model.policy_network = None
     event_trigger.set_train(True)
     mle_loss = loss_calculators.MLELoss()
     mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
-    
+
     event_trigger.set_train(False)
     self.model.generate(batchers.mark_as_batch([self.src_data[0]]), GreedySearch())
 
@@ -160,9 +160,9 @@ class TestSimultTranslationWithGivenAction(unittest.TestCase):
     event_trigger.set_train(True)
     composite_loss = loss_calculators.CompositeLoss([loss_calculators.MLELoss(), loss_calculators.PolicyMLELoss()])
     composite_loss.calc_loss(self.model, self.src[0], self.trg[0])
-    
+
     event_trigger.set_train(False)
     self.model.generate(batchers.mark_as_batch([self.src_data[0]]), GreedySearch())
-    
+
 if __name__ == "__main__":
   unittest.main()

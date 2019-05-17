@@ -30,7 +30,7 @@ if settings.RESOURCE_WARNINGS:
   warnings.simplefilter('always', ResourceWarning)
 
 def main(overwrite_args: Optional[Sequence[str]] = None, tee=None) -> None:
-  
+
   argparser = argparse.ArgumentParser()
   utils.add_dynet_argparse(argparser)
   argparser.add_argument("--settings", type=str, default="standard", help="settings (standard, debug, or unittest)"
@@ -66,7 +66,7 @@ def main(overwrite_args: Optional[Sequence[str]] = None, tee=None) -> None:
 
   if tee:
     log_preamble(f"running XNMT revision {tee.get_git_revision()} on {socket.gethostname()} on {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-  
+
   for experiment_name in experiment_names:
 
     ParamManager.init_param_col()
@@ -84,7 +84,7 @@ def main(overwrite_args: Optional[Sequence[str]] = None, tee=None) -> None:
                      f"(or activate OVERWRITE_LOG, by either specifying an environment variable as OVERWRITE_LOG=1, "
                      f"or specifying --settings=debug, or changing xnmt.settings.Standard.OVERWRITE_LOG manually)")
       continue
-    
+
     if tee: tee.set_out_file(log_file, exp_name=experiment_name)
 
     try:
@@ -110,7 +110,7 @@ def main(overwrite_args: Optional[Sequence[str]] = None, tee=None) -> None:
     finally:
       if tee:
         tee.unset_out_file()
-    
+
 
 def print_results(results: Sequence[Tuple[str,Sequence[models.EvalScore]]]):
   print("")
