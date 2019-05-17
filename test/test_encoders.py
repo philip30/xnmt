@@ -19,7 +19,7 @@ class TestEncoder(unittest.TestCase):
     self.src_data = list(self.src_reader.read_sents("examples/data/head.ja"))
     self.trg_data = list(self.trg_reader.read_sents("examples/data/head.en"))
     self.model = xnmt.networks.Seq2Seq(
-      encoder = nn.SequenceEncoder(
+      encoder = nn.SeqEncoder(
         embedder = nn.LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
         seq_transducer= nn.BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim, layers=3),
       ),
@@ -42,9 +42,9 @@ class TestEncoder(unittest.TestCase):
   def assert_in_out_len_equal(self, model: xnmt.networks.Seq2Seq):
     dy.renew_cg()
     xnmt.event_trigger.set_train(True)
-    src = self.src_data[0]
-    xnmt.event_trigger.start_sent(xnmt.mark_as_batch([src]))
-    embeddings = model.encoder.embedder.embed_sent(xnmt.mark_as_batch([src]))
+    src = self.src_data[0], self.src_data[1]
+    xnmt.event_trigger.start_sent(xnmt.mark_as_batch(src))
+    embeddings = model.encoder.embedder.embed_sent(xnmt.mark_as_batch(src))
     encodings = model.encoder.seq_transducer.transduce(embeddings)
     self.assertEqual(len(embeddings), len(encodings.encode_seq))
 

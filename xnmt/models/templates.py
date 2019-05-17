@@ -533,8 +533,6 @@ class Inference(object):
                mode: str = "onebest",
                batcher: xnmt.structs.batchers.InOrderBatcher = xnmt.bare(xnmt.structs.batchers.InOrderBatcher, batch_size=1),
                reporter: Optional[Union[Reporter, Sequence[Reporter]]] = None,
-               src_reader: InputReader = xnmt.ref_src_reader,
-               trg_reader: InputReader = xnmt.ref_trg_reader,
                post_processor: Optional[Union[OutputProcessor, Sequence[OutputProcessor]]] = None):
     self.src_file = src_file
     self.trg_file = trg_file
@@ -544,8 +542,6 @@ class Inference(object):
     self.mode = mode
     self.batcher = batcher
     self.reporter = reporter
-    self.src_reader = src_reader
-    self.trg_reader = trg_reader
     self.post_processor = post_processor
 
   def generate_one(
@@ -584,7 +580,7 @@ class Inference(object):
     ref_scores = None
 
     if self.mode in ['score', 'forceddebug']:
-      ref_corpus, src_corpus = self._read_corpus(src_file, mode=self.mode, ref_file=self.ref_file)
+      ref_corpus, src_corpus = self._read_corpus(generator, src_file, mode=self.mode, ref_file=self.ref_file)
       ref_scores = self._compute_losses(generator, ref_corpus, src_corpus, self.max_num_sents)
 
     if self.mode == 'score':
@@ -636,7 +632,7 @@ class Inference(object):
       batcher: necessary with some cases of input pre-processing such as padding or truncation
       max_src_len: if given, skip inputs that are too long
     """
-    src_in = self.src_reader.read_sents(src_file)
+    src_in = generator.src_reader.read_sents(src_file)
 
     # Reporting is commenced if there is some defined reporters
     xnmt.event_trigger.set_reporting(self.reporter is not None)
@@ -708,7 +704,7 @@ class Inference(object):
       max_src_len: if given, skip inputs that are too long
       assert_scores: if given, raise exception if the scores for generated outputs don't match the given scores
     """
-    src_in = self.src_reader.read_sents(src_file)
+    src_in = generator.src_reader.read_sents(src_file)
 
     # If we have a "assert scores" list return it, otherwise return "None" infinitely
     assert_in = assert_scores if assert_scores else iter(lambda: None, 1)
@@ -782,8 +778,8 @@ class Inference(object):
         for nbest, score in zip(nbest_fp, ref_scores):
           fp.write("{} ||| score={}\n".format(nbest.strip(), score))
 
-  def _read_corpus(self, src_file: str, mode: str, ref_file: str) -> Tuple[List, List]:
-    src_corpus = list(self.src_reader.read_sents(src_file))
+  def _read_corpus(self, generator, src_file: str, mode: str, ref_file: str) -> Tuple[List, List]:
+    src_corpus = list(generator.src_reader.read_sents(src_file))
     # Get reference if it exists and is necessary
     if mode == "forced" or mode == "forceddebug" or mode == "score":
       if ref_file is None:
@@ -799,9 +795,9 @@ class Inference(object):
             assert src_index < len(src_corpus), \
               f"The src_file has only {len(src_corpus)} instances, nbest file has invalid src_index {src_index}"
             score_src_corpus.append(src_corpus[src_index])
-            trg_input = self.trg_reader.read_sent(idx=idx, line=nbest[1].strip())
+            trg_input = generator.trg_reader.read_sent(idx=idx, line=nbest[1].strip())
           else:
-            trg_input = self.trg_reader.read_sent(idx=idx, line=line)
+            trg_input = generator.trg_reader.read_sent(idx=idx, line=line)
           ref_corpus.append(trg_input)
       if mode == "score":
         src_corpus = score_src_corpus

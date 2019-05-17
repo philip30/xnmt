@@ -77,9 +77,11 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
     Returns:
       The updated decoder state.
     """
-    trg_embedding = self.embedder.embed(trg_word)
-    context = trg_embedding if not self.input_feeding else dy.concatenate([trg_embedding, dec_state.context])
-    rnn_state = dec_state.rnn_state.add_input(context)
+    rnn_state = dec_state.rnn_state
+    if trg_word is not None:
+      trg_embedding = self.embedder.embed(trg_word)
+      context = trg_embedding if not self.input_feeding else dy.concatenate([trg_embedding, dec_state.context])
+      rnn_state = rnn_state.add_input(context)
     context, attender_state = self.attender.calc_context(rnn_state.output(), dec_state.attender_state)
     return decoder_state.ArbSeqLenDecoderState(rnn_state=rnn_state, context=context, attender_state=attender_state,
                                                timestep=dec_state.timestep+1)

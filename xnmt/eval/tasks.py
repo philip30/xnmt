@@ -7,6 +7,7 @@ import xnmt
 import xnmt.models as models
 import xnmt.eval.metrics as metrics
 import xnmt.eval.evaluate as evaluate
+import xnmt.inferences.inferences as inferences
 
 
 class LossEvalTask(models.EvalTask, xnmt.Serializable):
@@ -124,7 +125,7 @@ class AccuracyEvalTask(models.EvalTask, xnmt.Serializable):
                hyp_file: str,
                model: Union[models.GeneratorModel, models.Reportable] = xnmt.Ref("model"),
                eval_metrics: Union[str, models.Evaluator, Sequence[models.Evaluator]] = "bleu",
-               inference: Optional[models.Inference] = None,
+               inference: Optional[models.Inference] = xnmt.bare(inferences.AutoRegressiveInference),
                perform_inference: bool = True,
                desc: Any = None) -> None:
     self.model = model

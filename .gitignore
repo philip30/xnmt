@@ -20,6 +20,7 @@ test/config/logs/
 test/config/models/
 test/config/reports/
 test/config/hyp/
+/test/output
 /*.yaml
 examples/preproc/
 .project

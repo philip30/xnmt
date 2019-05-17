@@ -7,17 +7,15 @@ import xnmt.modules.nn as nn
 from typing import List
 
 # TODO: Fix this
-class Seq2Seq(models.ConditionedModel, models.GeneratorModel,
-                   models.AutoRegressiveModel,
-                   xnmt.Serializable):
+class Seq2Seq(models.ConditionedModel, models.GeneratorModel, models.AutoRegressiveModel, xnmt.Serializable):
   yaml_tag = "!Seq2Seq"
   @xnmt.serializable_init
   def __init__(self,
-               src_reader: models.InputReader = xnmt.ref_src_reader,
-               trg_reader: models.InputReader = xnmt.ref_trg_reader,
-               encoder: models.Encoder = xnmt.bare(nn.SequenceEncoder),
+               src_reader: models.InputReader,
+               trg_reader: models.InputReader,
+               encoder: models.Encoder = xnmt.bare(nn.SeqEncoder),
                decoder: models.Decoder = xnmt.bare(nn.ArbLenDecoder)):
-    super().__init__(src_reader, trg_reader)
+    models.GeneratorModel.__init__(self, src_reader, trg_reader)
     self.encoder = encoder
     self.decoder = decoder
 

@@ -59,8 +59,8 @@ class ConditionedModel(TrainableModel):
 class GeneratorModel(object):
 
   def __init__(self,
-               src_reader: Optional['xnmt.models.InputReader'] = xnmt.ref_src_reader,
-               trg_reader: Optional['xnmt.models.InputReader'] = xnmt.ref_trg_reader):
+               src_reader: Optional['xnmt.models.InputReader'],
+               trg_reader: Optional['xnmt.models.InputReader']):
     self.src_reader = src_reader
     self.trg_reader = trg_reader
 

@@ -20,17 +20,11 @@ class UniLSTMState(models.UniDirectionalState):
                position: int = 0,
                init: Optional[Sequence[dy.Expression]] = None):
     self._network = network
-
-    if c is None:
-      c = [dy.zeroes(dim=(network.hidden_dim,)) for _ in range(network.num_layers)]
-    if h is None:
-      h = [dy.zeroes(dim=(network.hidden_dim,)) for _ in range(network.num_layers)]
-
     if init is not None:
       self.set_s(init)
 
-    self._c = tuple(c)
-    self._h = tuple(h)
+    self._c = c
+    self._h = h
     self._prev = prev
     self._dropout_mask = dropout_mask
     self._position = position
@@ -38,12 +32,16 @@ class UniLSTMState(models.UniDirectionalState):
   def add_input(self, x: dy.Expression, mask: Optional[xnmt.Mask] = None) -> models.UniDirectionalState:
     network = self._network
     weight_noise = self._network.weightnoise_std if xnmt.is_train() else 0
+    batch_size = x[0].dim()[1]
 
     if self._dropout_mask is None:
-      self._dropout_mask = self.calc_dropout_mask(x[0].dim()[1])
+      self._dropout_mask = self.calc_dropout_mask(batch_size)
     dropout_mask_x, dropout_mask_h = self._dropout_mask
     new_c, new_h = [], []
     for i in range(self._network.num_layers):
+      if self._c is None:
+        self._c = [dy.zeros(dim=(network.hidden_dim,), batch_size=batch_size) for _ in range(network.num_layers)]
+        self._h = [dy.zeros(dim=(network.hidden_dim,), batch_size=batch_size) for _ in range(network.num_layers)]
       if dropout_mask_x is not None and dropout_mask_h is not None:
         # apply dropout according to https://arxiv.org/abs/1512.05287 (tied weights)
         gates = dy.vanilla_lstm_gates_dropout_concat([x],
@@ -206,7 +204,7 @@ class UniLSTMSeqTransducer(xnmt.models.UniDiSeqTransducer, xnmt.Serializable):
       state.add_input(expr_seq[i], expr_seq.mask)
       out_expr.append(state.output())
 
-    out_expr = xnmt.ExpressionSequence(out_expr, expr_seq.mask)
+    out_expr = xnmt.ExpressionSequence(expr_list=out_expr, mask=expr_seq.mask)
     final_states = [models.states.FinalTransducerState(h, c) for h, c in zip(state.h(), state.c())]
     return models.EncoderState(out_expr, final_states)
 

@@ -6,8 +6,8 @@ import xnmt.modules.nn.embedders as embedders
 import xnmt.modules.nn.transducers.recurrent as recurrent
 
 
-class SequenceEncoder(models.Encoder, xnmt.Serializable):
-  yaml_tag = "!SequenceEncoder"
+class SeqEncoder(models.Encoder, xnmt.Serializable):
+  yaml_tag = "!SeqEncoder"
   @xnmt.serializable_init
   def __init__(self,
                embedder: models.Embedder = xnmt.bare(embedders.LookupEmbedder),

@@ -103,8 +103,7 @@ class TestEmbedder(unittest.TestCase):
     
   def test_transducer_composer(self):
     composer = SeqTransducerComposer(seq_transducer=BiLSTMSeqTransducer(input_dim=self.layer_dim,
-                                                                        hidden_dim=self.layer_dim,
-                                                                        decoder_input_dim=self.layer_dim))
+                                                                        hidden_dim=self.layer_dim))
     embedder = CharCompositionEmbedder(emb_dim=self.layer_dim,
                                        composer=composer,
                                        char_vocab=self.src_char_vocab)

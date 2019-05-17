@@ -1,7 +1,6 @@
 from typing import Optional
 
 import xnmt.models.templates
-from xnmt import param_initializers
 from xnmt.modules.nn import norms, transforms as modelparts_transforms
 from xnmt.internal.persistence import Serializable, serializable_init, bare, Ref
 
@@ -28,11 +27,10 @@ class NinSeqTransducer(ModularSeqTransducer, Serializable):
   """
   @serializable_init
   def __init__(self,
-               input_dim: int = Ref("exp_global.default_layer_dim"),
-               hidden_dim: int = Ref("exp_global.default_layer_dim"),
+               input_dim: int = xnmt.default_layer_dim,
+               hidden_dim: int = xnmt.default_layer_dim,
                downsample_by: int = 1,
-               param_init: xnmt.models.templates.ParamInitializer = Ref("exp_global.param_init", default=bare(
-                 param_initializers.GlorotInitializer)),
+               param_init: xnmt.ParamInitializer = xnmt.default_param_init,
                projection: Optional[TransformSeqTransducer] = None,
                batch_norm: Optional[norms.BatchNorm] = None,
                nonlinearity: Optional[TransformSeqTransducer] = None) -> None:

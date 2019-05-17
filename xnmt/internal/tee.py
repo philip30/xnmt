@@ -70,7 +70,9 @@ class TensorboardCustomWriter(object):
   def unset_out_file(self) -> None:
     self.out_file_name = None
   def add_scalars(self, name: str, *args, **kwargs):
-    return self.writer.add_scalars(f"{self.exp_name}/{name}", *args, **kwargs)
+    if self.writer is not None:
+      return self.writer.add_scalars(f"{self.exp_name}/{name}", *args, **kwargs)
+    print(f"{self.exp_name}/{name}", *args, **kwargs)
 
 tensorboard_writer = TensorboardCustomWriter()
 

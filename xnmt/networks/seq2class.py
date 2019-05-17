@@ -22,7 +22,7 @@ class Seq2Class(models.ConditionedModel, models.GeneratorModel, models.AutoRegre
   """
   @xnmt.serializable_init
   def __init__(self,
-               encoder: models.Encoder = xnmt.bare(nn.SequenceEncoder),
+               encoder: models.Encoder = xnmt.bare(nn.SeqEncoder),
                transform: models.Transform = xnmt.bare(nn.NonLinear),
                scorer: models.Scorer = xnmt.bare(nn.Softmax)):
     models.GeneratorModel.__init__(self)

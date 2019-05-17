@@ -46,7 +46,7 @@ class SimpleTrainingTask(models.TrainingTask, xnmt.Serializable):
   """
   @xnmt.serializable_init
   def __init__(self,
-               model: models.ConditionedModel,
+               model: Union[models.ConditionedModel, models.GeneratorModel],
                src_file: Union[str, Sequence[str]] = None,
                trg_file: str = None,
                dev_every: int = 0,
@@ -66,8 +66,6 @@ class SimpleTrainingTask(models.TrainingTask, xnmt.Serializable):
                max_num_train_sents: Optional[int] = None,
                max_src_len: Optional[int] = None,
                max_trg_len: Optional[int] = None,
-               src_reader: models.InputReader = xnmt.ref_src_reader,
-               trg_reader: models.InputReader = xnmt.ref_trg_reader,
                trainer: models.XnmtOptimizer = xnmt.bare(xnmt.modules.optimizers.SGDTrainer)):
     super().__init__(model, models.TrainingState(), name, dev_every, run_for_epochs)
     self.src_file = src_file
@@ -100,8 +98,6 @@ class SimpleTrainingTask(models.TrainingTask, xnmt.Serializable):
     self.batcher = batcher
     self.dev_loss_tracker = train.DevLossTracker(self, dev_every, name)
     self.name = name
-    self.src_reader = src_reader
-    self.trg_reader = trg_reader
 
   def _augment_data_initial(self):
     """
@@ -131,8 +127,8 @@ class SimpleTrainingTask(models.TrainingTask, xnmt.Serializable):
         xnmt.logger.info('using reloaded data')
       # reload the data
       self.src_data, self.trg_data, self.src_batches, self.trg_batches = \
-          input_readers.read_parallel_corpus(src_reader=self.src_reader,
-                                             trg_reader=self.trg_reader,
+          input_readers.read_parallel_corpus(src_reader=self.model.src_reader,
+                                             trg_reader=self.model.trg_reader,
                                              src_file=self.src_file,
                                              trg_file=self.trg_file,
                                              batcher=self.batcher,
@@ -140,7 +136,7 @@ class SimpleTrainingTask(models.TrainingTask, xnmt.Serializable):
                                              max_num_sents=self.max_num_train_sents,
                                              max_src_len=self.max_src_len,
                                              max_trg_len=self.max_trg_len)
-      self.src_reader.train = self.trg_reader.train = False
+      self.model.src_reader.train = self.model.trg_reader.train = False
       # restart data generation
       self._augmentation_handle = subprocess.Popen(augment_command + " --epoch %d" % self.training_state.epoch_num, shell=True)
     else:
@@ -178,15 +174,15 @@ class SimpleTrainingTask(models.TrainingTask, xnmt.Serializable):
       else:
         self._augment_data_next_epoch()
     if self.training_state.epoch_num==0 or self.sample_train_sents or \
-      self.src_reader.needs_reload() or self.trg_reader.needs_reload():
+      self.model.src_reader.needs_reload() or self.model.trg_reader.needs_reload():
       xnmt.event_trigger.set_train(True)
       self.src_data, self.trg_data, self.src_batches, self.trg_batches = \
-        input_readers.read_parallel_corpus(src_reader=self.src_reader, trg_reader=self.trg_reader,
+        input_readers.read_parallel_corpus(src_reader=self.model.src_reader, trg_reader=self.model.trg_reader,
                                            src_file=self.src_file, trg_file=self.trg_file,
                                            batcher=self.batcher, sample_sents=self.sample_train_sents,
                                            max_num_sents=self.max_num_train_sents,
                                            max_src_len=self.max_src_len, max_trg_len=self.max_trg_len)
-      self.src_reader.train = self.trg_reader.train = False
+      self.model.src_reader.train = self.model.trg_reader.train = False
     self.training_state.epoch_seed = random.randint(1,2147483647)
     random.seed(self.training_state.epoch_seed)
     np.random.seed(self.training_state.epoch_seed)

@@ -75,7 +75,7 @@ class BeamSearch(models.SearchStrategy, xnmt.Serializable):
           completed_hyp.append(hyp)
           continue
         # Find the k best words at the next time step
-        next_state = generator.add_input(xnmt.mark_as_batch(prev_word), prev_state)
+        next_state = generator.add_input(prev_word, prev_state)
         next_actions = generator.best_k(next_state, self.beam_size, normalize_scores=True)
         # Queue next states
         for action in next_actions:
@@ -130,7 +130,7 @@ class SamplingSearch(models.SearchStrategy, xnmt.Serializable):
           done_flag[i] = True
           new_hyps.append(hyp)
         else:
-          next_state = generator.add_input(xnmt.mark_as_batch(prev_word), hyp.action.decoder_state)
+          next_state = generator.add_input(prev_word, hyp.action.decoder_state)
           next_action = generator.sample(next_state, 1)[0]
           next_score = hyp.score + next_action.log_likelihood.value()
           hyp = models.Hypothesis(score=next_score, action=next_action, timestep=hyp.timestep+1, parent=hyp)

@@ -1267,7 +1267,8 @@ class _YamlDeserializer(object):
             else:
               initialized_component = copy.deepcopy(node.default)
           if self.init_component.cache_info().hits > hits_before:
-            logger.debug(f">> for {path}: reusing previously initialized {initialized_component}")
+            pass
+            #logger.debug(f">> for {path}: reusing previously initialized {initialized_component}")
         else:
           initialized_component = self.init_component(path)
         if len(path)==0:
