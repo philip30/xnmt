@@ -62,7 +62,7 @@ class Seq2Seq(models.ConditionedModel, models.GeneratorModel, models.AutoRegress
     ret = []
     for search_hyp in search_hyps:
       actions = search_hyp.actions()
-      word_ids = [action.action_id[0] for action in actions]
+      word_ids = [action.action_id for action in actions]
       if hasattr(actions[0].decoder_state, "attender_state"):
         attentions = [action.decoder_state.attender_state.attention for action in actions]
       else:

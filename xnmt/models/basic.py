@@ -74,10 +74,8 @@ class GeneratorModel(object):
       List[List[states.Hypothesis]]:
     outputs = []
     for i in range(src.batch_size()):
-      src_i = xnmt.mark_as_batch(data=[src[i]],
-                                 mask=None if src.mask is None else xnmt.Mask(np.expand_dims(src.mask.np_arr[i], axis=0))) \
-              if src.batch_size() > 1 else src
-      xnmt.event_trigger.start_sent(src)
+      src_i = xnmt.mark_as_batch(data=[src[i].get_unpadded_sent()], mask=None)
+      xnmt.event_trigger.start_sent(src_i)
       search_hyps = self.create_trajectory(src_i, search_strategy)
 
       if is_sort and len(search_hyps) > 1:

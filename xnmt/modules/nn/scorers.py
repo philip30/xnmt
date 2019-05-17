@@ -60,7 +60,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
 
     ret = []
     for word in top_words:
-      ret.append((word, dy.pick(scores_expr, word)))
+      ret.append((word[0], dy.pick(scores_expr, word[0])))
 
     return ret
 
@@ -82,7 +82,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
 
     ret = []
     for word in samples:
-      ret.append((word, dy.pick(scores, word)))
+      ret.append((word, dy.pick(scores_expr, word)))
     return ret
 
   def can_loss_be_derived_from_scores(self):
