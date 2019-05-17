@@ -1305,7 +1305,7 @@ class _YamlDeserializer(object):
     def format_output(output, spacing=4):
       space_str = "".join([' '] * spacing)
       for key, value in output.items():
-        if key == "vocab" or key.endswith("vocab"):
+        if ((key == "vocab" or key.endswith("vocab")) and value is not None) or key == "i2w":
           value = "{size: %d}" % (len(value))
         if hasattr(value, "items"):
           logger.debug("{}{}:".format(space_str, key))
