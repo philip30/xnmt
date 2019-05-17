@@ -28,12 +28,13 @@ class Seq2Seq(models.ConditionedModel, models.GeneratorModel, models.AutoRegress
   def calc_nll(self, src: xnmt.Batch, trg: xnmt.Batch) -> xnmt.LossExpr:
     if isinstance(src, xnmt.structs.batch.CompoundBatch):
       src = src.batches[0]
+
+    ref_words = [xnmt.mark_as_batch([single_trg[i] for single_trg in trg]) for i in range(trg.sent_len())]
     # Encode the sentence
     cur_losses = []
-    dec_states = self.auto_regressive_states(src, trg)
+    dec_states = self.auto_regressive_states(src, ref_words)
     for i in range(trg.sent_len()):
-      ref_word = xnmt.mark_as_batch([single_trg[i] for single_trg in trg])
-      word_loss = self.decoder.calc_loss(dec_states[i], ref_word)
+      word_loss = self.decoder.calc_loss(dec_states[i], ref_words[i])
       if trg.mask is not None:
         word_loss = trg.mask.cmult_by_timestep_expr(word_loss, i, inverse=True)
       cur_losses.append(word_loss)
@@ -48,14 +49,12 @@ class Seq2Seq(models.ConditionedModel, models.GeneratorModel, models.AutoRegress
   def sample(self, state: models.DecoderState, n: int, temperature: float = 1.0) -> List[models.SearchAction]:
     return self.decoder.sample(state, n, temperature)
 
-  def auto_regressive_states(self, src: xnmt.Batch, trg: xnmt.Batch):
+  def auto_regressive_states(self, src: xnmt.Batch, trg: List[xnmt.Batch]):
     decoder_states = []
-    prev_word, dec_state = None, None
-    for i in range(trg.sent_len()):
-      if prev_word is not None:
-        dec_state = self.decoder.add_input(dec_state, prev_word)
-      else:
-        dec_state = self.initial_state(src)
+    dec_state = self.initial_state(src)
+    for i in range(len(trg)):
+      prev_word = None if i == 0 else trg[i-1]
+      dec_state = self.decoder.add_input(dec_state, prev_word)
       decoder_states.append(dec_state)
     return decoder_states
 
