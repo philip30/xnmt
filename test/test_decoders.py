@@ -39,9 +39,10 @@ class TestFreeDecodingLoss(unittest.TestCase):
     self.src, self.trg = self.batcher.pack(self.src_data, self.trg_data)
 
   def test_single(self):
-    dy.renew_cg()
     self.model.generate(self.src[0], xnmt.inferences.GreedySearch())
-    dy.renew_cg()
+    self.model.generate(self.src[0], xnmt.inferences.BeamSearch())
+    self.model.generate(self.src[0], xnmt.inferences.SamplingSearch())
+    
     self.model.calc_nll(src=xnmt.mark_as_batch([self.src_data[0]]),
                         trg=xnmt.mark_as_batch([self.trg_data[0]])).value()
     self.assertTrue(True)

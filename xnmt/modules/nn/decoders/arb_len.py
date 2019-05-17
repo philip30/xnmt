@@ -1,5 +1,5 @@
-import numpy as np
 import dynet as dy
+import collections.abc as abc
 
 from typing import Any, List
 
@@ -108,10 +108,10 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
   def calc_loss(self, dec_state: decoder_state.ArbSeqLenDecoderState, ref_action: xnmt.Batch) -> dy.Expression:
     return self.scorer.calc_loss(self._calc_transform(dec_state), ref_action)
 
-  def finish_generating(self, output, dec_state):
+  def finish_generating(self, output, dec_state) -> bool:
     eog_symbol = self.eog_symbol
-    if type(output) == np.ndarray or type(output) == list:
-      return [out_i == eog_symbol for out_i in output]
+    if isinstance(output, abc.Sequence):
+      return all([out_i == eog_symbol for out_i in output])
     else:
       return output == eog_symbol
 

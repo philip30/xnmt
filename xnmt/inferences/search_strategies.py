@@ -48,7 +48,7 @@ class BeamSearch(models.SearchStrategy, xnmt.Serializable):
   """
   @xnmt.serializable_init
   def __init__(self,
-               beam_size: int = 1,
+               beam_size: int = 5,
                top_k: int = 1,
                max_len: int = 100,
                len_norm: models.LengthNormalization = xnmt.bare(norms.NoNormalization)):
@@ -94,7 +94,7 @@ class BeamSearch(models.SearchStrategy, xnmt.Serializable):
     for hyp, score in zip(completed_hyp, normalized_scores):
       normalized_hyp.append(models.Hypothesis(score, hyp.action, hyp.timestep, hyp.parent))
     normalized_hyp = sorted(normalized_hyp, key=lambda x: x.score, reverse=True)
-
+    normalized_hyp = normalized_hyp[:self.top_k]
     return normalized_hyp
 
 
