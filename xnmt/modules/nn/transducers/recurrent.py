@@ -201,7 +201,7 @@ class UniLSTMSeqTransducer(xnmt.models.UniDiSeqTransducer, xnmt.Serializable):
     state = self.initial_state()
     out_expr = []
     for i in range(len(expr_seq)):
-      state.add_input(expr_seq[i], expr_seq.mask)
+      state = state.add_input(expr_seq[i], expr_seq.mask)
       out_expr.append(state.output())
 
     out_expr = xnmt.ExpressionSequence(expr_list=out_expr, mask=expr_seq.mask)

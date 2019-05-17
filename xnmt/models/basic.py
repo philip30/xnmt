@@ -1,5 +1,6 @@
 import itertools
 import xnmt
+import numpy as np
 import dynet as dy
 import xnmt.models.states as states
 
@@ -74,7 +75,7 @@ class GeneratorModel(object):
     outputs = []
     for i in range(src.batch_size()):
       src_i = xnmt.mark_as_batch(data=[src[i]],
-                                 mask=None if src.mask is None else src.mask.transpose()[src[i].idx]) \
+                                 mask=None if src.mask is None else xnmt.Mask(np.expand_dims(src.mask.np_arr[i], axis=0))) \
               if src.batch_size() > 1 else src
       xnmt.event_trigger.start_sent(src)
       search_hyps = self.create_trajectory(src_i, search_strategy)

@@ -33,14 +33,14 @@ def read_data(loc_: str, post_process: Optional[Callable[[str], str]] = None) ->
 
 def evaluate(ref_file: Union[str, Sequence[str]],
              hyp_file: Union[str, Sequence[str]],
-             evaluators: Sequence[models.Evaluator],
+             evaluator_list: Sequence[models.Evaluator],
              desc: Any = None) -> Sequence[models.EvalScore]:
   """"Returns the eval score (e.g. BLEU) of the hyp sents using reference trg sents
 
   Args:
     ref_file: path of the reference file
     hyp_file: path of the hypothesis trg file
-    evaluators: Evaluation metrics. Can be a list of evaluator objects, or a shortcut string
+    evaluator_list: Evaluation metrics. Can be a list of evaluator objects, or a shortcut string
     desc: descriptive string passed on to evaluators
   """
   hyp_postprocess = lambda line: line.split()
@@ -62,8 +62,8 @@ def evaluate(ref_file: Union[str, Sequence[str]],
     xnmt.logger.info(f"> ignoring {len_before - len(ref_corpus)} out of {len_before} test sentences.")
 
   if is_multi:
-    return [evaluator.evaluate_multi_ref(ref_corpus, hyp_corpus, desc=desc) for evaluator in evaluators]
+    return [evaluator.evaluate_multi_ref(ref_corpus, hyp_corpus, desc=desc) for evaluator in evaluator_list]
   else:
-    return [evaluator.evaluate(ref_corpus, hyp_corpus, desc=desc) for evaluator in evaluators]
+    return [evaluator.evaluate(ref_corpus, hyp_corpus, desc=desc) for evaluator in evaluator_list]
 
 

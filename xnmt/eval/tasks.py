@@ -153,7 +153,7 @@ class AccuracyEvalTask(models.EvalTask, xnmt.Serializable):
     eval_scores = evaluate.evaluate(hyp_file=self.hyp_file,
                                     ref_file=self.ref_file,
                                     desc=self.desc,
-                                    evaluators=self.eval_metrics)
+                                    evaluator_list=self.eval_metrics)
 
     return eval_scores
 

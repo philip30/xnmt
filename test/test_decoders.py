@@ -35,10 +35,12 @@ class TestFreeDecodingLoss(unittest.TestCase):
     xnmt.event_trigger.set_train(False)
     self.src_data = list(self.model.src_reader.read_sents("examples/data/head.ja"))
     self.trg_data = list(self.model.trg_reader.read_sents("examples/data/head.en"))
+    self.batcher = xnmt.structs.batchers.SrcBatcher(batch_size=2)
+    self.src, self.trg = self.batcher.pack(self.src_data, self.trg_data)
 
   def test_single(self):
     dy.renew_cg()
-    self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
+    self.model.generate(self.src[0], xnmt.inferences.GreedySearch())
     dy.renew_cg()
     self.model.calc_nll(src=xnmt.mark_as_batch([self.src_data[0]]),
                         trg=xnmt.mark_as_batch([self.trg_data[0]])).value()
