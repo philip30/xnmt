@@ -35,31 +35,6 @@ class DecoderState(object):
     raise NotImplementedError()
 
 
-class ClassifierState(DecoderState):
-  def __init__(self, h: dy.Expression):
-    self._h = h
-
-  def as_vector(self) -> dy.Expression:
-    return self._h
-
-  @property
-  def context(self):
-    return self._h
-
-
-class LabelerState(DecoderState):
-  def __init__(self, encodings: List[dy.Expression], timestep=0):
-    self.encodings = encodings
-    self.timestep = timestep
-
-  def as_vector(self) -> dy.Expression:
-    return self.encodings[self.timestep]
-
-  def context(self):
-    return self.encodings[self.timestep]
-
-
-
 class SentenceStats(object):
   """
   to Populate the src and trg sents statistics.

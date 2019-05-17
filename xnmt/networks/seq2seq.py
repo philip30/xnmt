@@ -6,6 +6,7 @@ import xnmt.modules.nn as nn
 
 from typing import List
 
+# TODO: Fix this
 class Seq2Seq(models.ConditionedModel, models.GeneratorModel,
                    models.AutoRegressiveModel,
                    xnmt.Serializable):
@@ -14,8 +15,8 @@ class Seq2Seq(models.ConditionedModel, models.GeneratorModel,
   def __init__(self,
                src_reader: models.InputReader = xnmt.ref_src_reader,
                trg_reader: models.InputReader = xnmt.ref_trg_reader,
-               encoder: models.Encoder = xnmt.bare(nn.SentenceEncoder),
-               decoder: models.Decoder = xnmt.bare(nn.AutoRegressiveDecoder)):
+               encoder: models.Encoder = xnmt.bare(nn.SequenceEncoder),
+               decoder: models.Decoder = xnmt.bare(nn.ArbLenDecoder)):
     super().__init__(src_reader, trg_reader)
     self.encoder = encoder
     self.decoder = decoder
@@ -59,9 +60,6 @@ class Seq2Seq(models.ConditionedModel, models.GeneratorModel,
         dec_state = self.initial_state(src)
       decoder_states.append(dec_state)
     return decoder_states
-
-  def create_trajectory(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy') -> List[models.Hypothesis]:
-    return search_strategy.generate_output(self, self.decoder.initial_state(self.encoder.encode(src)))
 
   def hyp_to_readable(self, search_hyps: List[models.Hypothesis], idx: int):
     ret = []

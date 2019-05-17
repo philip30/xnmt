@@ -6,8 +6,8 @@ import xnmt.modules.nn.embedders as embedders
 import xnmt.modules.nn.transducers.recurrent as recurrent
 
 
-class SentenceEncoder(models.Encoder, xnmt.Serializable):
-  yaml_tag = "!SentenceEncoder"
+class SequenceEncoder(models.Encoder, xnmt.Serializable):
+  yaml_tag = "!SequenceEncoder"
   @xnmt.serializable_init
   def __init__(self,
                embedder: models.Embedder = xnmt.bare(embedders.LookupEmbedder),
@@ -17,11 +17,6 @@ class SentenceEncoder(models.Encoder, xnmt.Serializable):
 
   def encode(self, src: xnmt.Batch) -> states.EncoderState:
     embed_sent = self.embedder.embed_sent(src)
-
     # TODO(philip30): Add segmentation part?
     return self.seq_transducer.transduce(embed_sent)
-
-  def shared_params(self):
-    return [{".embedder.emb_dim", ".seq_transducer.input_dim"}]
-
 

@@ -1,3 +1,4 @@
+from typing import List
 
 import dynet as dy
 
@@ -6,7 +7,7 @@ import xnmt.models as models
 import xnmt.structs.sentences as sent
 
 
-class AutoRegressiveDecoderState(models.DecoderState):
+class ArbSeqLenDecoderState(models.DecoderState):
   """A state holding all the information needed for AutoRegressiveDecoder
 
   Args:
@@ -16,10 +17,12 @@ class AutoRegressiveDecoderState(models.DecoderState):
   def __init__(self,
                rnn_state: models.UniDirectionalState,
                context: dy.Expression,
-               attender_state: models.AttenderState):
+               attender_state: models.AttenderState,
+               timestep: int):
     self._rnn_state = rnn_state
     self._attender_state = attender_state
     self._context = context
+    self._timestep = timestep
 
   @property
   def context(self):
@@ -32,10 +35,36 @@ class AutoRegressiveDecoderState(models.DecoderState):
   @property
   def rnn_state(self):
     return self._rnn_state
+ 
+  @property
+  def timestep(self):
+    return self._timestep
 
   def as_vector(self):
     return self._rnn_state.output()
 
+
+class FixSeqLenDecoderState(models.DecoderState):
+  def __init__(self, encodings: List[dy.Expression], attender_state: models.AttenderState, timestep=0):
+    self._encodings = encodings
+    self._timestep = timestep
+    self._attender_state = attender_state
+
+  @property
+  def attender_state(self):
+    return self._attender_state
+
+  def as_vector(self) -> dy.Expression:
+    return self._encodings[self.timestep]
+
+  @property
+  def context(self):
+    return self._encodings[self.timestep]
+  
+  @property
+  def timestep(self):
+    return self._timestep
+  
 
 class RNNGDecoderState(models.DecoderState):
   """A state holding all the information needed for RNNGDecoder
@@ -135,7 +164,7 @@ class RNNGDecoderState(models.DecoderState):
       return self._action
 
 
-class SimultaneousState(AutoRegressiveDecoderState):
+class SimultaneousState(ArbSeqLenDecoderState):
   """
   The read/write state used to determine the state of the SimultaneousTranslator.
   """

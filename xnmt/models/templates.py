@@ -222,7 +222,7 @@ class SearchStrategy(object):
   A template class to generate translation from the output probability model. (Non-batched operation)
   """
   def generate_output(self,
-                      generator: models.GeneratorModel,
+                      generator: Union[models.GeneratorModel, models.AutoRegressiveModel],
                       initial_state: models.DecoderState) -> List[models.Hypothesis]:
     """
     Args:

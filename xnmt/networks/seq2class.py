@@ -2,8 +2,12 @@ import xnmt
 import xnmt.models as models
 import xnmt.modules.nn as nn
 
+from typing import List
 
-class Seq2Class(models.ConditionedModel, models.GeneratorModel, xnmt.Serializable):
+import xnmt.modules.nn.decoders.states
+
+
+class Seq2Class(models.ConditionedModel, models.GeneratorModel, models.AutoRegressiveModel, xnmt.Serializable):
   yaml_tag = "!Seq2Class"
   """
   A sequence classifier.
@@ -18,8 +22,7 @@ class Seq2Class(models.ConditionedModel, models.GeneratorModel, xnmt.Serializabl
   """
   @xnmt.serializable_init
   def __init__(self,
-               encoder: models.Encoder = xnmt.bare(nn.SentenceEncoder),
-               inference: models.Inference = xnmt.bare(xnmt.inferences.IndependentOutputInference),
+               encoder: models.Encoder = xnmt.bare(nn.SequenceEncoder),
                transform: models.Transform = xnmt.bare(nn.NonLinear),
                scorer: models.Scorer = xnmt.bare(nn.Softmax)):
     models.GeneratorModel.__init__(self)
@@ -28,31 +31,37 @@ class Seq2Class(models.ConditionedModel, models.GeneratorModel, xnmt.Serializabl
     self.encoder = encoder
     self.transform = transform
     self.scorer = scorer
-    self.inference = inference
 
   def calc_nll(self, src: xnmt.Batch, trg: xnmt.Batch) -> xnmt.LossExpr:
     units = [t.len_unpadded() for t in trg]
     ids = xnmt.mark_as_batch([t.value for t in trg])
-    h = self.initial_state(src)
+    h = self.initial_state(src).encodings[0]
     loss_expr = self.scorer.calc_loss(h.as_vector(), ids)
     return xnmt.LossExpr(loss_expr, units)
 
-  def generate_single(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy', is_sort: bool=True):
+  def hyp_to_readable(self, search_hyps: List[models.Hypothesis], idx: int) \
+      -> List[xnmt.structs.sentences.ReadableSentence]:
     outputs = []
-    for batch_i in range(src.batch_size()):
-      if src.batch_size() > 1:
-        word = best_words[0, batch_i]
-        score = best_scores[0, batch_i]
-      else:
-        word = best_words[0]
-        score = best_scores[0]
+    for search_hyp in search_hyps:
+      actions = search_hyp.actions()
+      assert len(actions) == 1
+      word = actions[0].action_id
+      score = actions[0].log_likelihood
       outputs.append(xnmt.structs.sentences.ScalarSentence(value=word, score=score))
+    return outputs
 
-  def initial_state(self, src: xnmt.Batch) -> models.DecoderState:
+  def add_input(self, inp: xnmt.Batch, state: xnmt.modules.nn.decoders.states.FixSeqLenDecoderState):
+    return xnmt.modules.nn.decoders.states.FixSeqLenDecoderState(state.encodings, state.timestep + 1)
+
+  def finish_generating(self, output: xnmt.Batch, dec_state: xnmt.modules.nn.decoders.states.FixSeqLenDecoderState):
+    assert dec_state.timestep <= 1
+    return dec_state.timestep == 1
+    
+  def initial_state(self, src: xnmt.Batch) -> xnmt.modules.nn.decoders.states.FixSeqLenDecoderState:
     xnmt.event_trigger.start_sent(src)
     encoding_result = self.encoder.encode(src)
     h = encoding_result.encoder_final_states[-1].main_expr()
-    return models.ClassifierState(self.transform.transform(h))
+    return xnmt.modules.nn.decoders.states.FixSeqLenDecoderState([self.transform.transform(h)])
 
   def best_k(self, dec_state: models.DecoderState, k: int, normalize_scores: bool):
     return self.scorer.best_k(dec_state.as_vector(), k, normalize_scores)

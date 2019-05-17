@@ -6,13 +6,13 @@ from typing import Any, List
 import xnmt
 import xnmt.models as models
 import xnmt.modules.nn as nn
-
 import xnmt.modules.nn.decoders.states as decoder_state
 
-class AutoRegressiveDecoder(models.Decoder, xnmt.Serializable):
-  yaml_tag = "!AutoRegressiveDecoder"
+
+class ArbLenDecoder(models.Decoder, xnmt.Serializable):
+  yaml_tag = "!ArbLenDecoder"
   """
-  Standard autoregressive-decoder.
+  ArbSeqLenDecoder.
 
   Args:
     input_dim: input dimension
@@ -50,16 +50,6 @@ class AutoRegressiveDecoder(models.Decoder, xnmt.Serializable):
       rnn_input_dim += input_dim
     assert rnn_input_dim == rnn.total_input_dim, "Wrong input dimension in RNN layer: {} != {}".format(rnn_input_dim, rnn.total_input_dim)
 
-  def shared_params(self):
-    return [{".embedder.emb_dim", ".rnn.input_dim"},
-            {".input_dim", ".rnn.decoder_input_dim"},
-            {".input_dim", ".transform.input_dim"},
-            {".input_feeding", ".rnn.decoder_input_feeding"},
-            {".rnn.layers", ".bridge.dec_layers"},
-            {".rnn.hidden_dim", ".bridge.dec_dim"},
-            {".rnn.hidden_dim", ".transform.aux_input_dim"},
-            {".transform.output_dim", ".scorer.input_dim"}]
-
   def initial_state(self, enc_results: models.EncoderState) -> models.DecoderState:
     """Get the initial state of the decoder given the encoder final states.
 
@@ -74,9 +64,10 @@ class AutoRegressiveDecoder(models.Decoder, xnmt.Serializable):
     zeros = dy.zeros(self.input_dim)
     ss_expr = self.embedder.embed(xnmt.mark_as_batch([xnmt.Vocab.SS] * batch_size))
     rnn_state = rnn_state.add_input(dy.concatenate([ss_expr, zeros]) if self.input_feeding else ss_expr)
-    return decoder_state.AutoRegressiveDecoderState(rnn_state=rnn_state, context=zeros, attender_state=attender_state)
+    return decoder_state.ArbSeqLenDecoderState(rnn_state=rnn_state, context=zeros, attender_state=attender_state,
+                                               timestep=0)
 
-  def add_input(self, dec_state: decoder_state.AutoRegressiveDecoderState, trg_word: Any) -> models.DecoderState:
+  def add_input(self, dec_state: decoder_state.ArbSeqLenDecoderState, trg_word: Any) -> models.DecoderState:
     """
     Add an input and return a *new* update the state.
 
@@ -90,28 +81,29 @@ class AutoRegressiveDecoder(models.Decoder, xnmt.Serializable):
     context = trg_embedding if not self.input_feeding else dy.concatenate([trg_embedding, dec_state.context])
     rnn_state = dec_state.rnn_state.add_input(context)
     context, attender_state = self.attender.calc_context(rnn_state.output(), dec_state.attender_state)
-    return decoder_state.AutoRegressiveDecoderState(rnn_state=rnn_state, context=context, attender_state=attender_state)
+    return decoder_state.ArbSeqLenDecoderState(rnn_state=rnn_state, context=context, attender_state=attender_state,
+                                               timestep=dec_state.timestep+1)
 
 
-  def _calc_transform(self, dec_state: decoder_state.AutoRegressiveDecoderState) -> dy.Expression:
+  def _calc_transform(self, dec_state: decoder_state.ArbSeqLenDecoderState) -> dy.Expression:
     h = dy.concatenate([dec_state.as_vector(), dec_state.context])
     return self.transform.transform(h)
 
-  def best_k(self, dec_state: decoder_state.AutoRegressiveDecoderState, k: int, normalize_scores: bool = False) \
+  def best_k(self, dec_state: decoder_state.ArbSeqLenDecoderState, k: int, normalize_scores: bool = False) \
       -> List[models.SearchAction]:
     h = self._calc_transform(dec_state)
     best_k = self.scorer.best_k(h, k, normalize_scores=normalize_scores)
     ret  = [models.SearchAction(dec_state, best_word, best_score, None) for best_word, best_score in best_k]
     return ret
 
-  def sample(self, dec_state: decoder_state.AutoRegressiveDecoderState, n: int, temperature=1.0) \
+  def sample(self, dec_state: decoder_state.ArbSeqLenDecoderState, n: int, temperature=1.0) \
       -> List[models.SearchAction]:
     h = self._calc_transform(dec_state)
     sample_k  = self.scorer.sample(h, n)
     ret  = [models.SearchAction(dec_state, best_word, best_score, None) for best_word, best_score in sample_k]
     return ret
 
-  def calc_loss(self, dec_state: decoder_state.AutoRegressiveDecoderState, ref_action: xnmt.Batch) -> dy.Expression:
+  def calc_loss(self, dec_state: decoder_state.ArbSeqLenDecoderState, ref_action: xnmt.Batch) -> dy.Expression:
     return self.scorer.calc_loss(self._calc_transform(dec_state), ref_action)
 
   def finish_generating(self, output, dec_state):

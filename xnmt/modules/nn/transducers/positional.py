@@ -11,6 +11,7 @@ import xnmt
 import xnmt.models.templates
 
 
+# NOT TESTED
 class PositionalSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
   yaml_tag = "!PositionalSeqTransducer"
   @xnmt.serializable_init

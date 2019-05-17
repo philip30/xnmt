@@ -22,6 +22,8 @@ import xnmt.modules.nn.transforms as transforms
 import xnmt.modules.nn.embedders as embedders
 import xnmt.modules.nn.norms as norms
 
+
+# NOTE TESTED
 class SAAMTimeDistributed(object):
   """
   A Callable that puts the time-dimension of an input expression into the batch dimension via a reshape.

@@ -9,6 +9,7 @@ from .modular import ModularSeqTransducer
 from .transform import TransformSeqTransducer
 
 
+# NOT TESTED
 class NinSeqTransducer(ModularSeqTransducer, Serializable):
   yaml_tag = "!NinSeqTransducer"
   """

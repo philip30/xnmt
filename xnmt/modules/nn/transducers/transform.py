@@ -1,6 +1,8 @@
 import dynet as dy
 import xnmt
 
+
+# NOT TESTED
 class TransformSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
   yaml_tag = "!TransformSeqTransducer"
   """

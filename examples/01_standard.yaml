@@ -11,11 +11,9 @@
     default_layer_dim: 512
     dropout: 0.3
   # model architecture
-  model: !DefaultTranslator
-    src_reader: !PlainTextReader
-      vocab: !Vocab {vocab_file: examples/data/head.ja.vocab}
-    trg_reader: !PlainTextReader
-      vocab: !Vocab {vocab_file: examples/data/head.en.vocab}
+  model: !Seq2Seq
+    src_reader: !PlainTextReader {vocab: !Vocab {vocab_file: examples/data/head.ja.vocab}}
+    trg_reader: !PlainTextReader {vocab: !Vocab {vocab_file: examples/data/head.en.vocab}}
     src_embedder: !LookupEmbedder
       emb_dim: 512
     encoder: !BiLSTMSeqTransducer

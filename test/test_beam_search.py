@@ -7,7 +7,7 @@ from xnmt import event_trigger
 from xnmt.structs import batchers
 from xnmt.internal import events
 from xnmt.modules.nn.bridges import CopyBridge
-from xnmt.modules.nn.decoders import AutoRegressiveDecoder
+from xnmt.modules.nn.decoders import ArbLenDecoder
 from xnmt.modules.nn.embedders import LookupEmbedder
 from xnmt.modules.input_readers import PlainTextReader
 from xnmt.modules.transducers import UniLSTMSeqTransducer, BiLSTMSeqTransducer
@@ -82,12 +82,12 @@ class TestGreedyVsBeam(unittest.TestCase):
       src_embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
       encoder=BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim),
       attender=MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
-      decoder=AutoRegressiveDecoder(input_dim=layer_dim,
-                                embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
-                                rnn=UniLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim, decoder_input_dim=layer_dim, yaml_path="model.decoder.rnn"),
-                                transform=NonLinear(input_dim=layer_dim*2, output_dim=layer_dim),
-                                scorer=Softmax(input_dim=layer_dim, vocab_size=100),
-                                bridge=CopyBridge(dec_dim=layer_dim, dec_layers=1)),
+      decoder=ArbLenDecoder(input_dim=layer_dim,
+                            embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
+                            rnn=UniLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim, decoder_input_dim=layer_dim, yaml_path="model.decoder.rnn"),
+                            transform=NonLinear(input_dim=layer_dim*2, output_dim=layer_dim),
+                            scorer=Softmax(input_dim=layer_dim, vocab_size=100),
+                            bridge=CopyBridge(dec_dim=layer_dim, dec_layers=1)),
     )
     event_trigger.set_train(False)
 

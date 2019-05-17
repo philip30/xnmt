@@ -17,10 +17,10 @@ class TestFreeDecodingLoss(unittest.TestCase):
     self.model = networks.Seq2Seq(
       src_reader=modules.PlainTextReader(vocab=src_vocab),
       trg_reader=modules.PlainTextReader(vocab=trg_vocab),
-      encoder=nn.SentenceEncoder(
+      encoder=nn.SequenceEncoder(
         embedder=nn.LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
-        seq_transducer=nn.BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim, decoder_input_dim=layer_dim)),
-      decoder=nn.AutoRegressiveDecoder(
+        seq_transducer=nn.BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim)),
+      decoder=nn.ArbLenDecoder(
         input_dim=layer_dim,
         attender=nn.MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
         embedder=nn.LookupEmbedder(emb_dim=layer_dim, vocab_size=100),

@@ -16,7 +16,7 @@ class ResidualSeqTransducer(xnmt.models.SeqTransducer, xnmt.Serializable):
   @xnmt.serializable_init
   def __init__(self,
                child: xnmt.models.SeqTransducer,
-               input_dim: int,
+               input_dim: int = xnmt.default_layer_dim,
                layer_norm: bool = False,
                dropout: float = xnmt.default_dropout):
     self.child = child

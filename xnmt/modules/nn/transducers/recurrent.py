@@ -183,7 +183,7 @@ class UniLSTMSeqTransducer(xnmt.models.UniDiSeqTransducer, xnmt.Serializable):
     self.b  = [binit(1, hidden_dim*4, i) for i in range(layers)]
 
 
-  def initial_state(self, init=None) -> models.UniDirectionalState:
+  def initial_state(self, init=None) -> UniLSTMState:
     return UniLSTMState(self, init=init)
 
   def add_input(self, prev_state: UniLSTMState, x: dy.Expression, mask: xnmt.Mask) -> models.states.UniDirectionalState:
@@ -240,7 +240,6 @@ class BiLSTMSeqTransducer(models.BidiSeqTransducer, xnmt.Serializable):
                weightnoise_std: float = xnmt.default_weight_noise,
                param_init: xnmt.ParamInitializer = xnmt.default_param_init,
                bias_init: xnmt.ParamInitializer = xnmt.default_bias_init,
-               decoder_input_dim: int = xnmt.default_layer_dim,
                forward_layers : Optional[Sequence[UniLSTMSeqTransducer]] = None,
                backward_layers: Optional[Sequence[UniLSTMSeqTransducer]] = None) -> None:
     self.num_layers = layers
@@ -249,46 +248,38 @@ class BiLSTMSeqTransducer(models.BidiSeqTransducer, xnmt.Serializable):
     self.weightnoise_std = weightnoise_std
     assert hidden_dim % 2 == 0
     self.forward_layers = self.add_serializable_component("forward_layers", forward_layers, lambda:
-      [UniLSTMSeqTransducer(input_dim=input_dim if i == 0 else hidden_dim,
-                            hidden_dim=hidden_dim // 2, dropout=dropout,
-                            weightnoise_std=weightnoise_std,
-                            param_init=param_init if not isinstance(param_init, abc.Sequence) else param_init[i],
-                            bias_init=bias_init if not isinstance(bias_init, abc.Sequence) else bias_init[i],
-                            decoder_input_dim=decoder_input_dim)
-       for i in range(layers)])
+      UniLSTMSeqTransducer(input_dim=input_dim,
+                           hidden_dim=hidden_dim // 2, dropout=dropout,
+                           weightnoise_std=weightnoise_std,
+                           param_init=param_init if not isinstance(param_init, abc.Sequence) else param_init[i],
+                           bias_init=bias_init if not isinstance(bias_init, abc.Sequence) else bias_init[i],
+                           layers = layers))
     self.backward_layers = self.add_serializable_component("backward_layers", backward_layers, lambda:
-      [UniLSTMSeqTransducer(input_dim=input_dim if i == 0 else hidden_dim, hidden_dim=hidden_dim // 2,
-                            dropout=dropout, weightnoise_std=weightnoise_std,
-                            param_init=param_init if not isinstance(param_init, abc.Sequence) else param_init[i],
-                            bias_init=bias_init if not isinstance(bias_init, abc.Sequence) else bias_init[i],
-                            decoder_input_dim=decoder_input_dim)
-       for i in range(layers)])
+      UniLSTMSeqTransducer(input_dim=input_dim,
+                           hidden_dim=hidden_dim // 2,
+                           dropout=dropout, weightnoise_std=weightnoise_std,
+                           param_init=param_init if not isinstance(param_init, abc.Sequence) else param_init[i],
+                           bias_init=bias_init if not isinstance(bias_init, abc.Sequence) else bias_init[i],
+                           layers = layers))
+            
 
   def transduce(self, es: xnmt.ExpressionSequence) -> models.EncoderState:
-    mask = es.mask
      # first layer
-    fwd_encode = self.forward_layers[0].transduce(es)
-    bwd_encode = self.backward_layers[0].transduce(xnmt.ReversedExpressionSequence(es))
+    fwd_encode = self.forward_layers.transduce(es)
+    bwd_encode = self.backward_layers.transduce(xnmt.ReversedExpressionSequence(es))
     fwd_es = fwd_encode.encode_seq
     bwd_es = bwd_encode.encode_seq
+    fwd_final_states = fwd_encode.encoder_final_states
+    bwd_final_states = bwd_encode.encoder_final_states
 
-    fwd_final_states = [fwd_encode.encoder_final_states]
-    bwd_final_states = [bwd_encode.encoder_final_states]
-
-    for i in range(1, len(self.forward_layers)):
-      fwd_encode = self.forward_layers[i].transduce([fwd_es, xnmt.ReversedExpressionSequence(bwd_es)])
-      bwd_encode = self.backward_layers[i].transduce([xnmt.ReversedExpressionSequence(fwd_es), bwd_es])
-      fwd_es = fwd_encode.encode_seq
-      bwd_es = xnmt.ExpressionSequence(bwd_encode.encode_seq.as_list(), mask=mask)
-      fwd_final_states.append(fwd_encode.encoder_final_states)
-      bwd_final_states.append(bwd_encode.encoder_final_states)
-
-    final_states = [models.FinalTransducerState(
-      dy.concatenate([fwd_final_state[0].main_expr(), bwd_final_state[0].main_expr()]),
-      dy.concatenate([bwd_final_state[0].cell_expr(), bwd_final_state[0].cell_expr()]))
-      for fwd_final_state, bwd_final_state in zip(fwd_final_states, bwd_final_states)]
-
-    expr_list = [dy.concatenate([fwd_es[i], bwd_es[-i-1]]) for i in range(len(fwd_es))]
+    expr_list = [dy.concatenate([fw, bw]) for fw, bw in zip(fwd_es, reversed(bwd_es))]
+    final_states = [models.FinalTransducerState(main_expr=dy.concatenate([fwd_final_state.main_expr(),
+                                                                          bwd_final_state.main_expr()]),
+                                                cell_expr=dy.concatenate([fwd_final_state.cell_expr(),
+                                                                          bwd_final_state.cell_expr()])) \
+                    for fwd_final_state, bwd_final_state in zip(fwd_final_states, bwd_final_states)]
+      
+     
     expr_seq = xnmt.ExpressionSequence(expr_list=expr_list, mask=es.mask)
     return models.EncoderState(expr_seq, final_states)
 

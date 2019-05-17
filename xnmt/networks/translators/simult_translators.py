@@ -40,7 +40,7 @@ class SimultaneousTranslator(DefaultTranslator, PolicyConditionedModel, Serializ
                src_embedder: embedders.Embedder = bare(embedders.LookupEmbedder),
                encoder: recurrent.UniLSTMSeqTransducer = bare(recurrent.UniLSTMSeqTransducer),
                attender: attenders.Attender = bare(attenders.MlpAttender),
-               decoder: decoders.Decoder = bare(decoders.AutoRegressiveDecoder),
+               decoder: decoders.Decoder = bare(decoders.ArbLenDecoder),
                inference: inferences.AutoRegressiveInference = bare(inferences.AutoRegressiveInference),
                truncate_dec_batches: bool = False,
                policy_network: Optional[PolicyNetwork] = None,

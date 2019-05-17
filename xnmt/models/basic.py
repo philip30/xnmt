@@ -87,12 +87,12 @@ class GeneratorModel(object):
 
   def create_trajectory(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy') \
       -> Sequence[states.Hypothesis]:
-    raise NotImplementedError()
+    return search_strategy.generate_output(self, self.initial_state(src))
 
   def hyp_to_readable(self, hyps: List[states.Hypothesis], idx: int) -> List[xnmt.structs.sentences.ReadableSentence]:
     raise NotImplementedError()
 
-  def initial_state(self, src: xnmt.Batch) -> states.UniDirectionalState:
+  def initial_state(self, src: xnmt.Batch) -> states.DecoderState:
     raise NotImplementedError()
 
   def best_k(self, dec_state: states.DecoderState, k: int, normalize_scores: bool) -> Sequence[states.SearchAction]:

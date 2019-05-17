@@ -21,7 +21,7 @@ import numpy as np
 from xnmt.modules.nn.attenders import MlpAttender
 from xnmt.structs.batchers import SrcBatcher, InOrderBatcher
 from xnmt.modules.nn.bridges import CopyBridge
-from xnmt.modules.nn.decoders import AutoRegressiveDecoder
+from xnmt.modules.nn.decoders import ArbLenDecoder
 from xnmt.modules.nn.embedders import LookupEmbedder
 from xnmt.eval.tasks import LossEvalTask, AccuracyEvalTask
 from xnmt.experiments import Experiment
@@ -69,14 +69,14 @@ model = DefaultTranslator(
 
   encoder=BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim, layers=1),
   attender=MlpAttender(hidden_dim=layer_dim, state_dim=layer_dim, input_dim=layer_dim),
-  decoder=AutoRegressiveDecoder(input_dim=layer_dim,
-                                embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=len(trg_vocab)),
-                                rnn=UniLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim,
+  decoder=ArbLenDecoder(input_dim=layer_dim,
+                        embedder=LookupEmbedder(emb_dim=layer_dim, vocab_size=len(trg_vocab)),
+                        rnn=UniLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim,
                                                          decoder_input_dim=layer_dim, yaml_path="decoder"),
-                                transform=AuxNonLinear(input_dim=layer_dim, output_dim=layer_dim,
+                        transform=AuxNonLinear(input_dim=layer_dim, output_dim=layer_dim,
                                                        aux_input_dim=layer_dim),
-                                scorer=Softmax(vocab_size=len(trg_vocab), input_dim=layer_dim),
-                                bridge=CopyBridge(dec_dim=layer_dim, dec_layers=1)),
+                        scorer=Softmax(vocab_size=len(trg_vocab), input_dim=layer_dim),
+                        bridge=CopyBridge(dec_dim=layer_dim, dec_layers=1)),
   inference=inference
 )
 
