@@ -3,36 +3,37 @@ import dynet as dy
 import xnmt
 import functools
 
-from typing import List, Optional
+from typing import List, Optional, Any
 
 class AttenderState(object):
   def __init__(self,
                curr_sent: xnmt.ExpressionSequence,
-               sent_context: dy.Expression,
+               sent_context: Any,
                attention: Optional[dy.Expression] = None):
     self.curr_sent = curr_sent
     self.sent_context = sent_context
     self.attention = attention
-
 
 class UniDirectionalState(object):
   def add_input(self, word: dy.Expression, mask: Optional[xnmt.Mask] = None) -> 'UniDirectionalState':
     raise NotImplementedError()
 
   def output(self) -> dy.Expression:
-    pass
-
-
-class DecoderState(object):
-  """A state that holds whatever information is required for the decoder.
-     Child classes must implement the as_vector() method, which will be
-     used by e.g. the attention mechanism"""
-  def as_vector(self) -> dy.Expression:
     raise NotImplementedError()
+  
+  def context(self) -> dy.Expression:
+    return self.output()
 
-  @property
-  def context(self):
-    raise NotImplementedError()
+
+class IdentityUniDirectionalState(UniDirectionalState):
+  def __init__(self, content: Optional[dy.Expression] = None):
+    self.content = content
+    
+  def output(self):
+    return self.content
+
+  def add_input(self, word: dy.Expression, mask: Optional[xnmt.Mask] = None):
+    return IdentityUniDirectionalState(word)
 
 
 class SentenceStats(object):
@@ -104,19 +105,21 @@ class FinalTransducerState(object):
 
 
 class EncoderState(object):
-  def __init__(self, encode_seq: xnmt.ExpressionSequence, encoder_final_states: List[FinalTransducerState]):
+  def __init__(self, encode_seq: xnmt.ExpressionSequence, encoder_final_states: Optional[List[FinalTransducerState]]):
     self.encode_seq = encode_seq
     self.encoder_final_states = encoder_final_states
 
 
 class SearchAction(object):
   def __init__(self,
-               decoder_state: DecoderState,
+               decoder_state: Optional[UniDirectionalState] = None,
                action_id: Optional[int] = None,
                log_likelihood: Optional[dy.Expression] = None,
+               log_softmax: Optional[dy.Expression] = None,
                mask: Optional[xnmt.Mask] = None):
     self._action_id = action_id
     self._log_likelihood = log_likelihood
+    self._log_softmax = log_softmax
     self._mask = mask
     self._decoder_state = decoder_state
 
@@ -135,6 +138,10 @@ class SearchAction(object):
   @property
   def decoder_state(self):
     return self._decoder_state
+  
+  @property
+  def log_softmax(self):
+    return self._log_softmax
 
   def __repr__(self):
     ll = dy.exp(self.log_likelihood).npvalue() if self.log_likelihood is not None else None

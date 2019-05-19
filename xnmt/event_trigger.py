@@ -31,17 +31,6 @@ def set_train(val: bool):
   globals.singleton_global.train = val
 
 
-@events.register_xnmt_event
-def start_sent(src_batch: xnmt.Batch):
-  """
-  Trigger event indicating the start of a new sentence (or batch of sentences).
-
-  Args:
-    src_batch: new sentence (or batch of sentences)
-  """
-  globals.singleton_global.src_batch = src_batch
-
-
 @events.register_xnmt_event_assign
 def get_report_input(context):
   pass

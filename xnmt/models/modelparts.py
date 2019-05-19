@@ -56,22 +56,22 @@ class Decoder(object):
   A template class to convert a prefix of previously generated words and
   a context vector into a probability distribution over possible next words.
   """
-  def initial_state(self, enc_results: states.EncoderState) -> states.DecoderState:
+  def initial_state(self, enc_results: states.EncoderState, src: xnmt.Batch) -> states.UniDirectionalState:
     raise NotImplementedError('must be implemented by subclasses')
 
-  def add_input(self, dec_state: states.DecoderState, trg_word: Optional[xnmt.Batch]) -> states.DecoderState:
+  def add_input(self, dec_state: states.UniDirectionalState, trg_word: Optional[xnmt.Batch]) -> states.UniDirectionalState:
     raise NotImplementedError('must be implemented by subclasses')
 
-  def calc_loss(self, dec_state: states.DecoderState, ref_action: xnmt.Batch):
+  def calc_loss(self, dec_state: states.UniDirectionalState, ref_action: xnmt.Batch):
     raise NotImplementedError('must be implemented by subclasses')
 
-  def best_k(self, dec_state: states.DecoderState, k: int, normalize_scores=False) -> List[states.SearchAction]:
+  def best_k(self, dec_state: states.UniDirectionalState, k: int, normalize_scores=False) -> List[states.SearchAction]:
     raise NotImplementedError('must be implemented by subclasses')
 
-  def sample(self, dec_state: states.DecoderState, n: int, temperature=1.0) -> List[states.SearchAction]:
+  def sample(self, dec_state: states.UniDirectionalState, n: int, temperature=1.0) -> List[states.SearchAction]:
     raise NotImplementedError('must be implemented by subclasses')
 
-  def finish_generating(self, dec_output: Any, dec_state: states.DecoderState) -> bool:
+  def finish_generating(self, dec_output: Any, dec_state: states.UniDirectionalState) -> bool:
     raise NotImplementedError('must be implemented by subclasses')
 
 
@@ -221,7 +221,8 @@ class UniDiSeqTransducer(SeqTransducer):
   def initial_state(self, init: Any=None) -> states.UniDirectionalState:
     raise NotImplementedError()
 
-  def add_input(self, word: Any, previous_state: states.UniDirectionalState, mask: xnmt.Mask) -> states.UniDirectionalState:
+  def add_input(self, word: Any, previous_state: states.UniDirectionalState, mask: Optional[xnmt.Mask]) \
+      -> states.UniDirectionalState:
     raise NotImplementedError()
 
 
@@ -259,7 +260,7 @@ class Scorer(object):
     """
     raise NotImplementedError('best_k must be implemented by subclasses of Scorer')
 
-  def sample(self, x: dy.Expression, n: int) -> List[Tuple[int, dy.Expression]]:
+  def sample(self, x: dy.Expression, n: int, temperature: Optional[float] = 1.0) -> List[Tuple[int, dy.Expression]]:
     """
     Return samples from the scores that are treated as probability distributions.
     """
@@ -287,13 +288,14 @@ class Scorer(object):
     """
     raise NotImplementedError('calc_log_prob must be implemented by subclasses of Scorer')
 
-  def calc_loss(self, x: dy.Expression, y: xnmt.Batch) -> dy.Expression:
+  def calc_loss(self, x: dy.Expression, y: xnmt.Batch, cached_log_softmax: Optional[dy.Expression] = None) -> dy.Expression:
     """
     Calculate the loss incurred by making a particular decision.
 
     Args:
       x: The vector used to make the prediction
       y: The correct label(s)
+      cached_log_softmax
     """
     raise NotImplementedError('calc_loss must be implemented by subclasses of Scorer')
 

@@ -11,7 +11,6 @@ from xnmt.internal.persistence import serializable_init, Serializable, Ref, Path
 
 class SimultLogger(Serializable, reports.Reporter):
   yaml_tag = "!SimultLogger"
-  yaml_tag = "!SimultLogger"
 
   @serializable_init
   def __init__(self,

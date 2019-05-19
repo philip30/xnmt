@@ -60,7 +60,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
 
     ret = []
     for word in top_words:
-      ret.append((word[0], dy.pick(scores_expr, word[0])))
+      ret.append((word[0], scores_expr))
 
     return ret
 
@@ -82,7 +82,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
 
     ret = []
     for word in samples:
-      ret.append((word, dy.pick(scores_expr, word)))
+      ret.append((word, scores_expr))
     return ret
 
   def can_loss_be_derived_from_scores(self):
@@ -92,8 +92,8 @@ class Softmax(models.Scorer, xnmt.Serializable):
     """
     return self.label_smoothing == 0.0
 
-  def calc_loss(self, x: dy.Expression, y: xnmt.Batch) -> dy.Expression:
-    if self.can_loss_be_derived_from_scores():
+  def calc_loss(self, x: dy.Expression, y: xnmt.Batch, cached_log_softmax: Optional[dy.Expression] = None) -> dy.Expression:
+    if self.can_loss_be_derived_from_scores() and cached_log_softmax is None:
       scores = self.calc_scores(x)
       # single mode
       if not xnmt.is_batched(y):
@@ -102,7 +102,8 @@ class Softmax(models.Scorer, xnmt.Serializable):
       else:
         loss = dy.pickneglogsoftmax_batch(scores, y)
     else:
-      log_prob = self.calc_log_probs(x)
+      log_prob = self.calc_log_probs(x) if not cached_log_softmax else cached_log_softmax
+      
       if not xnmt.is_batched(y):
         loss = -dy.pick(log_prob, y)
       else:
@@ -224,7 +225,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
 #      self.lexicon = self.load_lexicon()
 #
 #  @handle_xnmt_event
-#  def on_start_sent(self, src):
+#  def 123123on_start_sent(self, src):
 #    self.coeff = None
 #    self.dict_prob = None
 #

@@ -108,19 +108,16 @@ class TestEmbedder(unittest.TestCase):
                                        composer=composer,
                                        char_vocab=self.src_char_vocab)
     event_trigger.set_train(True)
-    event_trigger.start_sent(self.src[1])
     embedder.embed_sent(self.src[1])
 
   def test_bagofwords_embedder(self):
     embedder = BagOfWordsEmbedder(self.layer_dim, char_vocab=self.src_char_vocab, ngram_vocab= self.ngram_vocab, ngram_size=3)
     event_trigger.set_train(True)
-    event_trigger.start_sent(self.src[1])
     embedder.embed_sent(self.src[1])
 
   def test_bagofwords_embedder_with_word_vocab(self):
     embedder = BagOfWordsEmbedder(self.layer_dim, word_vocab=self.src_vocab, ngram_vocab= self.ngram_vocab, ngram_size=3)
     event_trigger.set_train(True)
-    event_trigger.start_sent(self.src[1])
     embedder.embed_sent(self.src[1])
 
   def test_dyer_composer(self):
@@ -133,7 +130,6 @@ class TestEmbedder(unittest.TestCase):
                                        composer=composer,
                                        char_vocab=self.src_char_vocab)
     event_trigger.set_train(True)
-    event_trigger.start_sent(self.src[1])
     embedder.embed_sent(self.src[1])
 
   def test_composite_composer(self):
@@ -148,7 +144,6 @@ class TestEmbedder(unittest.TestCase):
     embedder_2 = LookupEmbedder(emb_dim=self.layer_dim, vocab_size=100)
     embedder = CompositeEmbedder(embedders=[embedder_1, embedder_2])
     event_trigger.set_train(True)
-    event_trigger.start_sent(self.src[1])
     embedder.embed_sent(self.src[1])
     embedder.embed(self.src[1][0].words[0])
 
@@ -164,8 +159,7 @@ class TestEmbedder(unittest.TestCase):
     self.assertNotEqual(a, c)
     self.assertNotEqual(a, d)
 
-    self.assertNotEqual(type(self.src[0][0][0]), SegmentedWord)
-    self.assertEqual(type(self.src[0][0].words[0]), SegmentedWord)
+    self.assertEqual(type(self.src[0][0][0]), SegmentedWord)
 
 #
 #  def test_lookup_composer_learn(self):

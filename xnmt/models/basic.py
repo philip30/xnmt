@@ -57,6 +57,7 @@ class ConditionedModel(TrainableModel):
     """
     raise NotImplementedError("must be implemented by subclasses")
 
+
 class GeneratorModel(object):
 
   def __init__(self,
@@ -65,44 +66,45 @@ class GeneratorModel(object):
     self.src_reader = src_reader
     self.trg_reader = trg_reader
 
-  def generate(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy', is_sort=True) \
+  def generate(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy') \
       -> List[xnmt.structs.sentences.ReadableSentence]:
-    hyps = self.create_trajectories(src, search_strategy, is_sort)
+    hyps = self.create_trajectories(src, search_strategy)
     return list(itertools.chain.from_iterable([self.hyp_to_readable(hyps[i], src[i].idx) for i in range(len(hyps))]))
 
-  def create_trajectories(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy', is_sort=True) -> \
-      List[List[states.Hypothesis]]:
+  def create_trajectories(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy') \
+      -> List[List[states.Hypothesis]]:
     outputs = []
     for i in range(src.batch_size()):
       src_i = xnmt.mark_as_batch(data=[src[i].get_unpadded_sent()], mask=None)
-      xnmt.event_trigger.start_sent(src_i)
-      search_hyps = self.create_trajectory(src_i, search_strategy)
-
-      if is_sort and len(search_hyps) > 1:
-        search_hyps = sorted(search_hyps, key=lambda x: x.score, reverse=True)
-
+      search_hyps = search_strategy.generate_output(self, self.initial_state(src_i))
       outputs.append(search_hyps)
     return outputs
-
-  def create_trajectory(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy') \
-      -> Sequence[states.Hypothesis]:
-    return search_strategy.generate_output(self, self.initial_state(src))
 
   def hyp_to_readable(self, hyps: List[states.Hypothesis], idx: int) -> List[xnmt.structs.sentences.ReadableSentence]:
     raise NotImplementedError()
 
-  def initial_state(self, src: xnmt.Batch) -> states.DecoderState:
+  def initial_state(self, src: xnmt.Batch):
     raise NotImplementedError()
 
-  def best_k(self, dec_state: states.DecoderState, k: int, normalize_scores: bool) -> Sequence[states.SearchAction]:
+
+class AutoRegressiveModel(ConditionedModel, GeneratorModel):
+  def add_input(self, inp: xnmt.Batch, state: states.UniDirectionalState):
     raise NotImplementedError()
 
-  def sample(self, dec_state: states.DecoderState, k: int) -> Sequence[states.SearchAction]:
+  def finish_generating(self, output: xnmt.Batch, dec_state: states.UniDirectionalState):
     raise NotImplementedError()
 
-class AutoRegressiveModel(object):
-  def add_input(self, inp: xnmt.Batch, state: states.DecoderState):
+  def best_k(self, dec_state: states.UniDirectionalState, k: int, normalize_scores: bool) -> Sequence[states.SearchAction]:
     raise NotImplementedError()
 
-  def finish_generating(self, output: xnmt.Batch, dec_state: states.DecoderState):
+  def sample(self, dec_state: states.UniDirectionalState, k: int) -> Sequence[states.SearchAction]:
     raise NotImplementedError()
+  
+  def hyp_to_readable(self, hyps: List[states.Hypothesis], idx: int):
+    raise NotImplementedError()
+  
+  def initial_state(self, src: xnmt.Batch):
+    raise NotImplementedError()
+ 
+  def calc_nll(self, src: xnmt.Batch, trg: xnmt.Batch):
+    pass

@@ -517,13 +517,6 @@ def pad(batch_sent: collections.Sequence, pad_to_multiple: int = 1) -> batch.Bat
   Returns:
     batch containing padded items and a corresponding batch mask.
   """
-
-  if isinstance(list(batch_sent)[0], sent.CompoundSentence):
-    ret = []
-    for compound_i in range(len(batch_sent[0].sents)):
-      ret.append(
-        pad(tuple(inp.sents[compound_i] for inp in batch_sent), pad_to_multiple=pad_to_multiple))
-    return batch.CompoundBatch(*ret)
   max_len = max(_len_or_zero(item) for item in batch_sent)
   if max_len % pad_to_multiple != 0:
     max_len += pad_to_multiple - (max_len % pad_to_multiple)

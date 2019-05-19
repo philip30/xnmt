@@ -2,7 +2,6 @@
 class GlobalStates(object):
   def __init__(self):
     self.train = False
-    self.src_batch = None
     self.reporting = False
     self.SAAM_LOG_ATTENTION = False
 

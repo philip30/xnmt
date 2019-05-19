@@ -76,7 +76,7 @@ class PoissonSrcLengthReward(models.RewardCalculator, xnmt.Serializable):
     super().__init__()
     self.lmbd = lmbd
 
-  def calculate_single_reward(self, index, model: models.PolicyConditionedModel, src, trg, ref):
+  def calculate_single_reward(self, index, model: models.GeneratorModel, src, trg, ref):
     value = np.log(stats.poisson.pmf(model.actions[index], mu=src.len_unpadded()/ self.lmbd))
     return models.RewardValue(value, {"src_len": src.len_unpadded(), "lmbd": self.lmbd})
 

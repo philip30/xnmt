@@ -1,10 +1,7 @@
-import dynet as dy
-
 from typing import Optional, Sequence
 
 import xnmt
 import xnmt.models as models
-
 
 
 class MLELoss(models.LossCalculator, xnmt.Serializable):
@@ -21,50 +18,6 @@ class MLELoss(models.LossCalculator, xnmt.Serializable):
                          src: xnmt.Batch,
                          trg: xnmt.Batch) -> xnmt.FactoredLossExpr:
     return xnmt.FactoredLossExpr({"mle": model.calc_nll(src, trg)})
-
-
-class PolicyMLELoss(models.LossCalculator, xnmt.Serializable):
-  yaml_tag = "!PolicyMLELoss"
-  @xnmt.serializable_init
-  def __init__(self, model='model_base.PolicyConditionedModel'):
-    self.model = model
-
-  def _perform_calc_loss(self,
-                         model: models.PolicyConditionedModel,
-                         src: xnmt.Batch,
-                         trg: xnmt.Batch) -> xnmt.FactoredLossExpr:
-    if self.model is None:
-      model = self.model
-
-    return xnmt.FactoredLossExpr({"policy_mle": model.calc_policy_nll(src, trg)})
-
-
-class GlobalFertilityLoss(models.LossCalculator, xnmt.Serializable):
-  yaml_tag = "!GlobalFertilityLoss"
-  """
-  A fertility loss according to Cohn+, 2016.
-  Incorporating Structural Alignment Biases into an Attentional Neural Translation Model
-
-  https://arxiv.org/pdf/1601.01085.pdf
-  """
-  @xnmt.serializable_init
-  def __init__(self) -> None:
-    pass
-
-  def _perform_calc_loss(self,
-                         model: models.ConditionedModel,
-                         src: xnmt.Batch,
-                         trg: xnmt.Batch) -> xnmt.FactoredLossExpr:
-    assert hasattr(model, "attender") and hasattr(model.attender, "attention_vecs"), \
-           "Must be called after MLELoss with networks that have attender."
-
-    masked_attn = model.attender.attention_vecs
-    if trg.mask is not None:
-      trg_mask = 1-(trg.mask.np_arr.transpose())
-      masked_attn = [dy.cmult(attn, dy.inputTensor(mask, batched=True)) for attn, mask in zip(masked_attn, trg_mask)]
-    loss = dy.sum_elems(dy.square(1 - dy.esum(masked_attn)))
-    units = [t.len_unpadded() for t in trg]
-    return xnmt.FactoredLossExpr({"global_fertility": xnmt.LossExpr(loss, units)})
 
 
 class CompositeLoss(models.LossCalculator, xnmt.Serializable):
@@ -211,7 +164,40 @@ class CompositeLoss(models.LossCalculator, xnmt.Serializable):
 #    risk = dy.sum_elems(dy.cmult(sample_prob, deltas))
 #    units = [t.len_unpadded() for t in trg]
 #    return losses.FactoredLossExpr({"risk": losses.LossExpr(risk, units)})
-
+#class GlobalFertilityLoss(models.LossCalculator, xnmt.Serializable):
+#  yaml_tag = "!GlobalFertilityLoss"
+#  """
+#  A fertility loss according to Cohn+, 2016.
+#  Incorporating Structural Alignment Biases into an Attentional Neural Translation Model
+#
+#  https://arxiv.org/pdf/1601.01085.pdf
+#  """
+#  @xnmt.serializable_init
+#  def __init__(self) -> None:
+#    pass
+#
+#  def _perform_calc_loss(self,
+#                         model: models.ConditionedModel,
+#                         src: xnmt.Batch,
+#                         trg: xnmt.Batch) -> xnmt.FactoredLossExpr:
+#    assert hasattr(model, "attender") and hasattr(model.attender, "attention_vecs"), \
+#           "Must be called after MLELoss with networks that have attender."
+#
+#    masked_attn = model.attender.attention_vecs
+#    if trg.mask is not None:
+#      trg_mask = 1-(trg.mask.np_arr.transpose())
+#      masked_attn = [dy.cmult(attn, dy.inputTensor(mask, batched=True)) for attn, mask in zip(masked_attn, trg_mask)]
+#    loss = dy.sum_elems(dy.square(1 - dy.esum(masked_attn)))
+#    units = [t.len_unpadded() for t in trg]
+#    return xnmt.FactoredLossExpr({"global_fertility": xnmt.LossExpr(loss, units)})
+#
+#
+#
+#
+#
+#
+#
+#
 
 #class ConfidencePenaltyLoss(Serializable):
 #  """

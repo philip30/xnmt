@@ -184,9 +184,8 @@ class UniLSTMSeqTransducer(xnmt.models.UniDiSeqTransducer, xnmt.Serializable):
   def initial_state(self, init=None) -> UniLSTMState:
     return UniLSTMState(self, init=init)
 
-  def add_input(self, prev_state: UniLSTMState, x: dy.Expression, mask: xnmt.Mask) -> models.states.UniDirectionalState:
-    if not isinstance(x, abc.Sequence):
-      x = [x]
+  def add_input(self, prev_state: UniLSTMState, x: dy.Expression, mask: Optional[xnmt.Mask]) \
+      -> models.states.UniDirectionalState:
     return prev_state.add_input(x, mask)
 
   def transduce(self, expr_seq: xnmt.ExpressionSequence) -> models.EncoderState:
@@ -249,15 +248,15 @@ class BiLSTMSeqTransducer(models.BidiSeqTransducer, xnmt.Serializable):
       UniLSTMSeqTransducer(input_dim=input_dim,
                            hidden_dim=hidden_dim // 2, dropout=dropout,
                            weightnoise_std=weightnoise_std,
-                           param_init=param_init if not isinstance(param_init, abc.Sequence) else param_init[i],
-                           bias_init=bias_init if not isinstance(bias_init, abc.Sequence) else bias_init[i],
+                           param_init=param_init,
+                           bias_init=bias_init,
                            layers = layers))
     self.backward_layers = self.add_serializable_component("backward_layers", backward_layers, lambda:
       UniLSTMSeqTransducer(input_dim=input_dim,
                            hidden_dim=hidden_dim // 2,
                            dropout=dropout, weightnoise_std=weightnoise_std,
-                           param_init=param_init if not isinstance(param_init, abc.Sequence) else param_init[i],
-                           bias_init=bias_init if not isinstance(bias_init, abc.Sequence) else bias_init[i],
+                           param_init=param_init,
+                           bias_init=bias_init,
                            layers = layers))
 
 

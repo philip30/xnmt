@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Optional
 
 import xnmt
 import xnmt.models as models
@@ -14,22 +14,20 @@ class GreedySearch(models.SearchStrategy, xnmt.Serializable):
     max_len: maximum number of tokens to generate.
   """
   @xnmt.serializable_init
-  def __init__(self, max_len: int = 100):
+  def __init__(self, max_len: int = 100, forced=False):
     self.max_len = max_len
+    self.forced = forced
 
   def generate_output(self,
                       generator: Union[models.GeneratorModel, models.AutoRegressiveModel],
-                      initial_state: models.DecoderState) -> List[models.Hypothesis]:
+                      initial_state: models.UniDirectionalState) -> List[models.Hypothesis]:
     # Search Variables
     hyp = models.Hypothesis(0, models.SearchAction(initial_state))
     for length in range(self.max_len):
       prev_word = hyp.action.action_id
       if generator.finish_generating(prev_word, hyp.action.decoder_state):
         break
-      if prev_word is not None:
-        next_state = generator.add_input(prev_word, hyp.action.decoder_state)
-      else:
-        next_state = initial_state
+      next_state = generator.add_input(prev_word, hyp.action.decoder_state)
       next_action = generator.best_k(next_state, 1, normalize_scores=True)[0]
       next_score = hyp.score + next_action.log_likelihood.value()
       hyp = models.Hypothesis(score=next_score, action=next_action, timestep=hyp.timestep+1, parent=hyp)
@@ -59,7 +57,7 @@ class BeamSearch(models.SearchStrategy, xnmt.Serializable):
 
   def generate_output(self,
                       generator: Union[models.AutoRegressiveModel, models.GeneratorModel],
-                      initial_state: models.DecoderState) -> List[models.Hypothesis]:
+                      initial_state: models.UniDirectionalState) -> List[models.Hypothesis]:
     active_hyp = [models.Hypothesis(0, models.SearchAction(initial_state))]
     completed_hyp = []
     for length in range(self.max_len):
@@ -88,7 +86,7 @@ class BeamSearch(models.SearchStrategy, xnmt.Serializable):
       completed_hyp = active_hyp
 
     # Length Normalization
-    src_length = xnmt.globals.singleton_global.src_batch[0].len_unpadded()
+    src_length = initial_state.src[0].len_unpadded()
     normalized_scores = self.len_norm.normalize_completed(completed_hyp, src_length)
     normalized_hyp = []
     for hyp, score in zip(completed_hyp, normalized_scores):
@@ -115,7 +113,7 @@ class SamplingSearch(models.SearchStrategy, xnmt.Serializable):
 
   def generate_output(self,
                       generator: Union[models.GeneratorModel, models.AutoRegressiveModel],
-                      initial_state: models.DecoderState) -> List[models.Hypothesis]:
+                      initial_state: models.UniDirectionalState) -> List[models.Hypothesis]:
     hyp = models.Hypothesis(0, models.SearchAction(initial_state))
     hyps = [hyp] * self.sample_size
     done_flag = [False] * self.sample_size

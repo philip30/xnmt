@@ -111,37 +111,6 @@ class ListBatch(list, Batch):
     return ret
 
 
-class CompoundBatch(Batch):
-  """
-  A compound batch contains several parallel batches.
-
-  Args:
-    *batch_elements: one or several batches
-  """
-
-  def __init__(self, *batch_elements: Batch):
-    assert len(batch_elements) > 0
-    self.batches = batch_elements
-
-  def batch_size(self) -> int:
-    return self.batches[0].batch_size()
-
-  def sent_len(self) -> int:
-    return sum(b.sent_len() for b in self.batches)
-
-  def __iter__(self):
-    for i in range(self.batch_size()):
-      yield sent.CompoundSentence(sents=[b[i] for b in self.batches])
-
-  def __getitem__(self, key):
-    if isinstance(key, int):
-      return sent.CompoundSentence(sents=[b[key] for b in self.batches])
-    else:
-      assert isinstance(key, slice)
-      sel_batches = [b[key] for b in self.batches]
-      return CompoundBatch(sel_batches)
-
-
 def mark_as_batch(data: Sequence, mask: Optional[Mask] = None) -> Batch:
   """
   Mark a sequence of items as batch

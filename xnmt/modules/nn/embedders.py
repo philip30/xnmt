@@ -51,8 +51,10 @@ class WordEmbedder(models.Embedder):
     elif self.is_batchable():
       embeddings = []
       for word_i in range(x.sent_len()):
-        batch = xnmt.mark_as_batch([single_sent[word_i] for single_sent in x])
-        embeddings.append(self.embed(batch))
+        batch = [single_sent[word_i] for single_sent in x]
+        if isinstance(batch[0], sent.SegmentedWord):
+          batch = [word.word for word in batch]
+        embeddings.append(self.embed(xnmt.mark_as_batch(batch)))
       expr = xnmt.ExpressionSequence(expr_list=embeddings, mask=x.mask)
     else:
       assert type(x[0]) == sent.SegmentedSentence, "Need to use CharFromWordTextReader for non standard embeddings."
@@ -61,7 +63,7 @@ class WordEmbedder(models.Embedder):
       for sentence in x:
         embedding = []
         for i in range(sentence.len_unpadded()):
-          embed_word = self.embed(sentence.words[i])
+          embed_word = self.embed(sentence[i])
           embedding.append(embed_word)
           all_embeddings.append(embed_word)
         embeddings.append(embedding)
@@ -124,6 +126,8 @@ class LookupEmbedder(WordEmbedder, transforms.Linear, xnmt.Serializable):
     if is_batched:
       embedding = dy.pick_batch(self.embeddings, word) if self.is_dense else self.embeddings.batch(word)
     else:
+      if isinstance(word, sent.SegmentedWord):
+        word = word.word
       embedding = dy.pick(self.embeddings, index=word) if self.is_dense else self.embeddings[word]
     return embedding
 

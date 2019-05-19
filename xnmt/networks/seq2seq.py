@@ -6,8 +6,8 @@ import xnmt.modules.nn as nn
 
 from typing import List
 
-# TODO: Fix this
-class Seq2Seq(models.ConditionedModel, models.GeneratorModel, models.AutoRegressiveModel, xnmt.Serializable):
+
+class Seq2Seq(models.AutoRegressiveModel, xnmt.Serializable):
   yaml_tag = "!Seq2Seq"
   @xnmt.serializable_init
   def __init__(self,
@@ -15,20 +15,17 @@ class Seq2Seq(models.ConditionedModel, models.GeneratorModel, models.AutoRegress
                trg_reader: models.InputReader,
                encoder: models.Encoder = xnmt.bare(nn.SeqEncoder),
                decoder: models.Decoder = xnmt.bare(nn.ArbLenDecoder)):
-    models.GeneratorModel.__init__(self, src_reader, trg_reader)
+    super().__init__(src_reader, trg_reader)
     self.encoder = encoder
     self.decoder = decoder
 
-  def initial_state(self, src: xnmt.Batch) -> models.DecoderState:
-    return self.decoder.initial_state(self.encoder.encode(src))
+  def initial_state(self, src: xnmt.Batch) -> models.UniDirectionalState:
+    return self.decoder.initial_state(self.encoder.encode(src), src)
 
-  def finish_generating(self, output: int, dec_state: models.DecoderState):
+  def finish_generating(self, output: int, dec_state: models.UniDirectionalState):
     return self.decoder.finish_generating(output, dec_state)
 
   def calc_nll(self, src: xnmt.Batch, trg: xnmt.Batch) -> xnmt.LossExpr:
-    if isinstance(src, xnmt.structs.batch.CompoundBatch):
-      src = src.batches[0]
-
     ref_words = [xnmt.mark_as_batch([single_trg[i] for single_trg in trg]) for i in range(trg.sent_len())]
     # Encode the sentence
     cur_losses = []
@@ -40,16 +37,16 @@ class Seq2Seq(models.ConditionedModel, models.GeneratorModel, models.AutoRegress
       cur_losses.append(word_loss)
     return xnmt.LossExpr(dy.esum(cur_losses), [t.len_unpadded() for t in trg])
 
-  def add_input(self, word, state: models.DecoderState) -> models.DecoderState:
+  def add_input(self, word, state: models.UniDirectionalState) -> models.UniDirectionalState:
     return self.decoder.add_input(state, word)
 
-  def best_k(self, state: models.DecoderState, k: int, normalize_scores: bool = False) -> List[models.SearchAction]:
+  def best_k(self, state: models.UniDirectionalState, k: int, normalize_scores: bool = False) -> List[models.SearchAction]:
     return self.decoder.best_k(state, k, normalize_scores)
 
-  def sample(self, state: models.DecoderState, n: int, temperature: float = 1.0) -> List[models.SearchAction]:
+  def sample(self, state: models.UniDirectionalState, n: int, temperature: float = 1.0) -> List[models.SearchAction]:
     return self.decoder.sample(state, n, temperature)
 
-  def auto_regressive_states(self, src: xnmt.Batch, trg: List[xnmt.Batch]):
+  def auto_regressive_states(self, src: xnmt.Batch, trg: List[xnmt.Batch]) -> List[models.UniDirectionalState]:
     decoder_states = []
     dec_state = self.initial_state(src)
     for i in range(len(trg)):
@@ -63,13 +60,26 @@ class Seq2Seq(models.ConditionedModel, models.GeneratorModel, models.AutoRegress
     for search_hyp in search_hyps:
       actions = search_hyp.actions()
       word_ids = [action.action_id for action in actions]
-      if hasattr(actions[0].decoder_state, "attender_state"):
-        attentions = [action.decoder_state.attender_state.attention for action in actions]
+
+#      Attention is maybe needed in the future?
+#      if hasattr(actions[0].decoder_state, "attender_state"):
+#        attentions = [action.decoder_state.attender_state.attention for action in actions]
+#      else:
+#        attentions = None
+     
+      if isinstance(self.decoder, nn.ArbLenDecoder):
+        sent = xnmt.structs.sentences.SimpleSentence(
+          word_ids,
+          idx,
+          vocab=getattr(self.trg_reader, "vocab", None),
+          output_procs=self.trg_reader.output_procs,
+          score=search_hyp.score
+        )
       else:
-        attentions = None
-      sent = xnmt.structs.sentences.SimpleSentence(
-           word_ids, idx, vocab=getattr(self.trg_reader, "vocab", None),
-           output_procs=self.trg_reader.output_procs, score=search_hyp.score)
+        raise NotImplementedError()
+      # TODO(philip30): add more for RNNG?
+      
+      # NBest or not?
       if len(search_hyps) == 1:
         ret.append(sent)
       else:

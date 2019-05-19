@@ -8,9 +8,109 @@ import xnmt.modules.nn as nn
 import xnmt.modules.input_readers as input_readers
 import xnmt.structs.sentences as sent
 
-from .states import RNNGDecoderState
 
 # TODO Fix this
+
+class RNNGUniDirectionalState(models.UniDirectionalState):
+  """A state holding all the information needed for RNNGDecoder
+
+  Args:
+    stack
+    context
+  """
+  def __init__(self, stack, context, word_read=0, num_open_nt=0, finish_generating=False, initial_state=None):
+    self._stack = stack
+    self._context = context
+    self._word_read = word_read
+    self._num_open_nt = num_open_nt
+    self._finish_generating = finish_generating
+
+  # DecoderState interface
+  def output(self): return self.stack[-1].output()
+  # Public accessible fields
+  @property
+  def context(self): return self._context
+  @context.setter
+  def context(self, value): self._context = value
+  @property
+  def stack(self): return self._stack
+  @property
+  def word_read(self): return self._word_read
+  @property
+  def num_open_nt(self): return self._num_open_nt
+  @property
+  def finish_generating(self): return self._finish_generating
+
+
+  def gen(self, word_encoding, finish_generating, shift_from_enc):
+    h_i = self.stack[-1].sample_action(word_encoding)
+    stack_i = [x for x in self.stack] + [self.RNNGStackState(h_i, sent.RNNGAction.Type.NONE)]
+    inc_read = 1 if shift_from_enc else 0
+    return RNNGUniDirectionalState(stack=stack_i,
+                                   context=self.context,
+                                   word_read=self.word_read+inc_read,
+                                   num_open_nt=self.num_open_nt,
+                                   finish_generating=finish_generating)
+
+  def reduce(self, is_left, edge_id, head_composer, edge_embedder):
+    children = self.stack[-2:]
+    if is_left: children = reversed(children)
+    children = [child.output() for child in children]
+    edge_embedding = edge_embedder.embed(xnmt.mark_as_batch([edge_id]))
+    children.append(edge_embedding)
+    x_i = head_composer.compose(children)
+    h_i = self.stack[-3].sample_action(x_i)
+    stack_i = self.stack[:-2] + [self.RNNGStackState(h_i, sent.RNNGAction.Type.NONE)]
+    return RNNGUniDirectionalState(stack=stack_i,
+                                   context=self.context,
+                                   word_read=self.word_read,
+                                   num_open_nt=self.num_open_nt,
+                                   finish_generating=self.finish_generating)
+
+  def nt(self, nt_embed):
+    h_i = self.stack[-1].sample_action(nt_embed)
+    stack_i = [x for x in self.stack] + [self.RNNGStackState(h_i, sent.RNNGAction.Type.NT)]
+    return RNNGUniDirectionalState(stack=stack_i,
+                                   context=self.context,
+                                   word_read=self.word_read,
+                                   num_open_nt=self.num_open_nt+1,
+                                   finish_generating=self.finish_generating)
+
+  def reduce_nt(self, nt_embedder, head_composer):
+    num_pop = 0
+    while self.stack[-(num_pop+1)].action != sent.RNNGAction.Type.REDUCE_NT:
+      num_pop += 1
+    children = self.stack[-num_pop:]
+    children = [child.output() for child in children]
+    head_embedding = nt_embedder.embed(self.stack[-(num_pop+1)].action.action_content)
+    children.append(head_embedding)
+    x_i = head_composer.transduce(children)
+    h_i = self.stack[-(num_pop+1)].sample_action(x_i)
+    stack_i = self.stack[:-num_pop] + [self.RNNGStackState(h_i)]
+    return RNNGUniDirectionalState(stack=stack_i,
+                                   context=self.context,
+                                   word_read=self.word_read,
+                                   num_open_nt=self.num_open_nt-1,
+                                   finish_generating=self.finish_generating)
+
+  class RNNGStackState(object):
+    def __init__(self, stack_content, stack_action):
+      self._content = stack_content
+      self._action = stack_action
+
+    def add_input(self, x):
+      return RNNGUniDirectionalState.RNNGStackState(self._content.sample_action(x), self._action)
+
+    def output(self):
+      return self._content.output()
+
+    @property
+    def action(self):
+      return self._action
+
+
+
+
 class RNNGDecoder(models.Decoder, xnmt.Serializable):
   yaml_tag = "!RNNGDecoder"
   RNNG_ACTION_SIZE = 6
@@ -84,9 +184,9 @@ class RNNGDecoder(models.Decoder, xnmt.Serializable):
     # This is important
     assert ss_expr.batch_size() == 1, "Currently, RNNG could not handle batch size > 1 in training and testing.\n" \
                                       "Please consider using autobatching."
-    return RNNGDecoderState(stack=[RNNGDecoderState.RNNGStackState(rnn_state)], context=None)
+    return RNNGUniDirectionalState(stack=[RNNGUniDirectionalState.RNNGStackState(rnn_state)], context=None)
 
-  def add_input(self, dec_state: RNNGDecoderState, actions: List[sent.RNNGAction]):
+  def add_input(self, dec_state: RNNGUniDirectionalState, actions: List[sent.RNNGAction]):
     action = actions[0] if xnmt.is_batched(actions) else actions
     action_type = action.action_type
     if action_type == sent.RNNGAction.Type.GEN:
@@ -204,7 +304,7 @@ class RNNGDecoder(models.Decoder, xnmt.Serializable):
 
   ### RNNGDecoder Modules
   def _calc_transform(self, dec_state):
-    return self.transform.transform(dy.concatenate([dec_state.as_vector(), dec_state.context]))
+    return self.transform.transform(dy.concatenate([dec_state.output(), dec_state.context]))
 
   def finish_generating(self, dec_output, dec_state):
     if type(dec_output) == np.ndarray or type(dec_output) == list:

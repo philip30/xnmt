@@ -87,33 +87,6 @@ class Sentence(object):
   def batch_size(self):
     return 1
 
-class CompoundSentence(Sentence):
-  """
-  A compound sentence contains several sentence objects that present different 'views' on the same data examples.
-
-  Args:
-    sents: a list of sentences
-  """
-  def __init__(self, sents: Sequence[Sentence]) -> None:
-    super().__init__(idx=sents[0].idx)
-    self.idx = sents[0].idx
-    for s in sents[1:]:
-      if s.idx != self.idx:
-        raise ValueError("CompoundSentence must contain sentences of consistent idx.")
-    self.sents = sents
-  def __getitem__(self, item):
-    raise ValueError("not supported with CompoundSentence, must be called on one of the sub-inputs instead.")
-  def sent_len(self) -> int:
-    return sum(sent.sent_len() for sent in self.sents)
-  def len_unpadded(self) -> int:
-    return sum(sent.len_unpadded() for sent in self.sents)
-  def create_padded_sent(self, pad_len):
-    raise ValueError("not supported with CompoundSentence, must be called on one of the sub-inputs instead.")
-  def create_truncated_sent(self, trunc_len):
-    raise ValueError("not supported with CompoundSentence, must be called on one of the sub-inputs instead.")
-  def get_unpadded_sent(self):
-    raise ValueError("not supported with CompoundSentence, must be called on one of the sub-inputs instead.")
-
 
 class ReadableSentence(Sentence):
   """
@@ -242,8 +215,7 @@ class SimpleSentence(ReadableSentence):
   def __getitem__(self, key):
     ret = self.words[key]
     if isinstance(ret, list):  # support for slicing
-      return SimpleSentence(words=ret, idx=self.idx, vocab=self.vocab, score=self.score, output_procs=self.output_procs,
-                            pad_token=self.pad_token, unpadded_sent=self.unpadded_sent)
+      return self.sent_with_new_words(ret)
     return self.words[key]
 
   def sent_len(self):
@@ -251,17 +223,16 @@ class SimpleSentence(ReadableSentence):
 
   @functools.lru_cache(maxsize=1)
   def len_unpadded(self):
-    return sum(x != self.pad_token for x in self.words)
+    if self.unpadded_sent is not None:
+      return self.unpadded_sent.sent_len()
+    else:
+      return sum([x != self.pad_token for x in self.words])
 
   def create_padded_sent(self, pad_len: int) -> 'SimpleSentence':
-    if pad_len == 0:
-      return self
-    return self.sent_with_new_words(self.words + [self.pad_token] * pad_len)
+    return self.sent_with_new_words(self.words + [self.pad_token] * pad_len) if pad_len != 0 else self
 
   def create_truncated_sent(self, trunc_len: int) -> 'SimpleSentence':
-    if trunc_len == 0:
-      return self
-    return self.sent_with_words(self.words[:-trunc_len])
+    return self.sent_with_new_words(self.words[:-trunc_len]) if trunc_len != 0 else self
 
   def get_unpadded_sent(self):
     if self.unpadded_sent: return self.unpadded_sent
@@ -281,31 +252,24 @@ class SimpleSentence(ReadableSentence):
   def sent_with_new_words(self, new_words):
     unpadded_sent = self.unpadded_sent
     if not unpadded_sent:
-      if self.sent_len()==self.len_unpadded(): unpadded_sent = self
-    return SimpleSentence(words=new_words,
-                          idx=self.idx,
-                          vocab=self.vocab,
-                          score=self.score,
-                          output_procs=self.output_procs,
-                          pad_token=self.pad_token,
-                          unpadded_sent=unpadded_sent)
+      if self.sent_len() == self.len_unpadded():
+        unpadded_sent = self
+    return SimpleSentence(
+      words=new_words, idx=self.idx, vocab=self.vocab, score=self.score, output_procs=self.output_procs,
+      pad_token=self.pad_token, unpadded_sent=unpadded_sent
+    )
 
-class AuxSimpleSentence(SimpleSentence):
-  def __init__(self, **kwargs):
-    super().__init__(**kwargs)
 
-  def len_unpadded(self):
-    return 0
-
-  def sent_len(self):
-    return 0
-
-  def real_len_unpadded(self):
-    return super().len_unpadded()
-
-  def real_sent_len(self):
-    return super().sent_len()
-
+class OracleSentence(SimpleSentence):
+  def __init__(self, words, oracle, **kwargs):
+    super().__init__(words, **kwargs)
+    self.oracle = oracle
+    
+  def sent_with_new_words(self, new_words):
+    return OracleSentence(
+      words=new_words, oracle=self.oracle, idx=self.idx, vocab=self.vocab, score=self.score,
+      output_procs=self.output_procs, pad_token=self.pad_token, unpadded_sent=self.unpadded_sent
+    )
 
 class SegmentedSentence(SimpleSentence):
   def __init__(self, words, segment, **kwargs) -> None:
@@ -329,22 +293,11 @@ class SegmentedSentence(SimpleSentence):
       return self
     return self.sent_with_new_words(self.words + [SegmentedWord([self.pad_token], self.pad_token)] * pad_len)
 
-  def __getitem__(self, key):
-    ret = self.words[key]
-    if isinstance(ret, list):  # support for slicing
-      return SegmentedSentence(words=ret, idx=self.idx, vocab=self.vocab, score=self.score, output_procs=self.output_procs,
-                            pad_token=self.pad_token, unpadded_sent=self.unpadded_sent)
-    return ret.word
-
   def sent_with_new_words(self, new_words):
-    return SegmentedSentence(words=new_words,
-                             idx=self.idx,
-                             vocab=self.vocab,
-                             score=self.score,
-                             output_procs=self.output_procs,
-                             pad_token=self.pad_token,
-                             segment=self.segment,
-                             unpadded_sent=self.unpadded_sent)
+    return SegmentedSentence(
+      words=new_words, idx=self.idx, vocab=self.vocab, score=self.score, output_procs=self.output_procs,
+      pad_token=self.pad_token, segment=self.segment, unpadded_sent=self.unpadded_sent
+    )
 
 
 class SegmentedWord(object):

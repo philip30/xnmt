@@ -32,7 +32,7 @@ class InputReader(object):
   """
   A base class to read in a file and turn it into an input
   """
-  def read_sents(self, filename: str, filter_ids: Sequence[int] = None) -> Iterator[xnmt.Sentence]:
+  def read_sents(self, filename: Union[str, List[str]], filter_ids: Sequence[int] = None) -> Iterator[xnmt.Sentence]:
     """
     Read sentences and return an iterator.
 
@@ -41,7 +41,7 @@ class InputReader(object):
       filter_ids: only read sentences with these ids (0-indexed)
     Returns: iterator over sentences from filename
     """
-    return self.iterate_filtered(filename, filter_ids)
+    raise NotImplementedError()
 
   def read_sent(self, line: Any, idx: int):
     raise NotImplementedError()
@@ -61,9 +61,6 @@ class InputReader(object):
     Overwrite this method if data needs to be reload for each epoch
     """
     return False
-
-  def iterate_filtered(self, filename: str, filter_ids:Optional[Sequence[int]]=None):
-    raise NotImplementedError()
 
 
 class TrainingTask(object):
@@ -223,12 +220,11 @@ class SearchStrategy(object):
   """
   def generate_output(self,
                       generator: Union[models.GeneratorModel, models.AutoRegressiveModel],
-                      initial_state: models.DecoderState) -> List[models.Hypothesis]:
+                      initial_state: models.UniDirectionalState) -> List[models.Hypothesis]:
     """
     Args:
       generator: a generator
       initial_state: initial decoder state
-      src_length: length of src sequence, required for some types of length normalization
     Returns:
       List of (word_ids, attentions, score, logsoftmaxes)
     """
