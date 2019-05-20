@@ -65,7 +65,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                               ) \
                       for i in range(trg.batch_size())]
       units = [trg[i].len_unpadded() for i in range(trg.batch_size())]
-      losses["simult_nmt"] = xnmt.LossExpr(expr=dy.concatenate_to_batch(batch_losses), units=units)
+      losses["p(e|f)"] = xnmt.LossExpr(expr=dy.concatenate_to_batch(batch_losses), units=units)
 
     if self.train_pol_mle and self.policy_agent.policy_network is not None:
       batch_losses = []
@@ -78,7 +78,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                                                   decoder_state.simult_action.log_softmax))
         batch_losses.append(dy.esum(loss))
         units.append(len(loss))
-      losses["simult_pol"] = xnmt.LossExpr(expr=dy.concatenate_to_batch(batch_losses), units=units)
+      losses["p(a)"] = xnmt.LossExpr(expr=dy.concatenate_to_batch(batch_losses), units=units)
     
     return xnmt.FactoredLossExpr(losses)
   

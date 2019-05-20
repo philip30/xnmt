@@ -124,7 +124,6 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     encoder_state = state.encoder_state() or dy.zeros(self.default_layer_dim)
     decoder_state = state.decoder_state.context() if state.decoder_state is not None else dy.zeros(self.default_layer_dim)
     return dy.concatenate([dy.nobackprop(encoder_state), dy.nobackprop(decoder_state)])
-
     
   def calc_loss(self, dec_state: models.UniDirectionalState, ref: xnmt.Batch, cached_softmax: Optional[dy.Expression] = None):
     return self.policy_network.calc_loss(dec_state, ref, cached_softmax)
