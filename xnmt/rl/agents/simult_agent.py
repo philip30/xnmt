@@ -133,10 +133,9 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     return policy_action, network_state
   
   def input_state(self, state: SimultSeqLenUniDirectionalState):
-    encoder_state = dy.nobackprop(state.encoder_state()) or dy.zeros(self.default_layer_dim)
-    decoder_state = dy.nobackprop(state.decoder_state.context()) if state.decoder_state is not None \
-                                                                 else dy.zeros(self.default_layer_dim)
-    return dy.concatenate([encoder_state, decoder_state])
+    encoder_state = state.encoder_state() or dy.zeros(self.default_layer_dim)
+    decoder_state = state.decoder_state.context() if state.decoder_state is not None else dy.zeros(self.default_layer_dim)
+    return dy.concatenate([dy.nobackprop(encoder_state), dy.nobackprop(decoder_state)])
 
     
   def calc_loss(self, dec_state: models.UniDirectionalState, ref: xnmt.Batch, cached_softmax: Optional[dy.Expression] = None):
