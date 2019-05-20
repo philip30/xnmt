@@ -42,7 +42,7 @@ class TestSimultaneousTranslation(unittest.TestCase):
         transform=nn.NonLinear(input_dim=layer_dim*2, output_dim=layer_dim),
         scorer=nn.Softmax(input_dim=layer_dim, vocab_size=100),
         bridge=nn.NoBridge(dec_dim=layer_dim)),
-      policy_network=xnmt.rl.agents.SimultPolicyAgent(
+      policy_agent=xnmt.rl.agents.SimultPolicyAgent(
         oracle_in_train=True,
         oracle_in_test=True,
         trivial_read_before_write=False,
@@ -64,7 +64,20 @@ class TestSimultaneousTranslation(unittest.TestCase):
     self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
     self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.SamplingSearch())
 
-  
+  def test_recurrent_agent(self):
+    self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
+      scorer = nn.Softmax(self.layer_dim, 2, trg_reader=self.trg_reader),
+      rnn = nn.UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim= self.layer_dim)
+    )
+    xnmt.event_trigger.set_train(True)
+    mle_loss = xnmt.train.MLELoss()
+    mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
+    xnmt.event_trigger.set_train(False)
+    self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
+    self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
+    self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.SamplingSearch())
+
+    
 
 if __name__ == "__main__":
   unittest.main()

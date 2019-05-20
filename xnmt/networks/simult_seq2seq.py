@@ -18,14 +18,14 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                trg_reader: models.InputReader,
                encoder: models.Encoder = xnmt.bare(nn.SeqEncoder),
                decoder: models.Decoder = xnmt.bare(nn.ArbLenDecoder),
-               policy_network: agents.SimultPolicyAgent = xnmt.bare(agents.SimultPolicyAgent),
+               policy_agent: agents.SimultPolicyAgent = xnmt.bare(agents.SimultPolicyAgent),
                train_nmt_mle: bool = True,
                train_pol_mle: bool = True):
     super().__init__(src_reader=src_reader,
                      trg_reader=trg_reader,
                      encoder=encoder,
                      decoder=decoder)
-    self.policy_network = policy_network
+    self.policy_agent = policy_agent
     self.train_nmt_mle = train_nmt_mle
     self.train_pol_mle = train_pol_mle
     
@@ -39,12 +39,12 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     encoding = self.encoder.encode(src)
     encoder_seqs = encoding.encode_seq
     return agents.SimultSeqLenUniDirectionalState(
-      src=src, full_encodings=encoder_seqs, network_state=self.policy_network.initial_state(src)
+      src=src, full_encodings=encoder_seqs, network_state=self.policy_agent.initial_state(src)
     )
     
   def add_input(self, prev_word: xnmt.Batch, state: models.UniDirectionalState) -> models.UniDirectionalState:
     while True:
-      search_action, network_state = self.policy_network.next_action(state)
+      search_action, network_state = self.policy_agent.next_action(state)
       
       if search_action.action_id == agents.SimultPolicyAgent.READ:
         state = self._perform_read(state, search_action, network_state)
@@ -85,7 +85,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         expr=dy.concatenate_to_batch(batch_losses),
         units=[trg[i].len_unpadded() for i in range(trg.batch_size())]
       )
-    if self.train_pol_mle and self.policy_network is not None:
+    if self.train_pol_mle and self.policy_agent is not None:
       batch_losses = []
       units = []
       for decoder_states, src_i in zip(decoder_states_batch, src):
@@ -95,7 +95,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         )
         seq_ref = xnmt.mark_as_batch(src_i.oracle)
         seq_log_softmax = dy.concatenate_to_batch([dec_state.simult_action.log_softmax for dec_state in decoder_states])
-        batch_losses.append(dy.sum_batches(self.policy_network.calc_loss(seq_states, seq_ref, seq_log_softmax)))
+        batch_losses.append(dy.sum_batches(self.policy_agent.calc_loss(seq_states, seq_ref, seq_log_softmax)))
         units.append(len(decoder_states))
       dy.forward(batch_losses)
       losses["simult_pol_mle"] = xnmt.LossExpr(
@@ -106,9 +106,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
   
   def finish_generating(self, output: int, dec_state: agents.SimultSeqLenUniDirectionalState):
     if dec_state.force_oracle or \
-        xnmt.is_train() and self.policy_network.oracle_in_train or \
-        (not xnmt.is_train()) and  self.policy_network.oracle_in_test:
-      return self.policy_network.finish_generating(dec_state)
+        xnmt.is_train() and self.policy_agent.oracle_in_train or \
+        (not xnmt.is_train()) and  self.policy_agent.oracle_in_test:
+      return self.policy_agent.finish_generating(dec_state)
     return super().finish_generating(output, dec_state)
   
   def auto_regressive_states(self, src: xnmt.Sentence, trg: xnmt.Sentence) \
