@@ -4,18 +4,18 @@ import xnmt.models as models
 import xnmt.modules.nn as nn
 import xnmt.rl.policy_networks as networks
 
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, Iterator
 
 
 class SimultSeqLenUniDirectionalState(models.UniDirectionalState):
   def __init__(self,
                src: xnmt.Batch,
                full_encodings: xnmt.ExpressionSequence,
-               decoder_state: Optional[models.UniDirectionalState] = None,
+               decoder_state: Optional[nn.decoders.arb_len.ArbSeqLenUniDirectionalState] = None,
                num_reads: int = 0,
                num_writes: int = 0,
                simult_action: Optional[models.SearchAction] = None,
-               reset_attender: bool = False,
+               read_was_performed: bool = False,
                network_state: Optional[models.PolicyAgentState] = None,
                parent: Optional['SimultSeqLenUniDirectionalState'] = None,
                force_oracle: bool = True):
@@ -23,7 +23,7 @@ class SimultSeqLenUniDirectionalState(models.UniDirectionalState):
     self.num_reads = num_reads
     self.num_writes = num_writes
     self.simult_action = simult_action
-    self.reset_attender = reset_attender
+    self.read_was_performed = read_was_performed
     self.full_encodings = full_encodings
     self.parent = parent
     self.src = src
@@ -44,18 +44,12 @@ class SimultSeqLenUniDirectionalState(models.UniDirectionalState):
   
   def num_actions(self):
     return self.num_reads + self.num_writes
- 
-  def encodings_to_now(self) -> models.EncoderState:
-    encodings = xnmt.ExpressionSequence(self.full_encodings[:self.num_reads])
-    return models.EncoderState(encodings, None)
 
-  def collect_trajectories_backward(self) -> List['SimultSeqLenUniDirectionalState']:
+  def collect_trajectories_backward(self) -> Iterator['SimultSeqLenUniDirectionalState']:
     now = self
-    ret = []
     while now.parent is not None:
-      ret.append(now)
+      yield now
       now = now.parent
-    return ret
 
 
 class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
@@ -99,7 +93,6 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
   
   def next_action(self, state: Optional[SimultSeqLenUniDirectionalState] = None) \
       -> Tuple[models.SearchAction, models.PolicyAgentState]:
-    timestep = state.num_reads + state.num_writes
     oracle_action = getattr(state.src[0], "oracle", None)
     # Define oracle
     if self.trivial_read_before_write:
@@ -107,25 +100,20 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     elif self.trivial_exchange_read_write:
       oracle_action = self.READ if state.num_reads <= state.num_writes else self.WRITE
     elif (xnmt.is_train() and self.oracle_in_train) or (not xnmt.is_train() and self.oracle_in_test):
-      oracle_action = oracle_action[timestep]
+      oracle_action = oracle_action[state.num_reads + state.num_writes]
     else:
       oracle_action = None
     # Training policy?
     if self.policy_network is not None:
       input_state = self.input_transform.transform(self.input_state(state))
       network_state = state.network_state.add_input(input_state)
-      
-      if xnmt.is_train():
-        policy_action = self.policy_network.sample(network_state, 1)[0]
+      if oracle_action is None:
+        if xnmt.is_train():
+          policy_action = self.policy_network.sample(network_state, 1)[0]
+        else:
+          policy_action = self.policy_network.best_k(network_state, 1)[0]
       else:
-        policy_action = self.policy_network.best_k(network_state, 1)[0]
-      
-      # Overriding decision
-      if oracle_action is not None and oracle_action != policy_action.action_id:
-        policy_action = models.SearchAction(policy_action.decoder_state,
-                                            oracle_action, dy.pick(policy_action.log_softmax, oracle_action),
-                                            policy_action.log_softmax, policy_action.mask)
-      
+        policy_action = self.policy_network.pick_oracle(oracle_action, network_state)[0]
     else:
       policy_action = models.SearchAction(action_id=oracle_action)
       network_state = state.network_state

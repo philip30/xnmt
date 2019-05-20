@@ -3,16 +3,22 @@ import dynet as dy
 import xnmt
 import functools
 
-from typing import List, Optional, Any
+from typing import List, Optional, Tuple
+
 
 class AttenderState(object):
   def __init__(self,
-               curr_sent: xnmt.ExpressionSequence,
-               sent_context: Any,
-               attention: Optional[dy.Expression] = None):
+               curr_sent: dy.Expression,
+               sent_context: dy.Expression,
+               input_mask: Optional[xnmt.Mask] = None,
+               attention: Optional[dy.Expression] = None,
+               initial_context: Optional[Tuple[dy.Expression, dy.Expression]] = None):
     self.curr_sent = curr_sent
     self.sent_context = sent_context
+    self.initial_context = initial_context or (curr_sent, sent_context)
     self.attention = attention
+    self.input_mask = input_mask
+
 
 class UniDirectionalState(object):
   def add_input(self, word: dy.Expression, mask: Optional[xnmt.Mask] = None) -> 'UniDirectionalState':

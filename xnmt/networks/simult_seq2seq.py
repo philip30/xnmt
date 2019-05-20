@@ -21,10 +21,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                policy_agent: agents.SimultPolicyAgent = xnmt.bare(agents.SimultPolicyAgent),
                train_nmt_mle: bool = True,
                train_pol_mle: bool = True):
-    super().__init__(src_reader=src_reader,
-                     trg_reader=trg_reader,
-                     encoder=encoder,
-                     decoder=decoder)
+    super().__init__(src_reader=src_reader, trg_reader=trg_reader, encoder=encoder, decoder=decoder)
     self.policy_agent = policy_agent
     self.train_nmt_mle = train_nmt_mle
     self.train_pol_mle = train_pol_mle
@@ -57,40 +54,32 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     return state
 
   def calc_nll(self, src: xnmt.Batch, trg: xnmt.Batch):
+    # Trajectories
+    decoder_states = [self.auto_regressive_states(src[i].get_unpadded_sent(), trg[i].get_unpadded_sent()) \
+                      for i in range(src.batch_size())]
+    # Calc Loss
     losses = {}
-    
-    decoder_states = []
-    for src_i, trg_i in zip(src, trg):
-      decoder_states.append(self.auto_regressive_states(src_i.get_unpadded_sent(), trg_i.get_unpadded_sent()))
-     
     if self.train_nmt_mle:
-      batch_losses = [
-        dy.esum([self.decoder.calc_loss(decoder_states[i][j], trg[i][j]) for j in range(len(decoder_states[i]))])
-        for i in range(trg.batch_size())
-      ]
-      dy.forward(batch_losses)
-      
-      losses["simult_nmt"] = xnmt.LossExpr(
-        expr=dy.concatenate_to_batch(batch_losses),
-        units=[trg[i].len_unpadded() for i in range(trg.batch_size())]
-      )
+      batch_losses = [dy.esum([self.decoder.calc_loss(decoder_states[i][j], trg[i][j]) \
+                               for j in range(len(decoder_states[i]))]
+                              ) \
+                      for i in range(trg.batch_size())]
+      units = [trg[i].len_unpadded() for i in range(trg.batch_size())]
+      losses["simult_nmt"] = xnmt.LossExpr(expr=dy.concatenate_to_batch(batch_losses), units=units)
+
     if self.train_pol_mle and self.policy_agent.policy_network is not None:
       batch_losses = []
       units = []
       for dec_state, src_sent in zip(decoder_states, src):
-        decoder_states = list(reversed(dec_state[-1].collect_trajectories_backward()))
-        loss = dy.esum([self.policy_agent.calc_loss(decoder_states[j].network_state,
-                                                    src_sent.oracle[j],
-                                                    decoder_states[j].simult_action.log_softmax) \
-                        for j in range(len(decoder_states))])
-        batch_losses.append(loss)
-        units.append(len(decoder_states))
-      dy.forward(batch_losses)
-      
-      losses["simult_pol"] = xnmt.LossExpr(
-        expr=dy.concatenate_to_batch(batch_losses),
-        units=units
-      )
+        loss = []
+        for i, decoder_state in enumerate(dec_state[-1].collect_trajectories_backward()):
+          loss.append(self.policy_agent.calc_loss(decoder_state.network_state,
+                                                  src_sent.oracle[-i-1],
+                                                  decoder_state.simult_action.log_softmax))
+        batch_losses.append(dy.esum(loss))
+        units.append(len(loss))
+      losses["simult_pol"] = xnmt.LossExpr(expr=dy.concatenate_to_batch(batch_losses), units=units)
+    
     return xnmt.FactoredLossExpr(losses)
   
   def finish_generating(self, output: int, dec_state: agents.SimultSeqLenUniDirectionalState):
@@ -120,24 +109,32 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       num_reads=state.num_reads+1,
       num_writes=state.num_writes,
       simult_action=search_action,
-      reset_attender=True,
+      read_was_performed=True,
       network_state=network_state,
       parent=state
     )
   
-  def _perform_write(self, state, search_action, prev_word, network_state) -> agents.SimultSeqLenUniDirectionalState:
+  def _perform_write(self, state: agents.SimultSeqLenUniDirectionalState, search_action, prev_word, network_state) -> agents.SimultSeqLenUniDirectionalState:
     if state.decoder_state is None:
-      decoder_state = self.decoder.initial_state(state.encodings_to_now(), state.src)
-    elif state.reset_attender:
-      decoder_state = nn.decoders.arb_len.ArbSeqLenUniDirectionalState(
-        rnn_state=state.decoder_state.rnn_state,
-        context=state.decoder_state.context(),
-        attender_state=self.decoder.attender.initial_state(state.encodings_to_now().encode_seq),
-        timestep=state.decoder_state.timestep,
-        src=state.decoder_state.src
-      )
+      decoder_state = self.decoder.initial_state(models.EncoderState(state.full_encodings, None), state.src)
     else:
       decoder_state = state.decoder_state
+   
+    if state.read_was_performed or state.decoder_state is None:
+      attender_state = decoder_state.attender_state
+      decoder_state = nn.decoders.arb_len.ArbSeqLenUniDirectionalState(
+        rnn_state=decoder_state.rnn_state,
+        context=decoder_state.context(),
+        attender_state=models.AttenderState(
+          curr_sent=dy.pick_range(attender_state.initial_context[0], 0, state.num_reads, d=1),
+          sent_context=dy.pick_range(attender_state.initial_context[1], 0, state.num_reads, d=1),
+          input_mask=attender_state.input_mask,
+          attention=attender_state.attention,
+          initial_context=attender_state.initial_context
+        ),
+        timestep=decoder_state.timestep,
+        src=decoder_state.src
+      )
     
     return agents.SimultSeqLenUniDirectionalState(
       src=state.src,
@@ -146,7 +143,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       num_reads=state.num_reads,
       num_writes=state.num_writes+1,
       simult_action=search_action,
-      reset_attender=False,
+      read_was_performed=False,
       network_state=network_state,
       parent=state
     )

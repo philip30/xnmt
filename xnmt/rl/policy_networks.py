@@ -27,6 +27,11 @@ class PolicyNetwork(models.Decoder):
             for best_word, log_softmax in best_k]
     return ret
   
+  def pick_oracle(self, oracle, dec_state: models.UniDirectionalState):
+    log_prob = self.scorer.calc_log_probs(dec_state.output())
+    return [models.SearchAction(dec_state, oracle, dy.pick(log_prob, oracle), log_prob, None)]
+    
+  
   def sample(self, dec_state: models.UniDirectionalState, n: int, temperature=1.0):
     sample_k = self.scorer.sample(dec_state.output(), n, temperature)
     ret  = [models.SearchAction(dec_state, best_word, dy.pick(log_softmax, best_word), log_softmax, None) \

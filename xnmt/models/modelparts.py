@@ -33,8 +33,11 @@ class Attender(object):
     Args:
     """
     attention = self.calc_attention(decoder_context, attender_state)
-    context = attender_state.curr_sent.as_tensor() * attention
-    return context, states.AttenderState(attender_state.curr_sent, attender_state.sent_context, attender_state.attention)
+    context = attender_state.curr_sent * attention
+    return context, states.AttenderState(
+      curr_sent=attender_state.curr_sent, sent_context=attender_state.sent_context, input_mask=attender_state.input_mask,
+      initial_context=attender_state.initial_context, attention=attender_state.attention
+    )
 
 
 class Bridge(object):
