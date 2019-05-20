@@ -42,7 +42,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       src=src, full_encodings=encoder_seqs, network_state=self.policy_agent.initial_state(src)
     )
     
-  def add_input(self, prev_word: xnmt.Batch, state: models.UniDirectionalState) -> models.UniDirectionalState:
+  def add_input(self, prev_word: xnmt.Batch, state: models.UniDirectionalState) -> agents.SimultSeqLenUniDirectionalState:
     while True:
       search_action, network_state = self.policy_agent.next_action(state)
       
@@ -118,7 +118,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     state = self.initial_state(src)
     states = []
     for t in range(trg.sent_len()):
-      word = None if t == 0 else trg[t]
+      word = None if t == 0 else trg[t-1]
       state = self.add_input(word, state)
       states.append(state)
     return states

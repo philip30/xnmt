@@ -112,10 +112,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
       oracle_action = None
     # Training policy?
     if self.policy_network is not None:
-      encoder_state = state.encoder_state() or dy.zeros(self.default_layer_dim)
-      decoder_state = state.output() if state.decoder_state is not None else dy.zeros(self.default_layer_dim)
-      
-      input_state = self.input_transform.transform(dy.concatenate([encoder_state, decoder_state]))
+      input_state = self.input_transform.transform(self.input_state(state))
       network_state = state.network_state.add_input(input_state)
       
       if xnmt.is_train():
@@ -134,6 +131,13 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
       network_state = state.network_state
     
     return policy_action, network_state
+  
+  def input_state(self, state: SimultSeqLenUniDirectionalState):
+    encoder_state = dy.nobackprop(state.encoder_state()) or dy.zeros(self.default_layer_dim)
+    decoder_state = dy.nobackprop(state.decoder_state.context()) if state.decoder_state is not None \
+                                                                 else dy.zeros(self.default_layer_dim)
+    return dy.concatenate([encoder_state, decoder_state])
+
     
   def calc_loss(self, dec_state: models.UniDirectionalState, ref: xnmt.Batch, cached_softmax: Optional[dy.Expression] = None):
     return self.policy_network.calc_loss(dec_state, ref, cached_softmax)
@@ -141,3 +145,5 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
   def finish_generating(self, state: SimultSeqLenUniDirectionalState):
     oracle_action = getattr(state.src[0], "oracle")
     return state.num_reads + state.num_writes < len(oracle_action)
+  
+
