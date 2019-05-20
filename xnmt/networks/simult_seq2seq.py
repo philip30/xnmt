@@ -59,46 +59,35 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
   def calc_nll(self, src: xnmt.Batch, trg: xnmt.Batch):
     losses = {}
     
-    src = xnmt.mark_as_batch([s.get_unpadded_sent() for s in src])
-    trg = xnmt.mark_as_batch([t.get_unpadded_sent() for t in trg])
-    
-    decoder_states_batch =[]
+    decoder_states = []
     for src_i, trg_i in zip(src, trg):
-      decoder_states_batch.append(self.auto_regressive_states(src_i, trg_i))
+      decoder_states.append(self.auto_regressive_states(src_i.get_unpadded_sent(), trg_i.get_unpadded_sent()))
      
     if self.train_nmt_mle:
-      batch_losses = []
-      for decoder_states, trg_i in zip(decoder_states_batch, trg):
-        seq_states = nn.decoders.arb_len.ArbSeqLenUniDirectionalState(
-          rnn_state=models.IdentityUniDirectionalState(
-            dy.concatenate_to_batch([dec_state.output() for dec_state in decoder_states])
-          ),
-          context=dy.concatenate_to_batch([dec_state.context() for dec_state in decoder_states]),
-          attender_state= None,
-          timestep= -1,
-          src=None
-        )
-        seq_ref = xnmt.mark_as_batch(trg_i.words)
-        batch_losses.append(dy.sum_batches(self.decoder.calc_loss(seq_states, seq_ref)))
+      batch_losses = [
+        dy.esum([self.decoder.calc_loss(decoder_states[i][j], trg[i][j]) for j in range(len(decoder_states[i]))])
+        for i in range(trg.batch_size())
+      ]
       dy.forward(batch_losses)
-      losses["simult_nmt_mle"] = xnmt.LossExpr(
+      
+      losses["simult_nmt"] = xnmt.LossExpr(
         expr=dy.concatenate_to_batch(batch_losses),
         units=[trg[i].len_unpadded() for i in range(trg.batch_size())]
       )
-    if self.train_pol_mle and self.policy_agent is not None:
+    if self.train_pol_mle and self.policy_agent.policy_network is not None:
       batch_losses = []
       units = []
-      for decoder_states, src_i in zip(decoder_states_batch, src):
-        decoder_states = list(reversed(decoder_states[-1].collect_trajectories_backward()))
-        seq_states = models.IdentityUniDirectionalState(
-          dy.concatenate_to_batch([dec_state.network_state.output() for dec_state in decoder_states])
-        )
-        seq_ref = xnmt.mark_as_batch(src_i.oracle)
-        seq_log_softmax = dy.concatenate_to_batch([dec_state.simult_action.log_softmax for dec_state in decoder_states])
-        batch_losses.append(dy.sum_batches(self.policy_agent.calc_loss(seq_states, seq_ref, seq_log_softmax)))
+      for dec_state, src_sent in zip(decoder_states, src):
+        decoder_states = list(reversed(dec_state[-1].collect_trajectories_backward()))
+        loss = dy.esum([self.policy_agent.calc_loss(decoder_states[j].network_state,
+                                                    src_sent.oracle[j],
+                                                    decoder_states[j].simult_action.log_softmax) \
+                        for j in range(len(decoder_states))])
+        batch_losses.append(loss)
         units.append(len(decoder_states))
       dy.forward(batch_losses)
-      losses["simult_pol_mle"] = xnmt.LossExpr(
+      
+      losses["simult_pol"] = xnmt.LossExpr(
         expr=dy.concatenate_to_batch(batch_losses),
         units=units
       )
