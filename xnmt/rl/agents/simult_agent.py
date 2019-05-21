@@ -109,6 +109,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
       oracle_action = np.array([oracle_action] * state.src.batch_size())
     elif self.trivial_exchange_read_write:
       oracle_action = self.READ if state.timestep % 2 == 0 else self.WRITE
+      if state.num_reads[0] >= state.src.sent_len(): oracle_action = self.WRITE
       oracle_action = np.array([oracle_action] * state.src.batch_size())
     elif (xnmt.is_train() and self.oracle_in_train) or (not xnmt.is_train() and self.oracle_in_test) or state.force_oracle:
       oracle_action = np.array([state.oracle_batch[i][state.timestep] for i in range(state.oracle_batch.batch_size())])
