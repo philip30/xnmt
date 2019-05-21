@@ -7,6 +7,7 @@ import xnmt.modules.nn as nn
 import xnmt.rl.agents as agents
 import xnmt.networks.seq2seq as base
 
+from typing import Any
 
 class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
   yaml_tag = "!SimultSeq2Seq"
@@ -46,7 +47,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     if prev_word is not None and not xnmt.is_batched(prev_word):
       prev_word = xnmt.mark_as_batch([prev_word])
 
-    while True:
+    while not self.finish_generating(prev_word, state):
       search_action, network_state = self.policy_agent.next_action(state)
 
       if search_action.action_id == agents.SimultPolicyAgent.READ:
@@ -134,7 +135,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       total_loss["p(a|h)"] = xnmt.LossExpr(dy.esum(pol_loss), units=units)
     return xnmt.FactoredLossExpr(total_loss)
 
-  def finish_generating(self, output: int, dec_state: agents.SimultSeqLenUniDirectionalState):
+  def finish_generating(self, output: Any, dec_state: agents.SimultSeqLenUniDirectionalState):
     if dec_state.force_oracle or \
         xnmt.is_train() and self.policy_agent.oracle_in_train or \
         (not xnmt.is_train()) and  self.policy_agent.oracle_in_test:

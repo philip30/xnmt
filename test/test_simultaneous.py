@@ -34,18 +34,18 @@ class TestSimultaneousTranslation(unittest.TestCase):
       src_reader=self.src_reader,
       trg_reader=self.trg_reader,
       encoder=nn.SeqEncoder(
-        embedder=nn.LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
+        embedder=nn.LookupEmbedder(emb_dim=layer_dim, vocab=self.src_reader.vocab),
         seq_transducer=nn.BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim)),
       decoder=nn.ArbLenDecoder(
         input_dim=layer_dim,
         attender=nn.MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
-        embedder=nn.LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
+        embedder=nn.LookupEmbedder(emb_dim=layer_dim, vocab=self.trg_reader.vocab),
         rnn=nn.UniLSTMSeqTransducer(input_dim=layer_dim,
                                     hidden_dim=layer_dim,
                                     decoder_input_dim=layer_dim,
                                     yaml_path=xnmt.Path("model.decoder.rnn")),
         transform=nn.NonLinear(input_dim=layer_dim*2, output_dim=layer_dim),
-        scorer=nn.Softmax(input_dim=layer_dim, vocab_size=100),
+        scorer=nn.Softmax(input_dim=layer_dim, vocab=self.trg_reader.vocab),
         bridge=nn.NoBridge(dec_dim=layer_dim)),
       policy_agent=xnmt.rl.agents.SimultPolicyAgent(
         oracle_in_train=True,
@@ -69,6 +69,15 @@ class TestSimultaneousTranslation(unittest.TestCase):
     self.assertNotEqual(len(result), 0)
     result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
     self.assertNotEqual(len(result), 0)
+    inference = xnmt.inferences.AutoRegressiveInference(src_file=["examples/data/head.ja",
+                                                                  "examples/data/simult/head.jaen.actions"],
+                                                        ref_file="examples/data/head.en",
+                                                        trg_file="test/output/hyp",
+                                                        search_strategy=xnmt.inferences.GreedySearch(),
+                                                        reporter=None)
+    inference.perform_inference(self.model)
+
+  
 
   def test_recurrent_agent(self):
     self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
