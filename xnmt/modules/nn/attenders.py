@@ -43,13 +43,9 @@ class MlpAttender(models.Attender, xnmt.Serializable):
 
     return models.AttenderState(sent_input, inp_context, sent.mask)
 
-  def calc_attention(self, decoder_context: dy.Expression, attender_state: models.AttenderState) -> dy.Expression:
-    curr_sent_mask = attender_state.input_mask
+  def calc_scores(self, decoder_context: dy.Expression, attender_state: models.AttenderState) -> dy.Expression:
     h = dy.tanh(dy.colwise_add(attender_state.sent_context, self.pV * decoder_context))
-    scores = dy.transpose(self.pU * h)
-    if curr_sent_mask is not None:
-      scores = curr_sent_mask.add_to_tensor_expr(scores, multiplicator=-xnmt.globals.INF)
-    return dy.softmax(scores)
+    return dy.transpose(self.pU * h)
 
 
 class DotAttender(models.Attender, xnmt.Serializable):
@@ -70,14 +66,11 @@ class DotAttender(models.Attender, xnmt.Serializable):
     sent_input = sent.as_tensor()
     return models.AttenderState(sent_input, sent_input, sent.mask)
 
-  def calc_attention(self, decoder_context: dy.Expression, attender_state: models.AttenderState) -> dy.Expression:
-    curr_sent_mask = attender_state.input_mask
+  def calc_scores(self, decoder_context: dy.Expression, attender_state: models.AttenderState) -> dy.Expression:
     scores = dy.transpose(attender_state.curr_sent) * decoder_context
     if self.scale:
       scores /= math.sqrt(decoder_context.dim()[0][0])
-    if curr_sent_mask is not None:
-      scores = curr_sent_mask.add_to_tensor_expr(scores, multiplicator=-xnmt.globals.INF)
-    return dy.softmax(scores)
+    return scores
 
 
 class BilinearAttender(models.Attender, xnmt.Serializable):
@@ -106,13 +99,8 @@ class BilinearAttender(models.Attender, xnmt.Serializable):
     sent_input = sent.as_tensor()
     return models.AttenderState(sent_input, sent_input, sent.mask)
 
-  def calc_attention(self, decoder_context: dy.Expression, attender_state: models.AttenderState) -> dy.Expression:
-    curr_sent_mask = attender_state.input_mask
-    h = dy.transpose(decoder_context) * self.pWa
-    scores = h * attender_state.curr_sent
-    if curr_sent_mask is not None:
-      scores = curr_sent_mask.add_to_tensor_expr(scores, multiplicator=-xnmt.globals.INF)
-    return dy.softmax(scores)
+  def calc_scores(self, decoder_context: dy.Expression, attender_state: models.AttenderState) -> dy.Expression:
+    return dy.transpose(decoder_context) * self.pWa * attender_state.curr_sent
 
 
 class LatticeBiasedMlpAttender(MlpAttender, xnmt.Serializable):
@@ -146,13 +134,7 @@ class LatticeBiasedMlpAttender(MlpAttender, xnmt.Serializable):
     sent_input = sent.as_tensor()
     return models.AttenderState(sent_input, dy.inputTensor(cur_sent_bias, batched=True), sent.mask)
 
-  def calc_attention(self, decoder_context: dy.Expression, attender_state: models.AttenderState) -> dy.Expression:
-    curr_sent_mask = attender_state.input_mask
-
+  def calc_scores(self, decoder_context: dy.Expression, attender_state: models.AttenderState) -> dy.Expression:
     h = dy.tanh(dy.colwise_add(attender_state.curr_sent, self.pV * decoder_context))
-    scores = dy.transpose(self.pU * h) + attender_state.sent_context
-    if curr_sent_mask is not None:
-      scores = curr_sent_mask.add_to_tensor_expr(scores, multiplicator=-xnmt.globals.INF)
-
-    return dy.softmax(scores)
+    return dy.transpose(self.pU * h) + attender_state.sent_context
 

@@ -19,6 +19,14 @@ class Attender(object):
     raise NotImplementedError('init_sent must be implemented for Attender subclasses')
 
   def calc_attention(self, decoder_context: dy.Expression, attender_state: states.AttenderState) -> dy.Expression:
+    scores = self.calc_scores(decoder_context, attender_state)
+    if attender_state.input_mask is not None:
+      scores = attender_state.input_mask.add_to_tensor_expr(scores, multiplicator=-xnmt.globals.INF)
+    if attender_state.read_mask is not None:
+      scores = attender_state.read_mask.add_to_tensor_expr(scores, multiplicator=-xnmt.globals.INF)
+    return dy.softmax(scores)
+ 
+  def calc_scores(self, decoder_context: dy.Expression, attender_state: states.AttenderState) -> dy.Expression:
     """ Compute attention weights.
 
     Args:
@@ -36,7 +44,7 @@ class Attender(object):
     context = attender_state.curr_sent * attention
     return context, states.AttenderState(
       curr_sent=attender_state.curr_sent, sent_context=attender_state.sent_context, input_mask=attender_state.input_mask,
-      initial_context=attender_state.initial_context, attention=attender_state.attention
+      read_mask=attender_state.read_mask, attention=attender_state.attention
     )
 
 
@@ -291,14 +299,13 @@ class Scorer(object):
     """
     raise NotImplementedError('calc_log_prob must be implemented by subclasses of Scorer')
 
-  def calc_loss(self, x: dy.Expression, y: xnmt.Batch, cached_log_softmax: Optional[dy.Expression] = None) -> dy.Expression:
+  def calc_loss(self, x: dy.Expression, y: xnmt.Batch) -> dy.Expression:
     """
     Calculate the loss incurred by making a particular decision.
 
     Args:
       x: The vector used to make the prediction
       y: The correct label(s)
-      cached_log_softmax
     """
     raise NotImplementedError('calc_loss must be implemented by subclasses of Scorer')
 

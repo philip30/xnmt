@@ -1,6 +1,8 @@
 import unittest
 
 import dynet as dy
+import numpy
+import random
 import xnmt
 import xnmt.modules.nn as nn
 
@@ -8,6 +10,9 @@ import xnmt.modules.nn as nn
 class TestSimultaneousTranslation(unittest.TestCase):
 
   def setUp(self):
+#    dy.init(115)
+#    numpy.random.seed(115)
+#    random.seed(115)
     # Seeding
     layer_dim = 32
     xnmt.internal.events.clear()
@@ -15,7 +20,7 @@ class TestSimultaneousTranslation(unittest.TestCase):
     
     self.src_reader = xnmt.modules.input_readers.SimultTextReader(
       text_reader=xnmt.modules.input_readers.PlainTextReader(vocab=xnmt.Vocab(vocab_file="examples/data/head.ja.vocab")),
-      action_reader=xnmt.modules.input_readers.PlainTextReader(vocab=xnmt.Vocab(i2w=["READ", "WRITE"]))
+      action_reader=xnmt.modules.input_readers.PlainTextReader(vocab=xnmt.structs.vocabs.SimultActionVocab())
     )
     self.trg_reader = xnmt.modules.input_readers.PlainTextReader(vocab=xnmt.Vocab(vocab_file="examples/data/head.en.vocab"))
     self.layer_dim = layer_dim
@@ -60,24 +65,28 @@ class TestSimultaneousTranslation(unittest.TestCase):
     mle_loss = xnmt.train.MLELoss()
     mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
     xnmt.event_trigger.set_train(False)
-    self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
-    self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
-    self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.SamplingSearch())
+    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
+    self.assertNotEqual(len(result), 0)
+    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
+    self.assertNotEqual(len(result), 0)
+    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.SamplingSearch())
+    self.assertNotEqual(len(result), 0)
 
   def test_recurrent_agent(self):
     self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
-      scorer = nn.Softmax(self.layer_dim, 2, trg_reader=self.trg_reader),
+      scorer = nn.Softmax(self.layer_dim, 8, trg_reader=self.trg_reader),
       rnn = nn.UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim= self.layer_dim)
     )
     xnmt.event_trigger.set_train(True)
     mle_loss = xnmt.train.MLELoss()
     mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
     xnmt.event_trigger.set_train(False)
-    self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
-    self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
-    self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.SamplingSearch())
-
-    
+    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
+    self.assertNotEqual(len(result), 0)
+    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
+    self.assertNotEqual(len(result), 0)
+    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.SamplingSearch())
+    self.assertNotEqual(len(result), 0)
 
 if __name__ == "__main__":
   unittest.main()

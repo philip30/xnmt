@@ -11,13 +11,13 @@ class AttenderState(object):
                curr_sent: dy.Expression,
                sent_context: dy.Expression,
                input_mask: Optional[xnmt.Mask] = None,
-               attention: Optional[dy.Expression] = None,
-               initial_context: Optional[Tuple[dy.Expression, dy.Expression]] = None):
+               read_mask: Optional[xnmt.Mask] = None,
+               attention: Optional[dy.Expression] = None):
     self.curr_sent = curr_sent
     self.sent_context = sent_context
-    self.initial_context = initial_context or (curr_sent, sent_context)
     self.attention = attention
     self.input_mask = input_mask
+    self.read_mask = read_mask
 
 
 class UniDirectionalState(object):

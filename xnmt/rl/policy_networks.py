@@ -10,6 +10,11 @@ class PolicyNetwork(models.Decoder):
   
   def __init__(self, scorer: models.Scorer = nn.Softmax):
     self.scorer = scorer
+    
+    if isinstance(scorer, nn.Softmax):
+      if self.scorer.output_dim != xnmt.structs.vocabs.SimultActionVocab.VOCAB_SIZE:
+        raise ValueError("For PolicyNetwork, the softmax size must be equalst to {}",
+                         xnmt.structs.vocabs.SimultActionVocab.VOCAB_SIZE)
   
   def initial_state(self, src: xnmt.Batch) -> models.UniDirectionalState:
     raise NotImplementedError()
@@ -18,23 +23,23 @@ class PolicyNetwork(models.Decoder):
     raise NotImplementedError()
 
   def calc_loss(
-      self, dec_state: models.PolicyAgentState, ref_action: xnmt.Batch, cached_softmax: Optional[dy.Expression] = None):
-    return self.scorer.calc_loss(dec_state.output(), ref_action, cached_softmax)
+      self, dec_state: models.PolicyAgentState, ref_action: xnmt.Batch):
+    return self.scorer.calc_loss(dec_state.output(), ref_action)
   
   def best_k(self, dec_state: models.UniDirectionalState, k: int, normalize_scores=False) -> List[models.SearchAction]:
     best_k = self.scorer.best_k(dec_state.output(), k, normalize_scores)
-    ret  = [models.SearchAction(dec_state, best_word, dy.pick(log_softmax, best_word), log_softmax, None) \
+    ret  = [models.SearchAction(dec_state, best_word, dy.pick_batch(log_softmax, best_word), log_softmax, None) \
             for best_word, log_softmax in best_k]
     return ret
   
   def pick_oracle(self, oracle, dec_state: models.UniDirectionalState):
     log_prob = self.scorer.calc_log_probs(dec_state.output())
-    return [models.SearchAction(dec_state, oracle, dy.pick(log_prob, oracle), log_prob, None)]
+    return [models.SearchAction(dec_state, oracle, dy.pick_batch(log_prob, oracle), log_prob, None)]
     
   
   def sample(self, dec_state: models.UniDirectionalState, n: int, temperature=1.0):
     sample_k = self.scorer.sample(dec_state.output(), n, temperature)
-    ret  = [models.SearchAction(dec_state, best_word, dy.pick(log_softmax, best_word), log_softmax, None) \
+    ret  = [models.SearchAction(dec_state, best_word, dy.pick_batch(log_softmax, best_word), log_softmax, None) \
             for best_word, log_softmax in sample_k]
     return ret
   
@@ -70,4 +75,4 @@ class RecurrentPolicyNetwork(PolicyNetwork, xnmt.Serializable):
     return self.rnn.initial_state()
   
   def add_input(self, input_expr: dy.Expression, previous_state: models.UniDirectionalState):
-    return self.rnn.add_input(input_expr, previous_state, None)
+    return previous_state.add_input(input_expr, None)

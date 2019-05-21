@@ -24,6 +24,7 @@ class Vocab(Serializable):
   PAD = 2
   UNK = 3
 
+  
   SS_STR = "<s>"
   ES_STR = "</s>"
   UNK_STR = "<unk>"
@@ -98,3 +99,18 @@ class CharVocab(Vocab):
     for c in word:
       if c not in vocab:
         vocab[c] = len(vocab)
+
+
+class SimultActionVocab(Vocab):
+  yaml_tag = "!SimultActionVocab"
+
+  PAD = 4
+  UNK = 5
+  SS = 6
+  ES = 7
+  VOCAB_SIZE = 8
+  
+  @serializable_init
+  def __init__(self):
+    self.i2w = ["READ", "WRITE", "PREDICT_READ", "PREDICT_WRITE", "PAD", Vocab.UNK_STR, Vocab.SS_STR, Vocab.ES_STR]
+    self.w2i = {word: word_id for (word_id, word) in enumerate(self.i2w)}

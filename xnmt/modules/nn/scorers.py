@@ -92,8 +92,8 @@ class Softmax(models.Scorer, xnmt.Serializable):
     """
     return self.label_smoothing == 0.0
 
-  def calc_loss(self, x: dy.Expression, y: xnmt.Batch, cached_log_softmax: Optional[dy.Expression] = None) -> dy.Expression:
-    if self.can_loss_be_derived_from_scores() and cached_log_softmax is None:
+  def calc_loss(self, x: dy.Expression, y: xnmt.Batch) -> dy.Expression:
+    if self.can_loss_be_derived_from_scores():
       scores = self.calc_scores(x)
       # single mode
       if not xnmt.is_batched(y):
@@ -102,7 +102,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
       else:
         loss = dy.pickneglogsoftmax_batch(scores, y)
     else:
-      log_prob = self.calc_log_probs(x) if not cached_log_softmax else cached_log_softmax
+      log_prob = self.calc_log_probs(x)
       
       if not xnmt.is_batched(y):
         loss = -dy.pick(log_prob, y)

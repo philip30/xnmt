@@ -1,7 +1,7 @@
 import dynet as dy
 import collections.abc as abc
 
-from typing import Any, List
+from typing import List
 
 import xnmt
 import xnmt.models as models
@@ -113,7 +113,7 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
     return ArbSeqLenUniDirectionalState(rnn_state=rnn_state, context=zeros, attender_state=attender_state,
                                         timestep=0, src=src)
 
-  def add_input(self, dec_state: ArbSeqLenUniDirectionalState, trg_word: Any) -> models.UniDirectionalState:
+  def add_input(self, dec_state: ArbSeqLenUniDirectionalState, trg_word: xnmt.Batch) -> models.UniDirectionalState:
     """
     Add an input and return a *new* update the state.
 
@@ -127,7 +127,7 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
     if trg_word is not None:
       trg_embedding = self.embedder.embed(trg_word)
       context = trg_embedding if not self.input_feeding else dy.concatenate([trg_embedding, dec_state.context()])
-      rnn_state = rnn_state.add_input(context)
+      rnn_state = rnn_state.add_input(context, trg_word.mask)
     context, attender_state = self.attender.calc_context(rnn_state.output(), dec_state.attender_state)
     return ArbSeqLenUniDirectionalState(rnn_state=rnn_state, context=context, attender_state=attender_state,
                                         timestep=dec_state.timestep+1, src=dec_state.src)

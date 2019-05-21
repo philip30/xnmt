@@ -241,14 +241,15 @@ class SimpleSentence(ReadableSentence):
   def str_tokens(self, exclude_ss_es=True, exclude_unk=False, exclude_padded=True, **kwargs) -> List[str]:
     exclude_set = set()
     if exclude_ss_es:
-      exclude_set.add(Vocab.SS)
-      exclude_set.add(Vocab.ES)
+      if Vocab.SS_STR in self.vocab.w2i: exclude_set.add(self.vocab.SS)
+      if Vocab.ES_STR in self.vocab.w2i: exclude_set.add(self.vocab.ES)
     if exclude_unk: exclude_set.add(self.vocab.unk_token)
-    if exclude_padded: exclude_set.add(Vocab.PAD)
+    if exclude_padded:
+      if Vocab.PAD_STR in self.vocab.w2i: exclude_set.add(self.vocab.PAD)
     ret_toks =  [w for w in self.words if w not in exclude_set]
     if self.vocab: return [self.vocab[w] for w in ret_toks]
     else: return [str(w) for w in ret_toks]
-
+ 
   def sent_with_new_words(self, new_words):
     unpadded_sent = self.unpadded_sent
     if not unpadded_sent:

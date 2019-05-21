@@ -17,7 +17,6 @@ class UniLSTMState(models.UniDirectionalState):
                c: Sequence[dy.Expression] = None,
                h: Sequence[dy.Expression] = None,
                dropout_mask = None,
-               position: int = 0,
                init: Optional[Sequence[dy.Expression]] = None):
     self._network = network
     if init is not None:
@@ -27,7 +26,6 @@ class UniLSTMState(models.UniDirectionalState):
     self._h = h
     self._prev = prev
     self._dropout_mask = dropout_mask
-    self._position = position
 
   def add_input(self, x: dy.Expression, mask: Optional[xnmt.Mask] = None) -> models.UniDirectionalState:
     network = self._network
@@ -62,15 +60,15 @@ class UniLSTMState(models.UniDirectionalState):
       c_t = dy.vanilla_lstm_c(self._c[i], gates)
       h_t = dy.vanilla_lstm_h(c_t, gates)
       if mask is not None:
-        c_t = mask.cmult_by_timestep_expr(c_t, self._position,True) + \
-              mask.cmult_by_timestep_expr(self._c[i], self._position, False)
-        h_t = mask.cmult_by_timestep_expr(h_t, self._position,True) + \
-              mask.cmult_by_timestep_expr(self._h[i], self._position, False)
+        c_t = mask.cmult_by_timestep_expr(c_t, 0, True) + \
+              mask.cmult_by_timestep_expr(self._c[i], 0, False)
+        h_t = mask.cmult_by_timestep_expr(h_t, 0, True) + \
+              mask.cmult_by_timestep_expr(self._h[i], 0, False)
       new_c.append(c_t)
       new_h.append(h_t)
       x = new_h[-1]
 
-    return UniLSTMState(self._network, prev=self, c=new_c, h=new_h, dropout_mask=self._dropout_mask, position=self._position+1)
+    return UniLSTMState(self._network, prev=self, c=new_c, h=new_h, dropout_mask=self._dropout_mask)
 
   def b(self) -> 'UniLSTMSeqTransducer':
     return self._network
@@ -121,8 +119,7 @@ class UniLSTMState(models.UniDirectionalState):
                         prev=self._prev,
                         c=[ci[item] for ci in self._c],
                         h=[hi[item] for hi in self._h],
-                        dropout_mask=[maski[item] for maski in self._dropout_mask],
-                        position=self._position)
+                        dropout_mask=[maski[item] for maski in self._dropout_mask])
 
 
 class UniLSTMSeqTransducer(xnmt.models.UniDiSeqTransducer, xnmt.Serializable):
