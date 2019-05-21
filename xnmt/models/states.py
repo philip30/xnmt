@@ -3,7 +3,7 @@ import dynet as dy
 import xnmt
 import functools
 
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 
 class AttenderState(object):

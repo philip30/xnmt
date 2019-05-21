@@ -87,6 +87,30 @@ class TestSimultaneousTranslation(unittest.TestCase):
     self.assertNotEqual(len(result), 0)
     result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.SamplingSearch())
     self.assertNotEqual(len(result), 0)
+    
+  def test_read_before_write(self):
+    self.model.policy_agent.trivial_read_before_write = True
+    mle_loss = xnmt.train.MLELoss()
+    mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
+    xnmt.event_trigger.set_train(False)
+    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
+    self.assertNotEqual(len(result), 0)
+    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
+    self.assertNotEqual(len(result), 0)
+    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.SamplingSearch())
+    self.assertNotEqual(len(result), 0)
+    
+  def test_read_write_interchange(self):
+    self.model.policy_agent.trivial_exchange_read_write = True
+    mle_loss = xnmt.train.MLELoss()
+    mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
+    xnmt.event_trigger.set_train(False)
+    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
+    self.assertNotEqual(len(result), 0)
+    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
+    self.assertNotEqual(len(result), 0)
+    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.SamplingSearch())
+    self.assertNotEqual(len(result), 0)
 
 if __name__ == "__main__":
   unittest.main()
