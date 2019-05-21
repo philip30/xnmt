@@ -76,7 +76,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         num_reads = state.num_reads
       
       if agents.SimultPolicyAgent.WRITE in action_set:
-        prev_word = [trg[i][state.num_writes[i]-1] if state.num_writes[i] > 0 else pad_token for i in range(trg.batch_size())]
+        prev_word = [trg[i][min(state.num_writes[i]-1, trg.sent_len())] \
+                       if state.num_writes[i] > 0 else pad_token for i in range(trg.batch_size())]
         input_mask = np.array([[1 if word == pad_token else 0 for word in prev_word]])
         prev_word = xnmt.mark_as_batch(data=prev_word, mask=xnmt.Mask(input_mask))
         
@@ -88,8 +89,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         decoder_state = new_state.decoder_state
         
         if self.train_nmt_mle:
-          ref_word = [trg[i][state.num_writes[i]] if state.num_writes[i] < trg[i].sent_len() else pad_token
-                      for i in range(trg.batch_size())]
+          ref_word = [trg[i][min(state.num_writes[i], trg.sent_len())] \
+                      if state.num_writes[i] < trg[i].sent_len() else pad_token for i in range(trg.batch_size())]
           ref_word = xnmt.mark_as_batch(data=ref_word, mask=xnmt.Mask(1-write_flag))
           loss = self.decoder.calc_loss(decoder_state, ref_word)
           if ref_word.mask is not None:
@@ -169,11 +170,11 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                      network_state: models.PolicyAgentState,
                      write_flag: np.ndarray = np.ndarray([1])) -> agents.SimultSeqLenUniDirectionalState:
     if state.decoder_state is None:
-      decoder_state = self.decoder.initial_state(models.EncoderState(state.full_encodings, None), state.src)
     else:
       decoder_state = state.decoder_state
       
-    if state.read_was_performed or state.decoder_state is None:
+    if (state.read_was_performed or state.decoder_state is None) and \
+        hasattr(self.decoder, "attender"):
       attender_state = decoder_state.attender_state
       read_masks = np.ones((state.src.batch_size(), state.src.sent_len()), dtype=float)
       for num_read, read_mask in zip(state.num_reads, read_masks):
