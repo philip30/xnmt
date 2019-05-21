@@ -79,11 +79,11 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       if agents.SimultPolicyAgent.WRITE in action_set:
         prev_word = [trg[i][min(state.num_writes[i]-1, trg.sent_len()-1)] \
                        if state.num_writes[i] > 0 else pad_token for i in range(trg.batch_size())]
-        input_mask = np.array([[1 if word == pad_token else 0 for word in prev_word]])
-        prev_word = xnmt.mark_as_batch(data=prev_word, mask=xnmt.Mask(input_mask))
-
         write_flag = np.zeros((trg.batch_size(), 1), dtype=int)
         write_flag[search_action.action_id == agents.SimultPolicyAgent.WRITE] = 1
+        input_mask = np.array([[1 if word == pad_token else 0 for word in prev_word]])
+        input_mask = np.bitwise_or(input_mask.transpose(), 1-write_flag)
+        prev_word = xnmt.mark_as_batch(data=prev_word, mask=xnmt.Mask(input_mask))
 
         new_state =  self._perform_write(state, search_action, prev_word, network_state, write_flag.transpose()[0])
         num_writes = new_state.num_writes
