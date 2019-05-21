@@ -18,18 +18,18 @@ class TestFreeDecodingLoss(unittest.TestCase):
       src_reader=modules.PlainTextReader(vocab=src_vocab),
       trg_reader=modules.PlainTextReader(vocab=trg_vocab),
       encoder=nn.SeqEncoder(
-        embedder=nn.LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
+        embedder=nn.LookupEmbedder(emb_dim=layer_dim, vocab=src_vocab),
         seq_transducer=nn.BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim)),
       decoder=nn.ArbLenDecoder(
         input_dim=layer_dim,
         attender=nn.MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
-        embedder=nn.LookupEmbedder(emb_dim=layer_dim, vocab_size=100),
+        embedder=nn.LookupEmbedder(emb_dim=layer_dim, vocab=trg_vocab),
         rnn=nn.UniLSTMSeqTransducer(input_dim=layer_dim,
                                     hidden_dim=layer_dim,
                                     decoder_input_dim=layer_dim,
                                     yaml_path=xnmt.Path("model.decoder.rnn")),
         transform=nn.NonLinear(input_dim=layer_dim*2, output_dim=layer_dim),
-        scorer=nn.Softmax(input_dim=layer_dim, vocab_size=100),
+        scorer=nn.Softmax(input_dim=layer_dim, vocab=trg_vocab),
         bridge=nn.CopyBridge(dec_dim=layer_dim, dec_layers=1))
     )
     xnmt.event_trigger.set_train(False)
@@ -41,11 +41,20 @@ class TestFreeDecodingLoss(unittest.TestCase):
   def test_single(self):
     self.model.generate(self.src[0], xnmt.inferences.GreedySearch())
     self.model.generate(self.src[0], xnmt.inferences.BeamSearch())
-    self.model.generate(self.src[0], xnmt.inferences.SamplingSearch())
-    
+
     self.model.calc_nll(src=xnmt.mark_as_batch([self.src_data[0]]),
                         trg=xnmt.mark_as_batch([self.trg_data[0]])).value()
     self.assertTrue(True)
+
+  def test_report(self):
+    xnmt.event_trigger.set_train(False)
+    inference = xnmt.inferences.AutoRegressiveInference(src_file="examples/data/head.ja",
+                                                        ref_file="examples/data/head.en",
+                                                        trg_file="test/output/hyp",
+                                                        search_strategy=xnmt.inferences.GreedySearch(),
+                                                        reporter=None)
+    inference.perform_inference(self.model)
+
 
 if __name__ == '__main__':
   unittest.main()

@@ -1,6 +1,7 @@
 import dynet as dy
 import xnmt
 import collections.abc as abc
+import weakref
 
 import xnmt.models as models
 
@@ -18,28 +19,31 @@ class UniLSTMState(models.UniDirectionalState):
                h: Sequence[dy.Expression] = None,
                dropout_mask = None,
                init: Optional[Sequence[dy.Expression]] = None):
-    self._network = network
-    if init is not None:
-      self.set_s(init)
-
-    self._c = c
-    self._h = h
+    self._network = weakref.ref(network)
     self._prev = prev
     self._dropout_mask = dropout_mask
+    self._num_layers = network.num_layers
+    self._weightnoise_std = network.weightnoise_std
+    self._hidden_dim = network.hidden_dim
+    if init is not None:
+      self.set_s(init)
+    else:
+      self._c = c
+      self._h = h
 
   def add_input(self, x: dy.Expression, mask: Optional[xnmt.Mask] = None) -> models.UniDirectionalState:
-    network = self._network
-    weight_noise = self._network.weightnoise_std if xnmt.is_train() else 0
+    network = self._network()
+    weight_noise = self._weightnoise_std if xnmt.is_train() else 0
     batch_size = x[0].dim()[1]
 
     if self._dropout_mask is None:
       self._dropout_mask = self.calc_dropout_mask(batch_size)
     dropout_mask_x, dropout_mask_h = self._dropout_mask
     new_c, new_h = [], []
-    for i in range(self._network.num_layers):
+    for i in range(self._num_layers):
       if self._c is None:
-        self._c = [dy.zeros(dim=(network.hidden_dim,), batch_size=batch_size) for _ in range(network.num_layers)]
-        self._h = [dy.zeros(dim=(network.hidden_dim,), batch_size=batch_size) for _ in range(network.num_layers)]
+        self._c = [dy.zeros(dim=(self._hidden_dim,), batch_size=batch_size) for _ in range(self._num_layers)]
+        self._h = [dy.zeros(dim=(self._hidden_dim,), batch_size=batch_size) for _ in range(self._num_layers)]
       if dropout_mask_x is not None and dropout_mask_h is not None:
         # apply dropout according to https://arxiv.org/abs/1512.05287 (tied weights)
         gates = dy.vanilla_lstm_gates_dropout_concat([x],
@@ -68,10 +72,10 @@ class UniLSTMState(models.UniDirectionalState):
       new_h.append(h_t)
       x = new_h[-1]
 
-    return UniLSTMState(self._network, prev=self, c=new_c, h=new_h, dropout_mask=self._dropout_mask)
+    return UniLSTMState(network, prev=self, c=new_c, h=new_h, dropout_mask=self._dropout_mask)
 
   def b(self) -> 'UniLSTMSeqTransducer':
-    return self._network
+    return self._network()
 
   def h(self) -> Sequence[dy.Expression]:
     return self._h
@@ -86,7 +90,7 @@ class UniLSTMState(models.UniDirectionalState):
     return self._prev
 
   def calc_dropout_mask(self, batch_size):
-    network = self._network
+    network = self._network()
     if network.dropout_rate > 0.0 and xnmt.is_train():
       retention_rate = 1.0 - network.dropout_rate
       scale = 1.0 / retention_rate
@@ -100,22 +104,22 @@ class UniLSTMState(models.UniDirectionalState):
 
   def set_h(self, es: Optional[Sequence[dy.Expression]] = None) -> 'UniLSTMState':
     if es is not None:
-      assert len(es) == self._network.num_layers
+      assert len(es) == self._num_layers
       self._h = tuple(es)
     return self
 
   def set_s(self, es: Optional[Sequence[dy.Expression]] = None) -> 'UniLSTMState':
     if es is not None:
-      assert len(es) == 2 * self._network.num_layers
-      self._c = tuple(es[:self._network.num_layers])
-      self._h = tuple(es[self._network.num_layers:])
+      assert len(es) == 2 * self._num_layers
+      self._c = tuple(es[:self._num_layers])
+      self._h = tuple(es[self._num_layers:])
     return self
 
   def output(self) -> dy.Expression:
     return self._h[-1]
 
   def __getitem__(self, item):
-    return UniLSTMState(network=self._network,
+    return UniLSTMState(network=self._network(),
                         prev=self._prev,
                         c=[ci[item] for ci in self._c],
                         h=[hi[item] for hi in self._h],

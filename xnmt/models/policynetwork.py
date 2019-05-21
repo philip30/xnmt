@@ -9,7 +9,7 @@ class RewardValue(object):
   def __init__(self, value: float, data: Optional[Dict[str, float]] = None):
     self.value = value
     self.data = data
- 
+
 
 class RewardCalculator(object):
 
@@ -25,31 +25,31 @@ class RewardCalculator(object):
 
 
 class PolicyAgentState(models.UniDirectionalState):
-  
+
   def __init__(self, src: xnmt.Batch, policy_state: Optional[models.UniDirectionalState] = None):
     self.src = src
     self.policy_state = policy_state
-    
+
   def add_input(self, word: dy.Expression, mask: Optional[xnmt.Mask] = None) -> 'PolicyAgentState':
     return PolicyAgentState(self.src, self.policy_state.add_input(word, mask))
-  
+
   def output(self):
     return self.policy_state.output()
 
 
 class PolicyAgent(object):
   __ACTIONS__= []
-  
+
   def initial_state(self, src: xnmt.Batch) -> PolicyAgentState:
     raise NotImplementedError()
-  
+
   def finish_generating(self, states: models.UniDirectionalState) -> bool:
     raise NotImplementedError()
 
   def next_action(self, state: Optional[models.UniDirectionalState] = None) \
       -> Tuple[models.SearchAction, PolicyAgentState]:
     raise NotImplementedError()
-  
+
   @classmethod
   def total_actions(cls):
     return len(cls.__ACTIONS__)

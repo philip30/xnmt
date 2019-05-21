@@ -24,11 +24,11 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     self.policy_agent = policy_agent
     self.train_nmt_mle = train_nmt_mle
     self.train_pol_mle = train_pol_mle
-    
+
     if isinstance(decoder, nn.ArbLenDecoder):
       if not isinstance(decoder.bridge, nn.NoBridge):
         xnmt.logger.warning("Cannot use any bridge except no bridge for SimultSeq2Seq.")
-  
+
 
   def initial_state(self, src: xnmt.Batch, force_oracle=False) -> agents.SimultSeqLenUniDirectionalState:
     oracle_batch = None
@@ -41,14 +41,14 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     return agents.SimultSeqLenUniDirectionalState(
       oracle_batch=oracle_batch, src=src, full_encodings=encoder_seqs, network_state=self.policy_agent.initial_state(src)
     )
-    
+
   def add_input(self, prev_word: xnmt.Batch, state: models.UniDirectionalState) -> agents.SimultSeqLenUniDirectionalState:
     if prev_word is not None and not xnmt.is_batched(prev_word):
       prev_word = xnmt.mark_as_batch([prev_word])
 
     while True:
       search_action, network_state = self.policy_agent.next_action(state)
-      
+
       if search_action.action_id == agents.SimultPolicyAgent.READ:
         state = self._perform_read(state, search_action, network_state)
       elif search_action.action_id == agents.SimultPolicyAgent.WRITE:
@@ -56,40 +56,40 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         break
       else:
         raise ValueError()
-      
+
     return state
-  
+
   def calc_nll(self, src: xnmt.Batch, trg: xnmt.Batch):
     state = self.initial_state(src, force_oracle=True)
     pad_token = xnmt.structs.vocabs.SimultActionVocab.PAD
-    
+
     mle_loss = []
     pol_loss = []
     while not self.finish_generating(-1, state):
       search_action, network_state = self.policy_agent.next_action(state)
       action_set = set(search_action.action_id)
-      
+
       if agents.SimultPolicyAgent.READ in action_set:
         new_state = self._perform_read(state, search_action, network_state)
         num_reads = new_state.num_reads
       else:
         num_reads = state.num_reads
-      
+
       if agents.SimultPolicyAgent.WRITE in action_set:
-        prev_word = [trg[i][min(state.num_writes[i]-1, trg.sent_len())] \
+        prev_word = [trg[i][min(state.num_writes[i]-1, trg.sent_len()-1)] \
                        if state.num_writes[i] > 0 else pad_token for i in range(trg.batch_size())]
         input_mask = np.array([[1 if word == pad_token else 0 for word in prev_word]])
         prev_word = xnmt.mark_as_batch(data=prev_word, mask=xnmt.Mask(input_mask))
-        
+
         write_flag = np.zeros((trg.batch_size(), 1), dtype=int)
         write_flag[search_action.action_id == agents.SimultPolicyAgent.WRITE] = 1
-        
+
         new_state =  self._perform_write(state, search_action, prev_word, network_state, write_flag.transpose()[0])
         num_writes = new_state.num_writes
         decoder_state = new_state.decoder_state
-        
+
         if self.train_nmt_mle:
-          ref_word = [trg[i][min(state.num_writes[i], trg.sent_len())] \
+          ref_word = [trg[i][min(state.num_writes[i], trg.sent_len()-1)] \
                       if state.num_writes[i] < trg[i].sent_len() else pad_token for i in range(trg.batch_size())]
           ref_word = xnmt.mark_as_batch(data=ref_word, mask=xnmt.Mask(1-write_flag))
           loss = self.decoder.calc_loss(decoder_state, ref_word)
@@ -99,7 +99,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       else:
         num_writes = state.num_writes
         decoder_state = state.decoder_state
-        
+
       if self.train_pol_mle:
         search_action = search_action.action_id
         oracle_action = [oracle[state.timestep] for oracle in state.oracle_batch]
@@ -109,7 +109,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         if oracle_batch.mask is not None:
           loss = oracle_batch.mask.cmult_by_timestep_expr(loss, 0, True)
         pol_loss.append(loss)
-     
+
       state = agents.SimultSeqLenUniDirectionalState(
         src=state.src,
         full_encodings=state.full_encodings,
@@ -133,21 +133,21 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       units = [src[i].oracle.len_unpadded() for i in range(src.batch_size())]
       total_loss["p(a|h)"] = xnmt.LossExpr(dy.esum(pol_loss), units=units)
     return xnmt.FactoredLossExpr(total_loss)
-    
+
   def finish_generating(self, output: int, dec_state: agents.SimultSeqLenUniDirectionalState):
     if dec_state.force_oracle or \
         xnmt.is_train() and self.policy_agent.oracle_in_train or \
         (not xnmt.is_train()) and  self.policy_agent.oracle_in_test:
       return self.policy_agent.finish_generating(dec_state)
     return super().finish_generating(output, dec_state)
- 
+
   def _perform_read(self,
                     state: agents.SimultSeqLenUniDirectionalState,
                     search_action: models.SearchAction,
                     network_state: models.PolicyAgentState) -> agents.SimultSeqLenUniDirectionalState:
     read_inc = np.zeros(search_action.action_id.shape, dtype=int)
     read_inc[search_action.action_id == agents.SimultPolicyAgent.READ] = 1
-    
+
     return agents.SimultSeqLenUniDirectionalState(
       src=state.src,
       full_encodings=state.full_encodings,
@@ -162,7 +162,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       force_oracle=state.force_oracle,
       parent=state
     )
-  
+
   def _perform_write(self,
                      state: agents.SimultSeqLenUniDirectionalState,
                      search_action: models.SearchAction,
@@ -173,14 +173,14 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       decoder_state = self.decoder.initial_state(models.EncoderState(state.full_encodings, None), state.src)
     else:
       decoder_state = state.decoder_state
-      
+
     if (state.read_was_performed or state.decoder_state is None) and \
         hasattr(self.decoder, "attender"):
       attender_state = decoder_state.attender_state
       read_masks = np.ones((state.src.batch_size(), state.src.sent_len()), dtype=float)
       for num_read, read_mask in zip(state.num_reads, read_masks):
         read_mask[:num_read] = 0
-     
+
       decoder_state = nn.decoders.arb_len.ArbSeqLenUniDirectionalState(
         rnn_state=decoder_state.rnn_state,
         context=decoder_state.context(),
@@ -194,7 +194,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         timestep=decoder_state.timestep,
         src=decoder_state.src
       )
-   
+
     return agents.SimultSeqLenUniDirectionalState(
       src=state.src,
       full_encodings=state.full_encodings,

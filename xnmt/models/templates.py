@@ -231,6 +231,17 @@ class SearchStrategy(object):
     raise NotImplementedError('generate_output must be implemented in SearchStrategy subclasses')
 
 
+class ForceableSearchStrategy(object):
+  def generate_forced_output(self,
+                             generator: Union[models.GeneratorModel, models.AutoRegressiveModel],
+                             initial_state:models.UniDirectionalState,
+                             trg: xnmt.Batch) -> List[models.Hypothesis]:
+    raise NotImplementedError()
+
+  def is_forced(self):
+    raise NotImplementedError()
+
+
 class XnmtOptimizer(object):
   """
   A base classe for trainers. Trainers are mostly simple wrappers of DyNet trainers but can add extra functionality.
@@ -509,7 +520,6 @@ class Inference(object):
     ref_file: path of file with reference translations, e.g. for forced decoding
     max_src_len: Remove sentences from data to decode that are longer than this on the source side
     max_num_sents: Stop decoding after the first n sentences.
-    mode: type of decoding to perform.
 
             * ``onebest``: generate one best.
             * ``score``: output scores, useful for rescoring
@@ -519,14 +529,13 @@ class Inference(object):
     batcher: inference batcher, needed e.g. in connection with ``pad_src_token_to_multiple``
     reporter: a reporter to create reports for each decoded sentence
   """
-  # TODO: Support k-best inference?
   def __init__(self,
                src_file: Optional[str] = None,
                trg_file: Optional[str] = None,
                ref_file: Optional[str] = None,
                max_src_len: Optional[int] = None,
                max_num_sents: Optional[int] = None,
-               mode: str = "onebest",
+               is_rescore: bool = False,
                batcher: xnmt.structs.batchers.InOrderBatcher = xnmt.bare(xnmt.structs.batchers.InOrderBatcher, batch_size=1),
                reporter: Optional[Union[Reporter, Sequence[Reporter]]] = None,
                post_processor: Optional[Union[OutputProcessor, Sequence[OutputProcessor]]] = None):
@@ -535,13 +544,13 @@ class Inference(object):
     self.ref_file = ref_file
     self.max_src_len = max_src_len
     self.max_num_sents = max_num_sents
-    self.mode = mode
+    self.is_rescore = is_rescore
     self.batcher = batcher
     self.reporter = reporter
     self.post_processor = post_processor
 
   def generate_one(
-      self, generator: models.GeneratorModel, src: xnmt.Batch) -> Sequence[sent.ReadableSentence]:
+      self, generator: models.GeneratorModel, src: xnmt.Batch, trg: xnmt.Batch) -> Sequence[sent.ReadableSentence]:
     raise NotImplementedError("must be implemented by subclasses")
 
   def compute_losses_one(
@@ -573,29 +582,20 @@ class Inference(object):
 
     xnmt.event_trigger.set_train(False)
 
-    ref_scores = None
-
-    if self.mode in ['score', 'forceddebug']:
-      ref_corpus, src_corpus = self._read_corpus(generator, src_file, mode=self.mode, ref_file=self.ref_file)
+    if self.is_rescore:
+      ref_corpus, src_corpus = self._read_corpus(generator, src_file, ref_file=self.ref_file)
       ref_scores = self._compute_losses(generator, ref_corpus, src_corpus, self.max_num_sents)
-
-    if self.mode == 'score':
       self._write_rescored_output(ref_scores, self.ref_file, trg_file)
-    elif self.mode == 'forced' or self.mode == 'forceddebug':
-      self._forced_decode(generator=generator, src_file=src_file,
-                          ref_file=ref_file, batcher=self.batcher,
-                          max_src_len=self.max_src_len,
-                          assert_scores=ref_scores)
-      if trg_file is not None:
-        shutil.copyfile(ref_file, trg_file)
     else:
-      self._generate_output(generator=generator,
+
+      self._generate_output(generator=generator, ref_file=ref_file,
                             src_file=src_file, trg_file=trg_file, batcher=self.batcher,
                             max_src_len=self.max_src_len)
 
   def _generate_one_batch(self,
                           generator: models.GeneratorModel,
                           src_batch: xnmt.Batch = None,
+                          trg_batch: Optional[xnmt.Batch] = None,
                           max_src_len: Optional[int] = None,
                           fp = None):
     """
@@ -607,16 +607,19 @@ class Inference(object):
     else:
       with xnmt.utils.ReportOnException({"src": src_batch, "graph": xnmt.utils.print_cg_conditional}):
         dy.renew_cg(immediate_compute=xnmt.settings.IMMEDIATE_COMPUTE, check_validity=xnmt.settings.CHECK_VALIDITY)
-        outputs = self.generate_one(generator, src_batch)
+        outputs = self.generate_one(generator, src_batch, trg_batch)
         if self.reporter: self._create_sent_report()
-        for i in range(len(outputs)):
-          output_txt = outputs[i].sent_str(custom_output_procs=self.post_processor)
-          fp.write(f"{output_txt}\n")
+        if fp is not None:
+          for i in range(len(outputs)):
+            output_txt = outputs[i].sent_str(custom_output_procs=self.post_processor)
+            fp.write(f"{output_txt}\n")
 
   def _generate_output(self,
                        generator: models.GeneratorModel,
                        src_file: str,
-                       trg_file: str, batcher: Optional[xnmt.Batcher] = None,
+                       trg_file: str,
+                       ref_file: Optional[str] = None,
+                       batcher: Optional[xnmt.Batcher] = None,
                        max_src_len: Optional[int] = None) -> None:
     """
     Generate outputs and write them to file.
@@ -629,97 +632,34 @@ class Inference(object):
       max_src_len: if given, skip inputs that are too long
     """
     src_in = generator.src_reader.read_sents(src_file)
+    ref_in = generator.trg_reader.read_sents(ref_file) if ref_file is not None else None
 
     # Reporting is commenced if there is some defined reporters
     xnmt.event_trigger.set_reporting(self.reporter is not None)
 
-    # Saving the translated output to a trg file
-    with open(trg_file, 'wt', encoding='utf-8') as fp:
-      src_batch = []
-      for curr_sent_i, src_line in itertools.islice(enumerate(src_in), self.max_num_sents):
-        src_batch.append(src_line)
-        if len(src_batch) == batcher.batch_size:
-          self._generate_one_batch(generator, xnmt.mark_as_batch(src_batch), max_src_len, fp)
-          src_batch = []
-      if len(src_batch) != 0:
-        self._generate_one_batch(generator, xnmt.mark_as_batch(src_batch), max_src_len, fp)
-
-    # Finishing up
-    try:
-      if xnmt.globals.is_reporting():
-        self._conclude_report()
-    finally:
-      # Reporting is done in _generate_output only
-      xnmt.event_trigger.set_reporting(False)
-
-  def _forced_decode_one_batch(self, generator: models.GeneratorModel,
-                               batcher: Optional[xnmt.Batcher] = None,
-                               src_batch: xnmt.Batch = None,
-                               ref_batch: xnmt.Batch = None,
-                               assert_scores: xnmt.Batch = None,
-                               max_src_len: Optional[int] = None):
-    """
-    Performs forced decoding for a single batch.
-    """
-    batch_size = len(src_batch)
-    src_batches, ref_batches = batcher.pack(src_batch, ref_batch)
-    src_batch = src_batches[0]
-    ref_batch = ref_batches[0]
-    src_len = src_batch.sent_len()
-
-    # TODO(philip30): This if is nonsense
-    if max_src_len is None or src_len <= max_src_len is not None and src_len > max_src_len:
-      with xnmt.utils.ReportOnException({"src": src_batch, "graph": xnmt.utils.print_cg_conditional}):
-        dy.renew_cg(immediate_compute=xnmt.settings.IMMEDIATE_COMPUTE, check_validity=xnmt.settings.CHECK_VALIDITY)
-        outputs = self.generate_one(generator, src_batch)
-        if self.reporter: self._create_sent_report()
-        for i in range(len(outputs)):
-          if assert_scores is not None:
-            # If debugging forced decoding, make sure it matches
-            assert batch_size == len(outputs), "debug forced decoding not supported with nbest inference"
-            if (abs(outputs[i].score - assert_scores[i]) / abs(assert_scores[i])) > 1e-5:
-              raise ValueError(
-                f'Forced decoding score {outputs[i].score} and loss {assert_scores[i]} do not match at '
-                f'sentence {i}')
-
-  def _forced_decode(self,
-                     generator: models.GeneratorModel,
-                     src_file: str,
-                     ref_file: str,
-                     batcher: Optional[xnmt.Batcher] = None,
-                     max_src_len: Optional[int] = None,
-                     assert_scores: Optional[Sequence[float]] = None) -> None:
-    """
-    Perform forced decoding.
-
-    Args:
-      generator: generator model to use
-      src_file: a file of src-side inputs to generate outputs for
-      ref_file: path of file with reference translations
-      batcher: necessary with some cases of input pre-processing such as padding or truncation
-      max_src_len: if given, skip inputs that are too long
-      assert_scores: if given, raise exception if the scores for generated outputs don't match the given scores
-    """
-    src_in = generator.src_reader.read_sents(src_file)
-
-    # If we have a "assert scores" list return it, otherwise return "None" infinitely
-    assert_in = assert_scores if assert_scores else iter(lambda: None, 1)
-
-    # Reporting is commenced if there is some defined reporters
-    xnmt.event_trigger.set_reporting(self.reporter is not None)
+    fp = open(trg_file, 'wt', encoding='utf-8') if trg_file is not None else None
 
     # Saving the translated output to a trg file
-    src_batch, ref_batch, assert_batch = [], [], []
-    for curr_sent_i, (src_line, assert_line) in itertools.islice(enumerate(zip(src_in, assert_in)), self.max_num_sents):
+    src_batch = []
+    trg_batch = []
+    for curr_sent_i, src_line in itertools.islice(enumerate(src_in), self.max_num_sents):
       src_batch.append(src_line)
-      assert_batch.append(assert_line)
+      if ref_in:
+        trg_batch.append(next(ref_in))
       if len(src_batch) == batcher.batch_size:
-        self._forced_decode_one_batch(
-          generator, batcher, xnmt.mark_as_batch(src_batch), xnmt.mark_as_batch(assert_batch), max_src_len)
-        src_batch, ref_batch, assert_batch = [], [], []
+        self._generate_one_batch(generator,
+                                 xnmt.mark_as_batch(src_batch),
+                                 None if len(trg_batch) == 0 else xnmt.mark_as_batch(trg_batch),
+                                 max_src_len,
+                                 fp)
+        src_batch = []
+        trg_batch = []
     if len(src_batch) != 0:
-      self._forced_decode_one_batch(
-        generator, batcher, xnmt.mark_as_batch(src_batch), xnmt.mark_as_batch(assert_batch), max_src_len)
+      self._generate_one_batch(generator,
+                               xnmt.mark_as_batch(src_batch),
+                               None if len(trg_batch) == 0 else xnmt.mark_as_batch(trg_batch),
+                               max_src_len,
+                               fp)
 
     # Finishing up
     try:
@@ -728,6 +668,8 @@ class Inference(object):
     finally:
       # Reporting is done in _generate_output only
       xnmt.event_trigger.set_reporting(False)
+      if fp is not None:
+        fp.close()
 
   def _create_sent_report(self):
     assert self.reporter is not None
@@ -759,7 +701,6 @@ class Inference(object):
     ref_scores = [-x for x in ref_scores]
     return ref_scores
 
-
   def _write_rescored_output(self, ref_scores: Sequence[float], ref_file: str, trg_file: str) :
     """
     Write scored sequences and scores to file when mode=='score'.
@@ -774,31 +715,24 @@ class Inference(object):
         for nbest, score in zip(nbest_fp, ref_scores):
           fp.write("{} ||| score={}\n".format(nbest.strip(), score))
 
-  def _read_corpus(self, generator, src_file: str, mode: str, ref_file: str) -> Tuple[List, List]:
+  def _read_corpus(self, generator, src_file: str, ref_file: str) -> Tuple[List, List]:
     src_corpus = list(generator.src_reader.read_sents(src_file))
     # Get reference if it exists and is necessary
-    if mode == "forced" or mode == "forceddebug" or mode == "score":
-      if ref_file is None:
-        raise RuntimeError(f"When performing '{mode}' decoding, must specify reference file")
-      score_src_corpus = []
-      ref_corpus = []
-      with open(ref_file, "r", encoding="utf-8") as fp:
-        for idx, line in enumerate(fp):
-          if mode == "score":
-            nbest = line.split("|||")
-            assert len(nbest) > 1, "When performing scoring, ref_file must have nbest format 'index ||| hypothesis'"
-            src_index = int(nbest[0].strip())
-            assert src_index < len(src_corpus), \
-              f"The src_file has only {len(src_corpus)} instances, nbest file has invalid src_index {src_index}"
-            score_src_corpus.append(src_corpus[src_index])
-            trg_input = generator.trg_reader.read_sent(idx=idx, line=nbest[1].strip())
-          else:
-            trg_input = generator.trg_reader.read_sent(idx=idx, line=line)
-          ref_corpus.append(trg_input)
-      if mode == "score":
-        src_corpus = score_src_corpus
-    else:
-      ref_corpus = None
+    if ref_file is None:
+      raise RuntimeError(f"When performing 'score' decoding, must specify reference file")
+    score_src_corpus = []
+    ref_corpus = []
+    with open(ref_file, "r", encoding="utf-8") as fp:
+      for idx, line in enumerate(fp):
+        nbest = line.split("|||")
+        assert len(nbest) > 1, "When performing scoring, ref_file must have nbest format 'index ||| hypothesis'"
+        src_index = int(nbest[0].strip())
+        assert src_index < len(src_corpus), \
+          f"The src_file has only {len(src_corpus)} instances, nbest file has invalid src_index {src_index}"
+        score_src_corpus.append(src_corpus[src_index])
+        trg_input = generator.trg_reader.read_sent(idx=idx, line=nbest[1].strip())
+        ref_corpus.append(trg_input)
+      src_corpus = score_src_corpus
     return ref_corpus, src_corpus
 
 

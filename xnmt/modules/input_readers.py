@@ -70,17 +70,22 @@ class PlainTextReader(BaseTextReader, xnmt.Serializable):
   def __init__(self,
                vocab: Optional[xnmt.Vocab] = None,
                output_proc: Optional[List[models.OutputProcessor]] = None,
+               add_bos: bool = False,
                add_eos: bool = True,
                shift_n: int = 0):
     super().__init__(vocab)
     self.output_procs = output_processors.get_output_processor(output_proc)
     self.add_eos = add_eos
+    self.add_bos = add_bos
     self.shift_n = shift_n
 
   def read_sent(self, line: str, idx: int) -> sentences.SimpleSentence:
-    words = [self.vocab.convert(word) for word in self.shift_word(line.strip().split())]
+    words = []
+    if self.add_bos:
+      words.append(self.vocab.SS)
+    words.extend([self.vocab.convert(word) for word in self.shift_word(line.strip().split())])
     if self.add_eos:
-      words.append(xnmt.Vocab.ES)
+      words.append(self.vocab.ES)
     return sentences.SimpleSentence(idx=idx, words=words, vocab=self.vocab, output_procs=self.output_procs)
 
   def shift_word(self, words):
@@ -90,6 +95,17 @@ class PlainTextReader(BaseTextReader, xnmt.Serializable):
 
   def vocab_size(self) -> int:
     return len(self.vocab)
+
+
+class EmptyTextReader(PlainTextReader, xnmt.Serializable):
+  yaml_tag = "!EmptyTextReader"
+
+  @xnmt.serializable_init
+  def __init__(self, vocab: Optional[xnmt.Vocab] = None, add_bos: bool = True, add_eos: bool = False):
+    super().__init__(vocab=vocab, add_bos=add_bos, add_eos=add_eos)
+
+  def read_sent(self, line: str, idx: int) -> sentences.SimpleSentence:
+    return super().read_sent("", idx)
 
 
 class LengthTextReader(BaseTextReader, xnmt.Serializable):
@@ -121,7 +137,7 @@ class CompoundReader(models.InputReader, xnmt.Serializable):
   def __init__(self, readers: Sequence[models.InputReader], vocab: Optional[xnmt.Vocab] = None):
     if len(readers) < 2: raise ValueError("need at least two readers")
     self.readers = readers
-    
+
     if vocab is None:
       for reader in readers:
         if hasattr(reader, "vocab"):
@@ -155,11 +171,13 @@ class CompoundReader(models.InputReader, xnmt.Serializable):
 
 class SimultTextReader(CompoundReader, xnmt.Serializable):
   yaml_tag = "!SimultTextReader"
-  
+
   @xnmt.serializable_init
   def __init__(self, text_reader: PlainTextReader, action_reader: PlainTextReader):
     super().__init__([text_reader, action_reader], text_reader.vocab)
-    
+    action_reader.add_bos = False
+    action_reader.add_eos = False
+
   def read_sent(self, line: Tuple[sentences.SimpleSentence, sentences.SimpleSentence], idx: int):
     line[1].pad_token = xnmt.structs.vocabs.SimultActionVocab.PAD
     return sentences.OracleSentence(words = line[0].words,
@@ -169,7 +187,7 @@ class SimultTextReader(CompoundReader, xnmt.Serializable):
                                     idx = line[0].idx,
                                     output_procs= line[0].output_procs,
                                     pad_token = line[0].pad_token)
-  
+
 
 class SentencePieceTextReader(BaseTextReader, xnmt.Serializable):
   yaml_tag = "!SentencePieceTextReader"
@@ -284,10 +302,11 @@ class CharFromWordTextReader(PlainTextReader, xnmt.Serializable):
                add_word_begin_marker = True,
                add_word_end_marker = True,
                output_proc: Optional[List[models.OutputProcessor]] = None,
+               add_bos: bool = False,
                add_eos: bool = True,
                shift_n: int = 0):
     assert char_vocab is not None and vocab is not None
-    super().__init__(vocab=vocab, add_eos=add_eos, shift_n=shift_n, output_proc=output_proc)
+    super().__init__(vocab=vocab, add_bos=add_bos, add_eos=add_eos, shift_n=shift_n, output_proc=output_proc)
     self.char_vocab = char_vocab
     self.add_word_begin_marker = add_word_begin_marker
     self.add_word_end_marker = add_word_end_marker
@@ -300,6 +319,10 @@ class CharFromWordTextReader(PlainTextReader, xnmt.Serializable):
     words = []
     segs = []
     offset = 0
+    if self.add_bos:
+      offset += 1
+      segs.append(0)
+      words.append(sentences.SegmentedWord(tuple([self.char_vocab.SS]), self.vocab.SS))
     for word in self.shift_word(line.strip().split()):
       chars = []
       # <SS>
@@ -312,7 +335,7 @@ class CharFromWordTextReader(PlainTextReader, xnmt.Serializable):
       # <PAD>
       if self.add_word_end_marker:
         offset += 1
-        chars.append(self.char_vocab.PAD)
+        chars.append(self.char_vocab.ES)
       # Outputs
       segs.append(offset-1)
       words.append(sentences.SegmentedWord(tuple(chars), self.vocab.convert(word)))

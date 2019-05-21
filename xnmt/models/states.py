@@ -26,7 +26,7 @@ class UniDirectionalState(object):
 
   def output(self) -> dy.Expression:
     raise NotImplementedError()
-  
+
   def context(self) -> dy.Expression:
     return self.output()
 
@@ -34,7 +34,7 @@ class UniDirectionalState(object):
 class IdentityUniDirectionalState(UniDirectionalState):
   def __init__(self, content: Optional[dy.Expression] = None):
     self.content = content
-    
+
   def output(self):
     return self.content
 
@@ -133,6 +133,10 @@ class SearchAction(object):
   def action_id(self):
     return self._action_id
 
+  @action_id.setter
+  def action_id(self, value):
+    self._action_id = value
+
   @property
   def log_likelihood(self):
     return self._log_likelihood
@@ -144,7 +148,7 @@ class SearchAction(object):
   @property
   def decoder_state(self):
     return self._decoder_state
-  
+
   @property
   def log_softmax(self):
     return self._log_softmax

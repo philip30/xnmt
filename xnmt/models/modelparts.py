@@ -25,7 +25,7 @@ class Attender(object):
     if attender_state.read_mask is not None:
       scores = attender_state.read_mask.add_to_tensor_expr(scores, multiplicator=-xnmt.globals.INF)
     return dy.softmax(scores)
- 
+
   def calc_scores(self, decoder_context: dy.Expression, attender_state: states.AttenderState) -> dy.Expression:
     """ Compute attention weights.
 
@@ -80,6 +80,9 @@ class Decoder(object):
     raise NotImplementedError('must be implemented by subclasses')
 
   def sample(self, dec_state: states.UniDirectionalState, n: int, temperature=1.0) -> List[states.SearchAction]:
+    raise NotImplementedError('must be implemented by subclasses')
+
+  def pick_oracle(self, oracle, dec_state: states.UniDirectionalState) -> List[states.SearchAction]:
     raise NotImplementedError('must be implemented by subclasses')
 
   def finish_generating(self, dec_output: Any, dec_state: states.UniDirectionalState) -> bool:

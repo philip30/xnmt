@@ -36,7 +36,6 @@ class IndependentOutputInference(models.Inference, xnmt.Serializable):
                max_src_len: Optional[int] = None,
                max_num_sents: Optional[int] = None,
                post_process: Optional[Union[str, models.OutputProcessor, Sequence[models.OutputProcessor]]] = None,
-               mode: str = "onebest",
                batcher: xnmt.structs.InOrderBatcher = xnmt.bare(xnmt.structs.InOrderBatcher, batch_size=1),
                reporter: Optional[Union[models.Reporter, Sequence[models.Reporter]]] = None,
                loss_calculator: models.LossCalculator = xnmt.bare(xnmt.train.MLELoss)):
@@ -45,7 +44,6 @@ class IndependentOutputInference(models.Inference, xnmt.Serializable):
                      ref_file=ref_file,
                      max_src_len=max_src_len,
                      max_num_sents=max_num_sents,
-                     mode=mode,
                      batcher=batcher,
                      reporter=reporter,
                      post_processor = xnmt.modules.output_processors.get_output_processor(post_process))
@@ -91,16 +89,14 @@ class AutoRegressiveInference(models.Inference, xnmt.Serializable):
                max_num_sents: Optional[int] = None,
                post_process: Optional[Union[str, models.OutputProcessor, Sequence[models.OutputProcessor]]] = None,
                search_strategy: models.SearchStrategy = xnmt.bare(search_strategies.BeamSearch),
-               mode: str = "onebest",
                batcher: xnmt.structs.InOrderBatcher = xnmt.bare(xnmt.structs.batchers.InOrderBatcher, batch_size=1),
-               reporter: Union[None, models.Reporter, Sequence[models.Reporter]] = None,
+               reporter: Optional[Union[models.Reporter, Sequence[models.Reporter]]] = None,
                loss_calculator: models.LossCalculator = xnmt.bare(xnmt.train.MLELoss)):
     super().__init__(src_file=src_file,
                      trg_file=trg_file,
                      ref_file=ref_file,
                      max_src_len=max_src_len,
                      max_num_sents=max_num_sents,
-                     mode=mode,
                      batcher=batcher,
                      reporter=reporter,
                      post_processor = xnmt.modules.output_processors.get_output_processor(post_process))
@@ -108,45 +104,11 @@ class AutoRegressiveInference(models.Inference, xnmt.Serializable):
     self.search_strategy = search_strategy
     self.loss_calculator = loss_calculator
 
-  def generate_one(self, generator: models.GeneratorModel, src: xnmt.Batch) -> Sequence[xnmt.Sentence]:
-    return generator.generate(src, search_strategy=self.search_strategy)
+  def generate_one(self, generator: models.GeneratorModel, src: xnmt.Batch, ref: Optional[xnmt.Batch]) -> Sequence[xnmt.Sentence]:
+    return generator.generate(src, search_strategy=self.search_strategy, ref=ref)
 
   def compute_losses_one(self, generator: models.ConditionedModel, src: xnmt.Batch, ref: xnmt.Batch) \
       -> xnmt.FactoredLossExpr:
     return self.loss_calculator.calc_loss(generator, src, ref)
 
 
-class CascadeInference(models.Inference, xnmt.Serializable):
-  yaml_tag = "!CascadeInference"
-  """Inference class that performs inference as a series of independent inference steps.
-
-  Steps are performed using a list of inference sub-objects and a list of networks.
-  Intermediate outputs are written out to disk and then read by the next time step.
-
-  The generator passed to ``perform_inference`` must be a :class:`xnmt.networks.CascadeGenerator`.
-
-  Args:
-    steps: list of inference objects
-  """
-  @xnmt.serializable_init
-  def __init__(self, steps: Sequence[models.Inference]) -> None:
-    self.steps = steps
-
-  def perform_inference(self,
-                        generator: 'xnmt.networks.CascadeGenerator',
-                        src_file: str = None,
-                        trg_file: str = None,
-                        ref_file: str = None):
-    assert isinstance(generator, xnmt.networks.CascadeGenerator)
-    assert len(generator.generators) == len(self.steps)
-    src_files = [src_file] + [f"{trg_file}.tmp.{i}" for i in range(len(self.steps)-1)]
-    trg_files = src_files[1:] + [trg_file]
-    for step_i, step in enumerate(self.steps):
-      step.perform_inference(generator=generator.generators[step_i],
-                             src_file=src_files[step_i],
-                             trg_file=trg_files[step_i])
-
-  def compute_losses_one(self, *args, **kwargs):
-    raise ValueError("cannot call CascadedInference.compute_losses_one() directly, use the sub-inference objects")
-  def generate_one(self, *args, **kwargs):
-    raise ValueError("cannot call CascadedInference.generate_one() directly, use the sub-inference objects")

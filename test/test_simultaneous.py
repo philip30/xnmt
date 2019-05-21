@@ -17,7 +17,7 @@ class TestSimultaneousTranslation(unittest.TestCase):
     layer_dim = 32
     xnmt.internal.events.clear()
     xnmt.internal.param_collections.ParamManager.init_param_col()
-    
+
     self.src_reader = xnmt.modules.input_readers.SimultTextReader(
       text_reader=xnmt.modules.input_readers.PlainTextReader(vocab=xnmt.Vocab(vocab_file="examples/data/head.ja.vocab")),
       action_reader=xnmt.modules.input_readers.PlainTextReader(vocab=xnmt.structs.vocabs.SimultActionVocab())
@@ -69,8 +69,6 @@ class TestSimultaneousTranslation(unittest.TestCase):
     self.assertNotEqual(len(result), 0)
     result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
     self.assertNotEqual(len(result), 0)
-    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.SamplingSearch())
-    self.assertNotEqual(len(result), 0)
 
   def test_recurrent_agent(self):
     self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
@@ -85,9 +83,7 @@ class TestSimultaneousTranslation(unittest.TestCase):
     self.assertNotEqual(len(result), 0)
     result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
     self.assertNotEqual(len(result), 0)
-    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.SamplingSearch())
-    self.assertNotEqual(len(result), 0)
-    
+
   def test_read_before_write(self):
     self.model.policy_agent.trivial_read_before_write = True
     mle_loss = xnmt.train.MLELoss()
@@ -97,9 +93,7 @@ class TestSimultaneousTranslation(unittest.TestCase):
     self.assertNotEqual(len(result), 0)
     result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
     self.assertNotEqual(len(result), 0)
-    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.SamplingSearch())
-    self.assertNotEqual(len(result), 0)
-    
+
   def test_read_write_interchange(self):
     self.model.policy_agent.trivial_exchange_read_write = True
     mle_loss = xnmt.train.MLELoss()
@@ -108,8 +102,6 @@ class TestSimultaneousTranslation(unittest.TestCase):
     result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
     self.assertNotEqual(len(result), 0)
     result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
-    self.assertNotEqual(len(result), 0)
-    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.SamplingSearch())
     self.assertNotEqual(len(result), 0)
 
 if __name__ == "__main__":

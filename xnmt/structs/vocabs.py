@@ -24,7 +24,7 @@ class Vocab(Serializable):
   PAD = 2
   UNK = 3
 
-  
+
   SS_STR = "<s>"
   ES_STR = "</s>"
   UNK_STR = "<unk>"
@@ -95,6 +95,11 @@ class Vocab(Serializable):
 class CharVocab(Vocab):
   yaml_tag = "!CharVocab"
 
+  PAD = 1
+  ES = 3
+  UNK = 0
+  SS = 2
+
   def _add_word_to_vocab(self, vocab, word):
     for c in word:
       if c not in vocab:
@@ -109,7 +114,7 @@ class SimultActionVocab(Vocab):
   SS = 6
   ES = 7
   VOCAB_SIZE = 8
-  
+
   @serializable_init
   def __init__(self):
     self.i2w = ["READ", "WRITE", "PREDICT_READ", "PREDICT_WRITE", "PAD", Vocab.UNK_STR, Vocab.SS_STR, Vocab.ES_STR]

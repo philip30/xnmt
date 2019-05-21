@@ -66,17 +66,21 @@ class GeneratorModel(object):
     self.src_reader = src_reader
     self.trg_reader = trg_reader
 
-  def generate(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy') \
+  def generate(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy', ref: Optional[xnmt.Batch]=None) \
       -> List[xnmt.structs.sentences.ReadableSentence]:
-    hyps = self.create_trajectories(src, search_strategy)
+    hyps = self.create_trajectories(src, search_strategy, ref)
     return list(itertools.chain.from_iterable([self.hyp_to_readable(hyps[i], src[i].idx) for i in range(len(hyps))]))
 
-  def create_trajectories(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy') \
+  def create_trajectories(self, src: xnmt.Batch, search_strategy: 'xnmt.models.SearchStrategy', ref: Optional[xnmt.Batch]=None) \
       -> List[List[states.Hypothesis]]:
     outputs = []
     for i in range(src.batch_size()):
       src_i = xnmt.mark_as_batch(data=[src[i].get_unpadded_sent()], mask=None)
-      search_hyps = search_strategy.generate_output(self, self.initial_state(src_i))
+      if isinstance(search_strategy, xnmt.models.ForceableSearchStrategy) and search_strategy.is_forced():
+        ref_i = xnmt.mark_as_batch(data=[ref[i].get_unpadded_sent()], mask=None)
+        search_hyps = search_strategy.generate_forced_output(self, self.initial_state(src_i), ref_i)
+      else:
+        search_hyps = search_strategy.generate_output(self, self.initial_state(src_i))
       outputs.append(search_hyps)
     return outputs
 
@@ -99,12 +103,15 @@ class AutoRegressiveModel(ConditionedModel, GeneratorModel):
 
   def sample(self, dec_state: states.UniDirectionalState, k: int) -> Sequence[states.SearchAction]:
     raise NotImplementedError()
-  
+
+  def pick_oracle(self, dec_state: states.UniDirectionalState, oracle):
+    raise NotImplementedError()
+
   def hyp_to_readable(self, hyps: List[states.Hypothesis], idx: int):
     raise NotImplementedError()
-  
+
   def initial_state(self, src: xnmt.Batch):
     raise NotImplementedError()
- 
+
   def calc_nll(self, src: xnmt.Batch, trg: xnmt.Batch):
-    pass
+    raise NotImplementedError()

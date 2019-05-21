@@ -249,7 +249,7 @@ class SimpleSentence(ReadableSentence):
     ret_toks =  [w for w in self.words if w not in exclude_set]
     if self.vocab: return [self.vocab[w] for w in ret_toks]
     else: return [str(w) for w in ret_toks]
- 
+
   def sent_with_new_words(self, new_words):
     unpadded_sent = self.unpadded_sent
     if not unpadded_sent:
@@ -265,7 +265,7 @@ class OracleSentence(SimpleSentence):
   def __init__(self, words, oracle, **kwargs):
     super().__init__(words, **kwargs)
     self.oracle = oracle
-    
+
   def sent_with_new_words(self, new_words):
     return OracleSentence(
       words=new_words, oracle=self.oracle, idx=self.idx, vocab=self.vocab, score=self.score,

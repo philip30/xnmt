@@ -37,13 +37,13 @@ class SimultSeqLenUniDirectionalState(models.UniDirectionalState):
 
   def output(self) -> dy.Expression:
     return self.decoder_state.output()
-  
+
   def context(self) -> dy.Expression:
     return self.decoder_state.context()
-  
+
   def add_input(self, word: dy.Expression, mask: Optional[xnmt.Mask] = None):
     raise NotImplementedError("Should not call this line of code")
-  
+
   def encoder_state(self) -> dy.Expression:
     mask = np.zeros((len(self.full_encodings), len(self.num_reads)))
     for i, read in enumerate(self.num_reads):
@@ -51,7 +51,7 @@ class SimultSeqLenUniDirectionalState(models.UniDirectionalState):
         mask[read-1, i] = 1
     mask = dy.inputTensor(mask, batched=True)
     return self.full_encodings.as_tensor() * mask
-  
+
   def num_actions(self):
     return self.timestep
 
@@ -66,9 +66,9 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
   yaml_tag = "!SimultPolicyAgent"
   READ = 0
   WRITE = 1
-  
+
   __ACTIONS__ = [READ, WRITE]
-  
+
   @xnmt.serializable_init
   def __init__(self,
                input_transform: Optional[models.Transform] = None,
@@ -91,16 +91,16 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
                                                             nn.Softmax(input_dim=default_layer_dim,
                                                                        vocab_size=xnmt.structs.vocabs.SimultActionVocab.VOCAB_SIZE)))
     self.default_layer_dim = default_layer_dim
-    
+
     if self.policy_network is None and not trivial_exchange_read_write and not trivial_read_before_write:
       xnmt.logger.info("Policy network is not found for SimultPolicyNetwork, setting up trivia to read before write")
       self.trivial_read_before_write = True
-  
+
   def initial_state(self, src: xnmt.Batch) -> models.PolicyAgentState:
 #    assert src.batch_size() == 1
     policy_state = self.policy_network.initial_state(src) if self.policy_network is not None else None
     return models.PolicyAgentState(src, policy_state)
-  
+
   def next_action(self, state: Optional[SimultSeqLenUniDirectionalState] = None) \
       -> Tuple[models.SearchAction, models.PolicyAgentState]:
     # Define oracle
@@ -130,20 +130,20 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     else:
       policy_action = models.SearchAction(action_id=oracle_action)
       network_state = state.network_state
-    
+
     return policy_action, network_state
-  
+
   def input_state(self, state: SimultSeqLenUniDirectionalState):
     encoder_state = state.encoder_state() if state.timestep > 0 \
                     else dy.zeros(self.default_layer_dim, batch_size=state.src.batch_size())
     decoder_state = state.decoder_state.context() if state.decoder_state is not None \
                     else dy.zeros(self.default_layer_dim, batch_size=state.src.batch_size())
     return dy.concatenate([dy.nobackprop(encoder_state), dy.nobackprop(decoder_state)])
-    
+
   def calc_loss(self, dec_state: models.UniDirectionalState, ref: xnmt.Batch):
     return self.policy_network.calc_loss(dec_state, ref)
-  
+
   def finish_generating(self, state: SimultSeqLenUniDirectionalState):
     return state.timestep >= state.oracle_batch.sent_len()
-  
+
 

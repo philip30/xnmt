@@ -39,14 +39,14 @@ class ArbSeqLenUniDirectionalState(models.UniDirectionalState):
   @property
   def timestep(self):
     return self._timestep
-  
+
   def context(self):
     return self._context
-  
+
   @property
   def rnn_state(self):
     return self._rnn_state
-  
+
   @property
   def src(self):
     return self._src
@@ -73,12 +73,13 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
   def __init__(self,
                input_dim: int = xnmt.default_layer_dim,
                embedder: models.Embedder = xnmt.bare(nn.LookupEmbedder),
-               attender: models.Attender = xnmt.bare(nn.MlpAttender),
+               attender: Optional[models.Attender] = xnmt.bare(nn.MlpAttender),
                input_feeding: bool = True,
                bridge: models.Bridge = xnmt.bare(nn.CopyBridge),
                rnn: models.UniDiSeqTransducer = xnmt.bare(nn.UniLSTMSeqTransducer),
                transform: models.Transform = xnmt.bare(nn.AuxNonLinear),
                scorer: models.Scorer = xnmt.bare(nn.Softmax),
+               init_with_bos: bool = True,
                eog_symbol: int = xnmt.Vocab.ES) -> None:
     self.param_col = xnmt.param_manager(self)
     self.input_dim = input_dim
@@ -91,6 +92,7 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
     # Input feeding
     self.input_feeding = input_feeding
     self.eog_symbol = eog_symbol
+    self.init_with_bos = init_with_bos
     rnn_input_dim = embedder.emb_dim
     if input_feeding:
       rnn_input_dim += input_dim
@@ -104,12 +106,13 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
     Returns:
       initial decoder state
     """
-    attender_state = self.attender.initial_state(enc_results.encode_seq)
+    attender_state = self.attender.initial_state(enc_results.encode_seq) if self.attender is not None else None
     batch_size = enc_results.encode_seq[0].dim()[1]
     rnn_state = self.rnn.initial_state(self.bridge.decoder_init(enc_results.encoder_final_states))
     zeros = dy.zeros(self.input_dim)
-    ss_expr = self.embedder.embed(xnmt.mark_as_batch([xnmt.Vocab.SS] * batch_size))
-    rnn_state = rnn_state.add_input(dy.concatenate([ss_expr, zeros]) if self.input_feeding else ss_expr)
+    if self.init_with_bos:
+      ss_expr = self.embedder.embed(xnmt.mark_as_batch([xnmt.Vocab.SS] * batch_size))
+      rnn_state = rnn_state.add_input(dy.concatenate([ss_expr, zeros]) if self.input_feeding else ss_expr)
     return ArbSeqLenUniDirectionalState(rnn_state=rnn_state, context=zeros, attender_state=attender_state,
                                         timestep=0, src=src)
 
@@ -128,7 +131,10 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
       trg_embedding = self.embedder.embed(trg_word)
       context = trg_embedding if not self.input_feeding else dy.concatenate([trg_embedding, dec_state.context()])
       rnn_state = rnn_state.add_input(context, trg_word.mask)
-    context, attender_state = self.attender.calc_context(rnn_state.output(), dec_state.attender_state)
+    if self.attender is not None:
+      context, attender_state = self.attender.calc_context(rnn_state.output(), dec_state.attender_state)
+    else:
+      context, attender_state = rnn_state.output(), None
     return ArbSeqLenUniDirectionalState(rnn_state=rnn_state, context=context, attender_state=attender_state,
                                         timestep=dec_state.timestep+1, src=dec_state.src)
 
@@ -152,6 +158,10 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
     ret  = [models.SearchAction(dec_state, best_word, dy.pick(log_softmax, best_word), log_softmax, None) \
             for best_word, log_softmax in sample_k]
     return ret
+
+  def pick_oracle(self, oracle, dec_state: ArbSeqLenUniDirectionalState):
+    log_prob = self.scorer.calc_log_probs(dec_state.output())
+    return [models.SearchAction(dec_state, oracle, dy.pick_batch(log_prob, oracle), log_prob, None)]
 
   def calc_loss(self, dec_state: ArbSeqLenUniDirectionalState, ref_action: xnmt.Batch) -> dy.Expression:
     return self.scorer.calc_loss(self._calc_transform(dec_state), ref_action)
