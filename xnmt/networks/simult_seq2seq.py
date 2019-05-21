@@ -170,6 +170,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                      network_state: models.PolicyAgentState,
                      write_flag: np.ndarray = np.ndarray([1])) -> agents.SimultSeqLenUniDirectionalState:
     if state.decoder_state is None:
+      decoder_state = self.decoder.initial_state(models.EncoderState(state.full_encodings, None), state.src)
     else:
       decoder_state = state.decoder_state
       
