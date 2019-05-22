@@ -75,14 +75,11 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
                policy_network: Optional[networks.PolicyNetwork] = None,
                oracle_in_train: bool = False,
                oracle_in_test: bool = False,
-               trivial_read_before_write: bool = False,
-               trivial_exchange_read_write: bool = False,
                default_layer_dim: int = xnmt.default_layer_dim):
     self.input_transform = input_transform
     self.oracle_in_train = oracle_in_train
     self.oracle_in_test = oracle_in_test
-    self.trivial_read_before_write = trivial_read_before_write
-    self.trivial_exchange_read_write = trivial_exchange_read_write
+
     self.input_transform = self.add_serializable_component("input_transform", input_transform,
                                                             lambda: nn.NonLinear(2 * default_layer_dim,
                                                                                  default_layer_dim))
@@ -92,10 +89,6 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
                                                                        vocab_size=xnmt.structs.vocabs.SimultActionVocab.VOCAB_SIZE)))
     self.default_layer_dim = default_layer_dim
 
-    if self.policy_network is None and not trivial_exchange_read_write and not trivial_read_before_write:
-      xnmt.logger.info("Policy network is not found for SimultPolicyNetwork, setting up trivia to read before write")
-      self.trivial_read_before_write = True
-
   def initial_state(self, src: xnmt.Batch) -> models.PolicyAgentState:
 #    assert src.batch_size() == 1
     policy_state = self.policy_network.initial_state(src) if self.policy_network is not None else None
@@ -103,15 +96,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
 
   def next_action(self, state: Optional[SimultSeqLenUniDirectionalState] = None) \
       -> Tuple[models.SearchAction, models.PolicyAgentState]:
-    # Define oracle
-    if self.trivial_read_before_write:
-      oracle_action = self.READ if np.max(state.num_reads) < state.src.sent_len() else self.WRITE
-      oracle_action = np.array([oracle_action] * state.src.batch_size())
-    elif self.trivial_exchange_read_write:
-      oracle_action = self.READ if state.timestep % 2 == 0 else self.WRITE
-      if state.num_reads[0] >= state.src.sent_len(): oracle_action = self.WRITE
-      oracle_action = np.array([oracle_action] * state.src.batch_size())
-    elif (xnmt.is_train() and self.oracle_in_train) or (not xnmt.is_train() and self.oracle_in_test) or state.force_oracle:
+    if (xnmt.is_train() and self.oracle_in_train) or (not xnmt.is_train() and self.oracle_in_test) or state.force_oracle:
       oracle_action = np.array([state.oracle_batch[i][state.timestep] for i in range(state.oracle_batch.batch_size())])
     else:
       oracle_action = None

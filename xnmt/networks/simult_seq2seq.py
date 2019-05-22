@@ -76,8 +76,6 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       else:
         num_reads = state.num_reads
 
-
-      
       if agents.SimultPolicyAgent.WRITE in action_set:
         prev_word = [trg[i][min(state.num_writes[i]-1, trg.sent_len()-1)] \
                        if state.num_writes[i] > 0 else pad_token for i in range(trg.batch_size())]
@@ -167,7 +165,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       parent=state
     )
 
-  def _perform_write(self,
+  def perform_write(self,
                      state: agents.SimultSeqLenUniDirectionalState,
                      search_action: models.SearchAction,
                      prev_word: xnmt.Batch,
