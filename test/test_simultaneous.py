@@ -10,7 +10,6 @@ import xnmt.modules.nn as nn
 class TestSimultaneousTranslation(unittest.TestCase):
 
   def setUp(self):
-    dy.init(7)
     random.seed(7)
     numpy.random.seed(7)
     # Seeding
@@ -50,8 +49,6 @@ class TestSimultaneousTranslation(unittest.TestCase):
       policy_agent=xnmt.rl.agents.SimultPolicyAgent(
         oracle_in_train=True,
         oracle_in_test=True,
-        trivial_read_before_write=False,
-        trivial_exchange_read_write=False,
         default_layer_dim=layer_dim
       )
     )
@@ -92,7 +89,7 @@ class TestSimultaneousTranslation(unittest.TestCase):
                                        xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
         losses.append(loss_i)
       
-      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=2)
+      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=1)
     
   def test_same_loss_batch_single_pol(self):
     xnmt.event_trigger.set_train(True)
@@ -124,25 +121,6 @@ class TestSimultaneousTranslation(unittest.TestCase):
     result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
     self.assertNotEqual(len(result), 0)
 
-  def test_read_before_write(self):
-    self.model.policy_agent.trivial_read_before_write = True
-    mle_loss = xnmt.train.MLELoss()
-    mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
-    xnmt.event_trigger.set_train(False)
-    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
-    self.assertNotEqual(len(result), 0)
-    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
-    self.assertNotEqual(len(result), 0)
-
-  def test_read_write_interchange(self):
-    self.model.policy_agent.trivial_exchange_read_write = True
-    mle_loss = xnmt.train.MLELoss()
-    mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
-    xnmt.event_trigger.set_train(False)
-    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
-    self.assertNotEqual(len(result), 0)
-    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
-    self.assertNotEqual(len(result), 0)
 
 if __name__ == "__main__":
   unittest.main()

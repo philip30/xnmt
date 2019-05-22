@@ -79,6 +79,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       if agents.SimultPolicyAgent.WRITE in action_set:
         prev_word = [trg[i][min(state.num_writes[i]-1, trg.sent_len()-1)] \
                        if state.num_writes[i] > 0 else pad_token for i in range(trg.batch_size())]
+        ref_word = [trg[i][min(state.num_writes[i], trg.sent_len()-1)] \
+                      if state.num_writes[i] < trg[i].sent_len() else pad_token for i in range(trg.batch_size())]
         write_flag = np.zeros((trg.batch_size(), 1), dtype=int)
         write_flag[search_action.action_id == agents.SimultPolicyAgent.WRITE] = 1
         input_mask = np.array([[1 if word == pad_token else 0 for word in prev_word]])
@@ -90,8 +92,6 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         decoder_state = new_state.decoder_state
 
         if self.train_nmt_mle:
-          ref_word = [trg[i][min(state.num_writes[i], trg.sent_len()-1)] \
-                      if state.num_writes[i] < trg[i].sent_len() else pad_token for i in range(trg.batch_size())]
           ref_word = xnmt.mark_as_batch(data=ref_word, mask=xnmt.Mask(1-write_flag))
           loss = self.decoder.calc_loss(decoder_state, ref_word)
           if ref_word.mask is not None:
