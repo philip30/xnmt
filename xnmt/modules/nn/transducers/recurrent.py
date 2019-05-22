@@ -31,7 +31,7 @@ class UniLSTMState(models.UniDirectionalState):
       self._c = c
       self._h = h
 
-  def add_input(self, x: dy.Expression, mask: Optional[xnmt.Mask] = None) -> models.UniDirectionalState:
+  def add_input(self, x: dy.Expression, mask: Optional[xnmt.Mask] = None, position=0) -> models.UniDirectionalState:
     network = self._network()
     weight_noise = self._weightnoise_std if xnmt.is_train() else 0
     batch_size = x[0].dim()[1]
@@ -64,10 +64,10 @@ class UniLSTMState(models.UniDirectionalState):
       c_t = dy.vanilla_lstm_c(self._c[i], gates)
       h_t = dy.vanilla_lstm_h(c_t, gates)
       if mask is not None:
-        c_t = mask.cmult_by_timestep_expr(c_t, 0, True) + \
-              mask.cmult_by_timestep_expr(self._c[i], 0, False)
-        h_t = mask.cmult_by_timestep_expr(h_t, 0, True) + \
-              mask.cmult_by_timestep_expr(self._h[i], 0, False)
+        c_t = mask.cmult_by_timestep_expr(c_t, position, True) + \
+              mask.cmult_by_timestep_expr(self._c[i], position, False)
+        h_t = mask.cmult_by_timestep_expr(h_t, position, True) + \
+              mask.cmult_by_timestep_expr(self._h[i], position, False)
       new_c.append(c_t)
       new_h.append(h_t)
       x = new_h[-1]
@@ -201,7 +201,7 @@ class UniLSTMSeqTransducer(xnmt.models.UniDiSeqTransducer, xnmt.Serializable):
     state = self.initial_state()
     out_expr = []
     for i in range(len(expr_seq)):
-      state = state.add_input(expr_seq[i], expr_seq.mask)
+      state = state.add_input(expr_seq[i], expr_seq.mask, i)
       out_expr.append(state.output())
 
     out_expr = xnmt.ExpressionSequence(expr_list=out_expr, mask=expr_seq.mask)
@@ -276,7 +276,6 @@ class BiLSTMSeqTransducer(models.BidiSeqTransducer, xnmt.Serializable):
                                                 cell_expr=dy.concatenate([fwd_final_state.cell_expr(),
                                                                           bwd_final_state.cell_expr()])) \
                     for fwd_final_state, bwd_final_state in zip(fwd_final_states, bwd_final_states)]
-
 
     expr_seq = xnmt.ExpressionSequence(expr_list=expr_list, mask=es.mask)
     return models.EncoderState(expr_seq, final_states)

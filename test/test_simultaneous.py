@@ -1,8 +1,8 @@
 import unittest
 
 import dynet as dy
-import numpy
 import random
+import numpy
 import xnmt
 import xnmt.modules.nn as nn
 
@@ -10,9 +10,9 @@ import xnmt.modules.nn as nn
 class TestSimultaneousTranslation(unittest.TestCase):
 
   def setUp(self):
-#    dy.init(115)
-#    numpy.random.seed(115)
-#    random.seed(115)
+    dy.init(7)
+    random.seed(7)
+    numpy.random.seed(7)
     # Seeding
     layer_dim = 32
     xnmt.internal.events.clear()
@@ -35,7 +35,7 @@ class TestSimultaneousTranslation(unittest.TestCase):
       trg_reader=self.trg_reader,
       encoder=nn.SeqEncoder(
         embedder=nn.LookupEmbedder(emb_dim=layer_dim, vocab=self.src_reader.vocab),
-        seq_transducer=nn.BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim)),
+        seq_transducer=nn.UniLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim)),
       decoder=nn.ArbLenDecoder(
         input_dim=layer_dim,
         attender=nn.MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
@@ -78,6 +78,37 @@ class TestSimultaneousTranslation(unittest.TestCase):
     inference.perform_inference(self.model)
 
   
+  def test_same_loss_batch_single(self):
+    xnmt.event_trigger.set_train(True)
+    self.model.policy_agent.policy_network = None
+    self.model.train_pol_mle = False
+    mle_loss = xnmt.train.MLELoss()
+    for src, trg in zip(self.src, self.trg):
+      loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()
+      losses = []
+      for s, t in zip(src, trg):
+        loss_i, _ = mle_loss.calc_loss(self.model,
+                                       xnmt.mark_as_batch([s.get_unpadded_sent()]),
+                                       xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
+        losses.append(loss_i)
+      
+      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=2)
+    
+  def test_same_loss_batch_single_pol(self):
+    xnmt.event_trigger.set_train(True)
+    self.model.train_nmt_mle = False
+    mle_loss = xnmt.train.MLELoss()
+    for src, trg in zip(self.src, self.trg):
+      loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()
+      losses = []
+      for s, t in zip(src, trg):
+        loss_i, _ = mle_loss.calc_loss(self.model,
+                                       xnmt.mark_as_batch([s.get_unpadded_sent()]),
+                                       xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
+        losses.append(loss_i)
+      
+      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=0)
+
 
   def test_recurrent_agent(self):
     self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(

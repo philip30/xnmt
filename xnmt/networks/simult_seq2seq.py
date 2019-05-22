@@ -76,6 +76,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       else:
         num_reads = state.num_reads
 
+
+      
       if agents.SimultPolicyAgent.WRITE in action_set:
         prev_word = [trg[i][min(state.num_writes[i]-1, trg.sent_len()-1)] \
                        if state.num_writes[i] > 0 else pad_token for i in range(trg.batch_size())]
@@ -96,21 +98,24 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
           loss = self.decoder.calc_loss(decoder_state, ref_word)
           if ref_word.mask is not None:
             loss = ref_word.mask.cmult_by_timestep_expr(loss, 0, True)
+            
           mle_loss.append(loss)
       else:
         num_writes = state.num_writes
         decoder_state = state.decoder_state
+        write_flag = np.zeros((trg.batch_size(), 1), dtype=int)
+        write_flag[search_action.action_id == agents.SimultPolicyAgent.WRITE] = 1
 
       if self.train_pol_mle:
         search_action = search_action.action_id
         oracle_action = [oracle[state.timestep] for oracle in state.oracle_batch]
-        mask = xnmt.Mask(np.array([[1 if ref == pad_token else 0 for ref in oracle_action]]))
+        mask = xnmt.Mask(np.array([[1 if ref == pad_token else 0 for ref in oracle_action]]).transpose())
         oracle_batch = xnmt.mark_as_batch(oracle_action, mask)
         loss = self.policy_agent.calc_loss(network_state, oracle_batch)
         if oracle_batch.mask is not None:
           loss = oracle_batch.mask.cmult_by_timestep_expr(loss, 0, True)
         pol_loss.append(loss)
-
+    
       state = agents.SimultSeqLenUniDirectionalState(
         src=state.src,
         full_encodings=state.full_encodings,
@@ -125,8 +130,6 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         force_oracle=state.force_oracle,
         timestep=state.timestep+1
       )
-
-
     total_loss = {}
     if mle_loss:
       total_loss["p(e|f)"] = xnmt.LossExpr(dy.esum(mle_loss), units=state.num_writes)
@@ -176,7 +179,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       decoder_state = state.decoder_state
 
     if (state.read_was_performed or state.decoder_state is None) and \
-        hasattr(self.decoder, "attender"):
+        hasattr(self.decoder, "attender") and self.decoder.attender is not None:
       attender_state = decoder_state.attender_state
       read_masks = np.ones((state.src.batch_size(), state.src.sent_len()), dtype=float)
       for num_read, read_mask in zip(state.num_reads, read_masks):

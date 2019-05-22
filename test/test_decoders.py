@@ -10,7 +10,7 @@ import xnmt.networks as networks
 class TestFreeDecodingLoss(unittest.TestCase):
 
   def setUp(self):
-    layer_dim = 512
+    layer_dim = 4
     xnmt.refresh_internal()
     src_vocab = xnmt.Vocab(vocab_file="examples/data/head.ja.vocab")
     trg_vocab = xnmt.Vocab(vocab_file="examples/data/head.en.vocab")
@@ -30,7 +30,7 @@ class TestFreeDecodingLoss(unittest.TestCase):
                                     yaml_path=xnmt.Path("model.decoder.rnn")),
         transform=nn.NonLinear(input_dim=layer_dim*2, output_dim=layer_dim),
         scorer=nn.Softmax(input_dim=layer_dim, vocab=trg_vocab),
-        bridge=nn.CopyBridge(dec_dim=layer_dim, dec_layers=1))
+        bridge=nn.NoBridge(dec_dim=layer_dim))
     )
     xnmt.event_trigger.set_train(False)
     self.src_data = list(self.model.src_reader.read_sents("examples/data/head.ja"))
@@ -55,6 +55,20 @@ class TestFreeDecodingLoss(unittest.TestCase):
                                                         reporter=None)
     inference.perform_inference(self.model)
 
+
+  def test_same_loss_batch_single(self):
+    xnmt.event_trigger.set_train(True)
+    mle_loss = xnmt.train.MLELoss()
+    loss, loss_stat = mle_loss.calc_loss(self.model, self.src[0], self.trg[0]).compute()
+    losses = []
+    for s, t in zip(self.src[0], self.trg[0]):
+      loss_i, _ = mle_loss.calc_loss(self.model,
+                                     xnmt.mark_as_batch([s.get_unpadded_sent()]),
+                                     xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
+      losses.append(loss_i)
+    
+    self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=8)
+    
 
 if __name__ == '__main__':
   unittest.main()

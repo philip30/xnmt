@@ -44,7 +44,8 @@ class MlpAttender(models.Attender, xnmt.Serializable):
     return models.AttenderState(sent_input, inp_context, sent.mask)
 
   def calc_scores(self, decoder_context: dy.Expression, attender_state: models.AttenderState) -> dy.Expression:
-    h = dy.tanh(dy.colwise_add(attender_state.sent_context, self.pV * decoder_context))
+    sent_context = attender_state.sent_context
+    h = dy.tanh(dy.colwise_add(sent_context, self.pV * decoder_context))
     return dy.transpose(self.pU * h)
 
 
