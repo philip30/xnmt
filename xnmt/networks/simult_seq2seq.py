@@ -165,7 +165,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       parent=state
     )
 
-  def perform_write(self,
+  def _perform_write(self,
                      state: agents.SimultSeqLenUniDirectionalState,
                      search_action: models.SearchAction,
                      prev_word: xnmt.Batch,
