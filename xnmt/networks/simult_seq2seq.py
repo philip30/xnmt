@@ -73,14 +73,14 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     state = self.initial_state(src, force_oracle=True)
     word_pad = xnmt.structs.vocabs.Vocab.PAD
 
-    if hasattr(state, "oracle_batch"):
-      for s, t, o in zip(src, trg, state.oracle_batch):
-        s = s.get_unpadded_sent()
-        t = t.get_unpadded_sent()
-        o = o.get_unpadded_sent()
-        assert o.sent_len() == s.sent_len() + t.sent_len(), \
-          "Expecting {} + {} but got {} for oracle len.\nSRC: {}\nTRG: {}\nORC: {}".format(
-            s.sent_len(), t.sent_len(), o.sent_len(), str(s), str(t), str(o))
+#    if hasattr(state, "oracle_batch"):
+#      for s, t, o in zip(src, trg, state.oracle_batch):
+#        s = s.get_unpadded_sent()
+#        t = t.get_unpadded_sent()
+#        o = o.get_unpadded_sent()
+#        assert o.sent_len() == s.sent_len() + t.sent_len(), \
+#          "Expecting {} + {} but got {} for oracle len.\nSRC: {}\nTRG: {}\nORC: {}".format(
+#            s.sent_len(), t.sent_len(), o.sent_len(), str(s), str(t), str(o))
 
     mle_loss = []
     pol_loss = []
