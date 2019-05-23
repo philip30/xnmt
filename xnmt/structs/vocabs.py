@@ -95,10 +95,10 @@ class Vocab(Serializable):
 class CharVocab(Vocab):
   yaml_tag = "!CharVocab"
 
-  PAD = 1
+  PAD = 2
   ES = 3
   UNK = 0
-  SS = 2
+  SS = 1
 
   def _add_word_to_vocab(self, vocab, word):
     for c in word:
@@ -109,13 +109,17 @@ class CharVocab(Vocab):
 class SimultActionVocab(Vocab):
   yaml_tag = "!SimultActionVocab"
 
-  PAD = 4
-  UNK = 5
-  SS = 6
-  ES = 7
-  VOCAB_SIZE = 8
+  READ = 4
+  WRITE = 5
+  VOCAB_SIZE = 10
 
   @serializable_init
   def __init__(self):
-    self.i2w = ["READ", "WRITE", "PREDICT_READ", "PREDICT_WRITE", "PAD", Vocab.UNK_STR, Vocab.SS_STR, Vocab.ES_STR]
+    self.i2w = [Vocab.SS_STR, Vocab.ES_STR, Vocab.PAD_STR, Vocab.UNK_STR, "READ", "WRITE"]
     self.w2i = {word: word_id for (word_id, word) in enumerate(self.i2w)}
+
+  def convert(self, w: str) -> int:
+    if w not in self.w2i:
+      raise ValueError("Unknown actions: {}".format(w))
+    return self.w2i.get(w)
+

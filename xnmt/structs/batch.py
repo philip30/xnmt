@@ -65,7 +65,7 @@ class Mask(object):
         return expr
       mask_exp = dy.inputTensor(self.np_arr[:,timestep:timestep+1].transpose(), batched=True)
     return dy.cmult(expr, mask_exp)
-  
+
   def cmult_to_tensor_expr(self, tensor_exp: dy.Expression, inverse=True):
     inp = self.np_arr if not inverse else 1-self.np_arr
     inp_expr = dy.inputTensor(np.expand_dims(inp.transpose(),axis=0), batched=True)

@@ -180,7 +180,7 @@ class SimultTextReader(CompoundReader, xnmt.Serializable):
 
   def read_sent(self, line: Tuple[sentences.SimpleSentence, sentences.SimpleSentence], idx: int):
     line[1].pad_token = xnmt.structs.vocabs.SimultActionVocab.PAD
-    
+
     return sentences.OracleSentence(words = line[0].words,
                                     oracle = line[1],
                                     vocab = line[0].vocab,

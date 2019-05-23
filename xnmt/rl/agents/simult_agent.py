@@ -13,6 +13,7 @@ class SimultSeqLenUniDirectionalState(models.UniDirectionalState):
                src: xnmt.Batch,
                full_encodings: xnmt.ExpressionSequence,
                oracle_batch: xnmt.Batch = None,
+               trg_counts: Optional[List[int]] = None,
                decoder_state: Optional[nn.decoders.arb_len.ArbSeqLenUniDirectionalState] = None,
                num_reads: Optional[List[int]] = None,
                num_writes: Optional[List[int]] = None,
@@ -34,6 +35,7 @@ class SimultSeqLenUniDirectionalState(models.UniDirectionalState):
     self.network_state = network_state
     self.force_oracle = force_oracle
     self.timestep = timestep
+    self.trg_counts = trg_counts
 
   def output(self) -> dy.Expression:
     return self.decoder_state.output()
@@ -64,8 +66,8 @@ class SimultSeqLenUniDirectionalState(models.UniDirectionalState):
 
 class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
   yaml_tag = "!SimultPolicyAgent"
-  READ = 0
-  WRITE = 1
+  READ = xnmt.structs.vocabs.SimultActionVocab.READ
+  WRITE = xnmt.structs.vocabs.SimultActionVocab.WRITE
 
   __ACTIONS__ = [READ, WRITE]
 
@@ -129,6 +131,6 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     return self.policy_network.calc_loss(dec_state, ref)
 
   def finish_generating(self, state: SimultSeqLenUniDirectionalState):
-    return state.timestep >= state.oracle_batch.sent_len()
+    return all([x == y for x, y in zip(state.num_writes, state.trg_counts)])
 
 

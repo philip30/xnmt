@@ -135,6 +135,9 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
       context, attender_state = self.attender.calc_context(rnn_state.output(), dec_state.attender_state)
     else:
       context, attender_state = rnn_state.output(), None
+    if trg_word is not None and trg_word.mask is not None:
+      context = trg_word.mask.cmult_by_timestep_expr(context, 0, inverse=True) +\
+                trg_word.mask.cmult_by_timestep_expr(dec_state.context(), 0, inverse=False)
     return ArbSeqLenUniDirectionalState(rnn_state=rnn_state, context=context, attender_state=attender_state,
                                         timestep=dec_state.timestep+1, src=dec_state.src)
 

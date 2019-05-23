@@ -66,9 +66,9 @@ class TestFreeDecodingLoss(unittest.TestCase):
                                      xnmt.mark_as_batch([s.get_unpadded_sent()]),
                                      xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
       losses.append(loss_i)
-    
+
     self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=8)
-    
+
 
 if __name__ == '__main__':
   unittest.main()
