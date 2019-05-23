@@ -4,6 +4,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("align")
 parser.add_argument("src_file")
 parser.add_argument("trg_file")
+parser.add_argument("--mode", choices=["align", "rrww", "rwrw"], default="align")
+parser.add_argument("--add_eos", action='store_true')
 parser.add_argument("--debug", action='store_true')
 args = parser.parse_args()
 
@@ -60,13 +62,44 @@ def action_from_align(len_src, len_trg, align):
   if f_cover+1 != len_src:
     actions.extend(["READ"] * (len_src - f_cover - 1))
   assert len(actions) == (len_src + len_trg)
+  
+  if args.add_eos:
+    actions.extend(["READ", "WRITE"])
 
   # Check before return
   return actions
+
+def action_rrww(len_src, len_trg, align):
+  if args.add_eos:
+    len_src += 1
+    len_trg += 1
+  return (["READ"] * len_src) + (["WRITE"] * len_trg)
+
+def action_rwrw(len_src, len_trg, align):
+  if args.add_eos:
+    len_src += 1
+    len_trg += 1
+  action = []
+  while len_src > 0 or len_trg > 0:
+    if len_src > 0:
+      action.append("READ")
+      len_src -= 1
+    if len_trg > 0:
+      action.append("WRITE")
+      len_trg -= 1
+  return action
+
   
 def main():
   for data in read_data():
-    actions = action_from_align(*data)
+    if args.mode == "align":
+      actions = action_from_align(*data)
+    elif args.mode == "rwrw":
+      actions = action_rwrw(*data)
+    elif args.mode == "rrww":
+      actions = action_rrww(*data)
+    else:
+      raise ValueError()
     print(" ".join(actions))
 
 if __name__ == '__main__':
