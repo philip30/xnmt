@@ -104,13 +104,14 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
 
     Args:
       enc_results: The result of an encodings.
+      src
     Returns:
       initial decoder state
     """
     attender_state = self.attender.initial_state(enc_results.encode_seq) if self.attender is not None else None
     batch_size = enc_results.encode_seq[0].dim()[1]
     rnn_state = self.rnn.initial_state(self.bridge.decoder_init(enc_results.encoder_final_states))
-    zeros = dy.zeros(self.input_dim)
+    zeros = dy.zeros(self.input_dim, batch_size=src.batch_size())
     if self.init_with_bos:
       ss_expr = self.embedder.embed(xnmt.mark_as_batch([xnmt.Vocab.SS] * batch_size))
       if self.input_feeding:
@@ -142,7 +143,7 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
     if self.attender is not None:
       context, attender_state = self.attender.calc_context(rnn_state.output(), dec_state.attender_state)
     else:
-      context, attender_state = rnn_state.output(), None
+      context, attender_state = prev_context, None
     # Masking as needed
     if trg_word is not None and trg_word.mask is not None:
       ret_context = trg_word.mask.cmult_by_timestep_expr(context, 0, inverse=True) + \
