@@ -231,6 +231,12 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
       self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
 
 
+  def test_generate_pol(self):
+    xnmt.event_trigger.set_train(False)
+    self.model.policy_agent.oracle_in_test = False
+    self.model.generate(self.src[0], xnmt.inferences.GreedySearch())
+
+
   def test_recurrent_agent(self):
     self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
       scorer = nn.Softmax(self.layer_dim, 8, trg_reader=self.trg_reader),

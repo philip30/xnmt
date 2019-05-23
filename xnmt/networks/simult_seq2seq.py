@@ -41,9 +41,14 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
     encoding = self.encoder.encode(src)
     encoder_seqs = encoding.encode_seq
+    decoder_init = self.decoder.initial_state(encoding, src)
+
+    if isinstance(decoder_init, nn.decoders.arb_len.ArbSeqLenUniDirectionalState):
+      decoder_init.attender_state.read_mask = xnmt.Mask(np.array([1] * src.batch_size()).transpose())
+
     return agents.SimultSeqLenUniDirectionalState(
       oracle_batch=oracle_batch, src=src, full_encodings=encoder_seqs, network_state=self.policy_agent.initial_state(src),
-      trg_counts=trg_count
+      trg_counts=trg_count, decoder_state=decoder_init
     )
 
   def add_input(self, prev_word: xnmt.Batch, state: models.UniDirectionalState) -> agents.SimultSeqLenUniDirectionalState:
@@ -58,7 +63,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         state = self._perform_write(state, search_action, prev_word, network_state)
         break
       else:
-        raise ValueError()
+        xnmt.logger.warning("Unreachable actions: {}".format(str(search_action.action_id)))
+        state = self._perform_read(state, search_action, network_state)
+        break
 
     return state
 
@@ -199,13 +206,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                      prev_word: xnmt.Batch,
                      network_state: models.PolicyAgentState,
                      write_flag: np.ndarray = np.asarray([1], int)) -> agents.SimultSeqLenUniDirectionalState:
-    if state.decoder_state is None:
-      decoder_state = self.decoder.initial_state(models.EncoderState(state.full_encodings, None), state.src)
-    else:
-      decoder_state = state.decoder_state
+    decoder_state = state.decoder_state
 
-    if (state.read_was_performed or state.decoder_state is None) and \
-        hasattr(self.decoder, "attender") and self.decoder.attender is not None:
+    if state.read_was_performed and hasattr(self.decoder, "attender") and self.decoder.attender is not None:
       attender_state = decoder_state.attender_state
       read_masks = np.ones((state.src.batch_size(), state.src.sent_len()), dtype=float)
       for num_read, read_mask in zip(state.num_reads, read_masks):

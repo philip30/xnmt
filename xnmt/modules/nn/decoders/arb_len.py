@@ -133,7 +133,7 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
     """
     rnn_state = dec_state._rnn_state
     prev_context = dec_state.context()
-    
+
     if trg_word is not None:
       trg_embedding = self.embedder.embed(trg_word)
       inp_context = trg_embedding if not self.input_feeding else dy.concatenate([trg_embedding, prev_context])
@@ -151,7 +151,7 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
       ret_context = context
     if first_write is not None:
       ret_context += first_write.cmult_by_timestep_expr(context, 0, inverse=True)
-    
+
     return ArbSeqLenUniDirectionalState(rnn_state=rnn_state, context=ret_context, attender_state=attender_state,
                                         timestep=dec_state.timestep+1, src=dec_state.src)
 

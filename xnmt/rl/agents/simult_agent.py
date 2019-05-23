@@ -107,11 +107,10 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
       input_state = self.input_transform.transform(self.input_state(state))
       network_state = state.network_state.add_input(input_state)
       if oracle_action is None:
-        raise NotImplementedError()
-#        if xnmt.is_train():
-#          policy_action = self.policy_network.sample(network_state, 1)[0]
-#        else:
-#          policy_action = self.policy_network.best_k(network_state, 1)[0]
+        if xnmt.is_train():
+          policy_action = self.policy_network.sample(network_state, 1)[0]
+        else:
+          policy_action = self.policy_network.best_k(network_state, 1)[0]
       else:
         policy_action = self.policy_network.pick_oracle(oracle_action, network_state)[0]
     else:

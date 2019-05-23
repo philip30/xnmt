@@ -46,15 +46,16 @@ class TestFreeDecodingLoss(unittest.TestCase):
                         trg=xnmt.mark_as_batch([self.trg_data[0]])).value()
     self.assertTrue(True)
 
-  def test_report(self):
+  def test_reporting(self):
     xnmt.event_trigger.set_train(False)
+    xnmt.event_trigger.set_reporting(True)
     inference = xnmt.inferences.AutoRegressiveInference(src_file="examples/data/head.ja",
                                                         ref_file="examples/data/head.en",
                                                         trg_file="test/output/hyp",
                                                         search_strategy=xnmt.inferences.GreedySearch(),
-                                                        reporter=None)
+                                                        reporter=xnmt.reports.ProbReporter())
     inference.perform_inference(self.model)
-
+    xnmt.event_trigger.set_reporting(False)
 
   def test_same_loss_batch_single(self):
     xnmt.event_trigger.set_train(True)

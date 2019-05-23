@@ -7,6 +7,7 @@ import xnmt.modules.nn as nn
 from typing import List, Optional
 
 
+
 class Seq2Seq(models.AutoRegressiveModel, xnmt.Serializable, models.Reportable):
   yaml_tag = "!Seq2Seq"
   @xnmt.serializable_init
@@ -67,7 +68,7 @@ class Seq2Seq(models.AutoRegressiveModel, xnmt.Serializable, models.Reportable):
     if self.is_reporting():
       for src_i, search_hyps in zip(src, ret):
         for i, search_hyp in enumerate(search_hyps):
-          self.report_sent_info({"hyp": search_hyps, "src": src_i, "hyp_num": i})
+          self.report_sent_info({"hyp": search_hyp, "src": src_i, "hyp_num": i})
 
     return ret
 
@@ -75,7 +76,7 @@ class Seq2Seq(models.AutoRegressiveModel, xnmt.Serializable, models.Reportable):
     ret = []
     for search_hyp in search_hyps:
       actions = search_hyp.actions()
-      word_ids = [action.action_id[0] if isinstance(action.action_id, list) else action.action_id for action in actions]
+      word_ids = [action.action_id[0] for action in actions]
 
       if isinstance(self.decoder, nn.ArbLenDecoder):
         sent = xnmt.structs.sentences.SimpleSentence(

@@ -60,7 +60,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
 
     ret = []
     for word in top_words:
-      ret.append((word[0], scores_expr))
+      ret.append((word, scores_expr))
 
     return ret
 

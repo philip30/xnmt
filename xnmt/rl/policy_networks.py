@@ -11,11 +11,6 @@ class PolicyNetwork(models.Decoder):
   def __init__(self, scorer: models.Scorer = nn.Softmax):
     self.scorer = scorer
 
-    if isinstance(scorer, nn.Softmax):
-      if self.scorer.output_dim != xnmt.structs.vocabs.SimultActionVocab.VOCAB_SIZE:
-        raise ValueError("For PolicyNetwork, the softmax size must be equalst to {}",
-                         xnmt.structs.vocabs.SimultActionVocab.VOCAB_SIZE)
-
   def initial_state(self, src: xnmt.Batch) -> models.UniDirectionalState:
     raise NotImplementedError()
 

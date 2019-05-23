@@ -33,7 +33,7 @@ def set_train(val: bool):
 
 @events.register_xnmt_event_assign
 def get_report_input(context):
-  pass
+  return context
 
 
 @events.register_xnmt_event
