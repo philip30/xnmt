@@ -72,6 +72,9 @@ class Mask(object):
     return dy.cmult(tensor_exp, inp_expr)
 
 
+  def __repr__(self):
+    return str(self.np_arr.transpose()[0])
+
 class Batch(collections.Sequence):
   """
   An abstract base class for minibatches of things.

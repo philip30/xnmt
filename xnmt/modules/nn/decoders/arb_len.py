@@ -1,3 +1,4 @@
+import numpy as np
 import dynet as dy
 import collections.abc as abc
 
@@ -112,33 +113,46 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
     zeros = dy.zeros(self.input_dim)
     if self.init_with_bos:
       ss_expr = self.embedder.embed(xnmt.mark_as_batch([xnmt.Vocab.SS] * batch_size))
-      rnn_state = rnn_state.add_input(dy.concatenate([ss_expr, zeros]) if self.input_feeding else ss_expr)
+      if self.input_feeding:
+        ss_expr = dy.concatenate([ss_expr, zeros])
+      rnn_state = rnn_state.add_input(ss_expr if self.input_feeding else ss_expr)
     return ArbSeqLenUniDirectionalState(rnn_state=rnn_state, context=zeros, attender_state=attender_state,
                                         timestep=0, src=src)
 
-  def add_input(self, dec_state: ArbSeqLenUniDirectionalState, trg_word: xnmt.Batch) -> models.UniDirectionalState:
+  def add_input(self, dec_state: ArbSeqLenUniDirectionalState, trg_word: xnmt.Batch,
+                first_write: Optional[xnmt.Mask]=None) -> models.UniDirectionalState:
     """
     Add an input and return a *new* update the state.
 
     Args:
       dec_state: An object containing the current state.
       trg_word: The word to input.
+      first_write
     Returns:
       The updated decoder state.
     """
     rnn_state = dec_state._rnn_state
+    prev_context = dec_state.context()
+    
     if trg_word is not None:
       trg_embedding = self.embedder.embed(trg_word)
-      context = trg_embedding if not self.input_feeding else dy.concatenate([trg_embedding, dec_state.context()])
-      rnn_state = rnn_state.add_input(context, trg_word.mask)
+      inp_context = trg_embedding if not self.input_feeding else dy.concatenate([trg_embedding, prev_context])
+      rnn_state = rnn_state.add_input(inp_context, trg_word.mask)
+    # Calc Artention
     if self.attender is not None:
       context, attender_state = self.attender.calc_context(rnn_state.output(), dec_state.attender_state)
     else:
       context, attender_state = rnn_state.output(), None
+    # Masking as needed
     if trg_word is not None and trg_word.mask is not None:
-      context = trg_word.mask.cmult_by_timestep_expr(context, 0, inverse=True) +\
-                trg_word.mask.cmult_by_timestep_expr(dec_state.context(), 0, inverse=False)
-    return ArbSeqLenUniDirectionalState(rnn_state=rnn_state, context=context, attender_state=attender_state,
+      ret_context = trg_word.mask.cmult_by_timestep_expr(context, 0, inverse=True) + \
+                    trg_word.mask.cmult_by_timestep_expr(prev_context, 0, inverse=False)
+    else:
+      ret_context = context
+    if first_write is not None:
+      ret_context += first_write.cmult_by_timestep_expr(context, 0, inverse=True)
+    
+    return ArbSeqLenUniDirectionalState(rnn_state=rnn_state, context=ret_context, attender_state=attender_state,
                                         timestep=dec_state.timestep+1, src=dec_state.src)
 
 

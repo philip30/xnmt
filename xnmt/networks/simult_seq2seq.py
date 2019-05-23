@@ -80,7 +80,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     while not self.finish_generating(-1, state):
       search_action, network_state = self.policy_agent.next_action(state)
       action_set = set(search_action.action_id)
-
+      #print(search_action.action_id)
       if agents.SimultPolicyAgent.READ in action_set:
         new_state = self._perform_read(state, search_action, network_state)
         num_reads = new_state.num_reads
@@ -224,13 +224,21 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         timestep=decoder_state.timestep,
         src=decoder_state.src
       )
+    num_writes = state.num_writes + write_flag
+    equal_to_1 = np.logical_and(num_writes == 1, write_flag == 1)
+    if any(equal_to_1):
+      first_mask = np.ones_like(num_writes, dtype=int)
+      first_mask[equal_to_1] = 0
+      first_mask = xnmt.Mask(np.expand_dims(first_mask.transpose(), axis=1))
+    else:
+      first_mask = None
 
     return agents.SimultSeqLenUniDirectionalState(
       src=state.src,
       full_encodings=state.full_encodings,
-      decoder_state=self.decoder.add_input(decoder_state, prev_word),
+      decoder_state=self.decoder.add_input(decoder_state, prev_word, first_mask),
       num_reads=state.num_reads,
-      num_writes=state.num_writes+write_flag,
+      num_writes=num_writes,
       simult_action=search_action,
       read_was_performed=False,
       network_state=network_state,

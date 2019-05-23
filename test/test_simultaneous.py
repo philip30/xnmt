@@ -42,7 +42,8 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
         rnn=nn.UniLSTMSeqTransducer(input_dim=layer_dim,
                                     hidden_dim=layer_dim,
                                     decoder_input_dim=layer_dim,
-                                    yaml_path=xnmt.Path("model.decoder.rnn")),
+                                    yaml_path=xnmt.Path("model.decoder.rnn"),
+                                    decoder_input_feeding=True),
         transform=nn.NonLinear(input_dim=layer_dim*2, output_dim=layer_dim),
         scorer=nn.Softmax(input_dim=layer_dim, vocab=self.trg_reader.vocab),
         bridge=nn.NoBridge(dec_dim=layer_dim)),
@@ -81,7 +82,6 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
                                                         reporter=None)
     inference.perform_inference(self.model)
 
-
   def test_same_loss_batch_single(self):
     xnmt.event_trigger.set_train(True)
     self.model.policy_agent.policy_network = None
@@ -97,7 +97,6 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
         losses.append(loss_i)
 
       self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=8)
-
 
   def test_loss_equal_to_seq2seq(self):
     xnmt.event_trigger.set_train(True)
@@ -188,9 +187,9 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
     mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
     xnmt.event_trigger.set_train(False)
     result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
-    self.assertEqual(len(result), self.trg_data[0].sent_len())
+    self.assertEqual(result[0].sent_len(), self.trg_data[0].sent_len())
     result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
-    self.assertEqual(len(result), self.trg_data[0].sent_len())
+    self.assertEqual(result[0].sent_len(), self.trg_data[0].sent_len())
     inference = xnmt.inferences.AutoRegressiveInference(src_file=["examples/data/head.ja",
                                                                   "examples/data/simult/head.jaen.actions"],
                                                         ref_file="examples/data/head.en",
@@ -214,7 +213,7 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
                                        xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
         losses.append(loss_i)
 
-      self.assertEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value())
+      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
 
   def test_same_loss_batch_single_pol(self):
     xnmt.event_trigger.set_train(True)
