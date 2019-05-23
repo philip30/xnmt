@@ -173,7 +173,7 @@ class SimultTextReader(CompoundReader, xnmt.Serializable):
   yaml_tag = "!SimultTextReader"
 
   @xnmt.serializable_init
-  def __init__(self, text_reader: PlainTextReader, action_reader: PlainTextReader):
+  def __init__(self, text_reader: PlainTextReader, action_reader: PlainTextReader, readers=None, vocab=None):
     super().__init__([text_reader, action_reader], text_reader.vocab)
     action_reader.add_bos = False
     action_reader.add_eos = False
