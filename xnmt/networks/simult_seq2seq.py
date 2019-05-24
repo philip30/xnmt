@@ -48,7 +48,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
     return agents.SimultSeqLenUniDirectionalState(
       oracle_batch=oracle_batch, src=src, full_encodings=encoder_seqs, network_state=self.policy_agent.initial_state(src),
-      trg_counts=trg_count, decoder_state=decoder_init
+      trg_counts=trg_count, decoder_state=decoder_init, force_oracle=force_oracle
     )
 
   def add_input(self, prev_word: xnmt.Batch, state: models.UniDirectionalState) -> agents.SimultSeqLenUniDirectionalState:

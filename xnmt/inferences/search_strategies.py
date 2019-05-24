@@ -15,6 +15,7 @@ class GreedySearch(models.SearchStrategy, models.ForceableSearchStrategy, xnmt.S
   """
   @xnmt.serializable_init
   def __init__(self, max_len: int = 100, is_forced=False, is_sampling=False):
+    xnmt.Serializable.__init__(self)
     self._max_len = max_len
     self._is_forced = is_forced
     self._is_sampling = is_sampling
@@ -69,6 +70,7 @@ class BeamSearch(models.SearchStrategy, xnmt.Serializable):
                max_len: int = 100,
                is_sampling: bool = False,
                len_norm: models.LengthNormalization = xnmt.bare(norms.NoNormalization)):
+    xnmt.Serializable.__init__(self)
     self.beam_size = beam_size
     self.max_len = max_len
     self.len_norm = len_norm

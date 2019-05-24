@@ -36,7 +36,7 @@ class ProbReporter(models.Reporter, xnmt.Serializable):
     self.report_path = report_path
     self.fp = None
 
-  def create_sent_report(self, hyp: models.Hypothesis, src: xnmt.Sentence, hyp_num: int):
+  def create_sent_report(self, hyp: models.Hypothesis, src: xnmt.Sentence, hyp_num: int, *args, **kwargs):
     if self.fp is None:
       self.fp = sys.stdout if self.report_path is None else open(self.report_path, "w")
 
@@ -51,6 +51,7 @@ class ProbReporter(models.Reporter, xnmt.Serializable):
   def conclude_report(self):
     if self.fp is not None and self.report_path is not None:
       self.fp.close()
+      self.fp = None
 
 
 #

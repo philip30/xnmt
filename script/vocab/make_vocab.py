@@ -10,11 +10,13 @@ Simple script to generate vocabulary that can be used in most of the xnmt.input_
 
 import sys
 import argparse
+import math
 from collections import Counter
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--min_count", type=int, default=1)
 parser.add_argument("--top", type=int, default=-1)
+parser.add_argument("--prob", type=float, default=-1)
 args = parser.parse_args()
 
 all_words = Counter()
@@ -26,11 +28,19 @@ if args.min_count > 1:
 else:
   all_words = list(all_words.items())
 
+all_words = list(map(list, all_words))
+
 all_words = sorted(all_words, key=lambda x: -x[1])
 
 if args.top != -1 and args.top < len(all_words):
   all_words = all_words[:args.top]
 
-for word, value in sorted(all_words):
+if args.prob >= 0.0:
+  sum_word = sum([x[1] for x in all_words])
+  for i in range(len(all_words)):
+    all_words[i][1] = math.log(all_words[i][1]/sum_word)
+
+
+for word, value in sorted(all_words, key=lambda x: x[1], reverse=True):
   print("{}\t{}".format(word, value))
 

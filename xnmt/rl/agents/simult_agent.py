@@ -141,7 +141,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     else:
       log_likelihood = policy_action.log_softmax
 
-    return models.SearchAction(state.decoder_state, new_actions, log_likelihood, policy_action.log_softmax, policy_action.mask)
+    return models.SearchAction(state.decoder_state, np.asarray(new_actions, dtype=int), log_likelihood, policy_action.log_softmax, policy_action.mask)
 
   def input_state(self, state: SimultSeqLenUniDirectionalState):
     encoder_state = state.encoder_state() if state.timestep > 0 \
