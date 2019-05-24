@@ -3,7 +3,7 @@ import dynet as dy
 import xnmt
 import functools
 
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 
 class AttenderState(object):
@@ -119,7 +119,7 @@ class EncoderState(object):
 class SearchAction(object):
   def __init__(self,
                decoder_state: Optional[UniDirectionalState] = None,
-               action_id: Optional[int] = None,
+               action_id: Sequence[int] = None,
                log_likelihood: Optional[dy.Expression] = None,
                log_softmax: Optional[dy.Expression] = None,
                mask: Optional[xnmt.Mask] = None):

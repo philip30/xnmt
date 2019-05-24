@@ -251,6 +251,20 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
     result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
     self.assertNotEqual(len(result), 0)
 
+  def test_sanity(self):
+    state = xnmt.rl.agents.SimultSeqLenUniDirectionalState(
+      src=xnmt.mark_as_batch([xnmt.structs.sentences.SimpleSentence([3,3,3])]),
+      full_encodings=xnmt.ExpressionSequence(expr_tensor=dy.zeros((32, 3), batch_size=1)),
+      num_reads=[3]
+    )
+    pol_action = xnmt.models.SearchAction(
+      action_id=[xnmt.rl.agents.SimultPolicyAgent.READ],
+      log_softmax=dy.inputTensor([(1,1,1,1,1,1)], batched=True)
+    )
+
+    action = self.model.policy_agent.check_sanity(state, pol_action)
+    self.assertEqual(action.action_id[0], self.model.policy_agent.WRITE)
+
 
 if __name__ == "__main__":
   unittest.main()

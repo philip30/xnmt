@@ -96,7 +96,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     policy_state = self.policy_network.initial_state(src) if self.policy_network is not None else None
     return models.PolicyAgentState(src, policy_state)
 
-  def next_action(self, state: Optional[SimultSeqLenUniDirectionalState] = None) \
+  def next_action(self, state: SimultSeqLenUniDirectionalState) \
       -> Tuple[models.SearchAction, models.PolicyAgentState]:
     if (xnmt.is_train() and self.oracle_in_train) or (not xnmt.is_train() and self.oracle_in_test) or state.force_oracle:
       oracle_action = np.array([state.oracle_batch[i][state.timestep] for i in range(state.oracle_batch.batch_size())])
@@ -117,7 +117,31 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
       policy_action = models.SearchAction(action_id=oracle_action)
       network_state = state.network_state
 
+    if oracle_action is None:
+      policy_action = self.check_sanity(state, policy_action)
+
     return policy_action, network_state
+
+  def check_sanity(self, state: SimultSeqLenUniDirectionalState, policy_action: models.SearchAction):
+    src_len  = np.array([state.src[i].len_unpadded() for i in range(state.src.batch_size())])
+    num_reads = state.num_reads
+    actions = policy_action.action_id
+
+    new_actions = []
+    modified =  False
+    for l, r, a in zip(src_len, num_reads, actions):
+      if l == r and a == self.READ:
+        new_actions.append(self.WRITE)
+        modified = True
+      else:
+        new_actions.append(a)
+
+    if modified and policy_action.log_likelihood is not None:
+      log_likelihood = dy.pick_batch(policy_action.log_softmax, actions)
+    else:
+      log_likelihood = policy_action.log_softmax
+
+    return models.SearchAction(state.decoder_state, new_actions, log_likelihood, policy_action.log_softmax, policy_action.mask)
 
   def input_state(self, state: SimultSeqLenUniDirectionalState):
     encoder_state = state.encoder_state() if state.timestep > 0 \
