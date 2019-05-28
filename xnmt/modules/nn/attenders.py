@@ -34,7 +34,7 @@ class MlpAttender(models.Attender, xnmt.Serializable):
     self.pb = param_collection.add_parameters((hidden_dim,), init=bias_init.initializer((hidden_dim,)))
     self.pU = param_collection.add_parameters((1, hidden_dim), init=param_init.initializer((1, hidden_dim)))
 
-  def initial_state(self, sent: xnmt.ExpressionSequence) -> models.AttenderState:
+  def not_empty_initial_state(self, sent: xnmt.ExpressionSequence) -> models.AttenderState:
     sent_input = sent.as_tensor()
     inp_context = dy.affine_transform([self.pb, self.pW, sent_input])
 
@@ -63,7 +63,7 @@ class DotAttender(models.Attender, xnmt.Serializable):
     self.curr_sent = None
     self.scale = scale
 
-  def initial_state(self, sent: xnmt.ExpressionSequence) -> models.AttenderState:
+  def not_empty_initial_state(self, sent: xnmt.ExpressionSequence) -> models.AttenderState:
     sent_input = sent.as_tensor()
     return models.AttenderState(sent_input, sent_input, sent.mask)
 
@@ -96,9 +96,8 @@ class BilinearAttender(models.Attender, xnmt.Serializable):
     self.pWa = param_collection.add_parameters((input_dim, state_dim), init=param_init.initializer((input_dim, state_dim)))
     self.curr_sent = None
 
-  def initial_state(self, sent: xnmt.ExpressionSequence) -> models.AttenderState:
-    sent_input = sent.as_tensor()
-    return models.AttenderState(sent_input, sent_input, sent.mask)
+  def not_empty_initial_state(self, sent: xnmt.ExpressionSequence) -> models.AttenderState:
+    return models.AttenderState(sent.as_tensor(), sent.as_tensor(), sent.mask)
 
   def calc_scores(self, decoder_context: dy.Expression, attender_state: models.AttenderState) -> dy.Expression:
     return dy.transpose(decoder_context) * self.pWa * attender_state.curr_sent
@@ -126,7 +125,7 @@ class LatticeBiasedMlpAttender(MlpAttender, xnmt.Serializable):
     super().__init__(input_dim=input_dim, state_dim=state_dim, hidden_dim=hidden_dim, param_init=param_init,
                      bias_init=bias_init)
 
-  def initial_state(self, sent: xnmt.ExpressionSequence) -> models.AttenderState:
+  def not_empty_initial_state(self, sent: xnmt.ExpressionSequence) -> models.AttenderState:
     src_batch = xnmt.globals.singleton_global.src_batch
     cur_sent_bias = np.full((src_batch.sent_len(), 1, src_batch.batch_size()), -1e10)
     for i in range(len(src_batch.batch_size)):

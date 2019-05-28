@@ -96,7 +96,7 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
                                        xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
         losses.append(loss_i)
 
-      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=8)
+      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
 
   def test_loss_equal_to_seq2seq(self):
     xnmt.event_trigger.set_train(True)
@@ -168,13 +168,6 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
         oracle_in_test=True,
         default_layer_dim=layer_dim
       )
-    )
-
-    self.seq2seq = xnmt.networks.Seq2Seq(
-      src_reader=self.src_reader,
-      trg_reader=self.trg_reader,
-      encoder=self.model.encoder,
-      decoder=self.model.decoder
     )
 
     my_batcher = xnmt.structs.batchers.TrgBatcher(batch_size=3)
@@ -264,6 +257,33 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
 
     action = self.model.policy_agent.check_sanity(state, pol_action)
     self.assertEqual(action.action_id[0], self.model.policy_agent.WRITE)
+
+  def test_attention_agent(self):
+    self.model.policy_agent = xnmt.rl.agents.SimultPolicyAttentionAgent(
+      self.model.policy_agent.input_transform,
+      self.model.policy_agent.policy_network,
+      self.model.policy_agent.oracle_in_train,
+      self.model.policy_agent.oracle_in_test,
+      self.model.policy_agent.default_layer_dim,
+      nn.MlpAttender(self.layer_dim, self.layer_dim, self.layer_dim),
+      nn.MlpAttender(self.layer_dim, self.layer_dim, self.layer_dim)
+    )
+    self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
+      scorer = nn.Softmax(self.layer_dim, 8, trg_reader=self.trg_reader),
+      rnn = nn.UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim= self.layer_dim)
+    )
+
+    mle_loss = xnmt.train.MLELoss()
+    for src, trg in zip(self.src, self.trg):
+      loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()
+      losses = []
+      for s, t in zip(src, trg):
+        loss_i, _ = mle_loss.calc_loss(self.model,
+                                       xnmt.mark_as_batch([s.get_unpadded_sent()]),
+                                       xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
+        losses.append(loss_i)
+
+      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
 
 
 if __name__ == "__main__":

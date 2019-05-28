@@ -26,7 +26,7 @@ class RewardCalculator(object):
 
 class PolicyAgentState(models.UniDirectionalState):
 
-  def __init__(self, src: xnmt.Batch, policy_state: Optional[models.UniDirectionalState] = None):
+  def __init__(self, src: xnmt.Batch, policy_state: models.UniDirectionalState):
     self.src = src
     self.policy_state = policy_state
 
@@ -35,6 +35,21 @@ class PolicyAgentState(models.UniDirectionalState):
 
   def output(self):
     return self.policy_state.output()
+
+
+class DoubleAttentionPolicyAgentState(PolicyAgentState):
+  def __init__(self,
+               src: xnmt.Batch,
+               policy_state: models.UniDirectionalState,
+               encoder_state: models.AttenderState,
+               decoder_state: models.AttenderState):
+    super().__init__(src, policy_state)
+    self.encoder_state = encoder_state
+    self.decoder_state = decoder_state
+
+  def add_input(self, word: dy.Expression, mask: Optional[xnmt.Mask] = None) -> 'DoubleAttentionPolicyAgentState':
+    return DoubleAttentionPolicyAgentState(self.src, self.policy_state.add_input(word, mask),
+                                           self.encoder_state, self.decoder_state)
 
 
 class PolicyAgent(object):

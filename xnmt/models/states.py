@@ -8,8 +8,8 @@ from typing import List, Optional, Sequence
 
 class AttenderState(object):
   def __init__(self,
-               curr_sent: dy.Expression,
-               sent_context: dy.Expression,
+               curr_sent: Optional[dy.Expression] = None,
+               sent_context: Optional[dy.Expression] = None,
                input_mask: Optional[xnmt.Mask] = None,
                read_mask: Optional[xnmt.Mask] = None,
                attention: Optional[dy.Expression] = None):

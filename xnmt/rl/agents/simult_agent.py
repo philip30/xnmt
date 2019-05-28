@@ -92,20 +92,17 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     self.default_layer_dim = default_layer_dim
 
   def initial_state(self, src: xnmt.Batch) -> models.PolicyAgentState:
-#    assert src.batch_size() == 1
     policy_state = self.policy_network.initial_state(src) if self.policy_network is not None else None
     return models.PolicyAgentState(src, policy_state)
 
-  def next_action(self, state: SimultSeqLenUniDirectionalState) \
-      -> Tuple[models.SearchAction, models.PolicyAgentState]:
+  def next_action(self, state: SimultSeqLenUniDirectionalState) -> Tuple[models.SearchAction, models.PolicyAgentState]:
     if (xnmt.is_train() and self.oracle_in_train) or (not xnmt.is_train() and self.oracle_in_test) or state.force_oracle:
       oracle_action = np.array([state.oracle_batch[i][state.timestep] for i in range(state.oracle_batch.batch_size())])
     else:
       oracle_action = None
     # Training policy?
     if self.policy_network is not None:
-      input_state = self.input_transform.transform(self.input_state(state))
-      network_state = state.network_state.add_input(input_state)
+      network_state = self.add_input_to_network(state)
       if oracle_action is None:
         if xnmt.is_train():
           policy_action = self.policy_network.sample(network_state, 1)[0]
@@ -143,12 +140,14 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
 
     return models.SearchAction(state.decoder_state, np.asarray(new_actions, dtype=int), log_likelihood, policy_action.log_softmax, policy_action.mask)
 
-  def input_state(self, state: SimultSeqLenUniDirectionalState):
-    encoder_state = state.encoder_state() if state.timestep > 0 \
-                    else dy.zeros(self.default_layer_dim, batch_size=state.src.batch_size())
-    decoder_state = state.decoder_state.context() if state.decoder_state is not None \
-                    else dy.zeros(self.default_layer_dim, batch_size=state.src.batch_size())
-    return dy.concatenate([dy.nobackprop(encoder_state), dy.nobackprop(decoder_state)])
+  def add_input_to_network(self, state: SimultSeqLenUniDirectionalState) -> models.PolicyAgentState:
+    zeros = lambda: dy.zeros(self.default_layer_dim, batch_size=state.src.batch_size())
+    encoder_state = dy.nobackprop(state.encoder_state()) if state.timestep > 0 else zeros()
+    decoder_state = dy.nobackprop(state.decoder_state.context()) if state.decoder_state is not None  else zeros()
+    network_input = dy.concatenate([encoder_state, decoder_state])
+
+    return state.network_state.add_input(self.input_transform.transform(network_input))
+
 
   def calc_loss(self, dec_state: models.UniDirectionalState, ref: xnmt.Batch):
     return self.policy_network.calc_loss(dec_state, ref)
@@ -157,3 +156,81 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     return all([x == y for x, y in zip(state.num_writes, state.trg_counts)])
 
 
+class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
+  yaml_tag = "!SimultPolicyAttentionAgent"
+
+  @xnmt.serializable_init
+  def __init__(self,
+               input_transform: Optional[models.Transform] = None,
+               policy_network: Optional[networks.PolicyNetwork] = None,
+               oracle_in_train: bool = False,
+               oracle_in_test: bool = False,
+               default_layer_dim: int = xnmt.default_layer_dim,
+               encoder_attender: models.Attender = xnmt.bare(nn.MlpAttender),
+               decoder_attender: models.Attender = xnmt.bare(nn.MlpAttender)):
+    super().__init__(input_transform, policy_network, oracle_in_train, oracle_in_test, default_layer_dim)
+    self.encoder_attender = encoder_attender
+    self.decoder_attender = decoder_attender
+
+  def initial_state(self, src: xnmt.Batch):
+    return models.DoubleAttentionPolicyAgentState(
+      src=src,
+      policy_state=self.policy_network.initial_state(src) if self.policy_network is not None else None,
+      encoder_state=self.encoder_attender.initial_state(),
+      decoder_state=self.decoder_attender.initial_state()
+    )
+
+  def add_input_to_network(self, state: SimultSeqLenUniDirectionalState) -> models.DoubleAttentionPolicyAgentState:
+    zeros = lambda: dy.zeros(self.default_layer_dim, batch_size=state.src.batch_size())
+    encoder_state = dy.nobackprop(state.encoder_state()) if state.timestep > 0 else zeros()
+    decoder_state = dy.nobackprop(state.decoder_state.context()) if state.decoder_state is not None else zeros()
+
+    if isinstance(state.network_state, models.DoubleAttentionPolicyAgentState):
+      if state.parent is None:
+        read_flag = state.num_reads
+        write_flag = state.num_writes
+      else:
+        read_flag = state.num_reads - state.parent.num_reads
+        write_flag = state.num_writes - state.parent.num_writes
+      read_flag = np.expand_dims(read_flag, axis=1)
+      write_flag = np.expand_dims(write_flag, axis=1)
+
+      # Appending new item in the sentences
+      new_encoder_state = self.concat_attender_state(
+        prev_state=state.network_state.encoder_state,
+        next_state=self.encoder_attender.initial_state(xnmt.ExpressionSequence([encoder_state])),
+        mask=xnmt.Mask(1-read_flag)
+      )
+      new_decoder_state = self.concat_attender_state(
+        prev_state=state.network_state.decoder_state,
+        next_state=self.decoder_attender.initial_state(xnmt.ExpressionSequence([decoder_state])),
+        mask=xnmt.Mask(1-write_flag)
+      )
+    else:
+      raise ValueError()
+
+    query_v = state.network_state.policy_state.output() if state.parent is not None else zeros()
+    enc_context, new_encoder_state = self.encoder_attender.calc_context(query_v, new_encoder_state)
+    dec_context, new_decoder_state = self.encoder_attender.calc_context(query_v, new_decoder_state)
+
+    network_input = dy.concatenate([enc_context, dec_context])
+    return models.DoubleAttentionPolicyAgentState(
+      src = state.network_state.src,
+      policy_state=state.network_state.policy_state.add_input(self.input_transform.transform(network_input)),
+      encoder_state=new_encoder_state,
+      decoder_state=new_decoder_state
+    )
+
+  def concat_attender_state(self, prev_state: models.AttenderState, next_state: models.AttenderState, mask: xnmt.Mask) \
+      -> models.AttenderState:
+    if prev_state.curr_sent is None:
+      sent = dy.concatenate([next_state.curr_sent], d=1)
+      context = dy.concatenate([next_state.sent_context], d=1)
+    else:
+      sent = dy.concatenate([prev_state.curr_sent, next_state.curr_sent], d=1)
+      context = dy.concatenate([prev_state.sent_context, next_state.sent_context], d=1)
+
+    if prev_state.input_mask is not None:
+      mask = xnmt.Mask(np.concatenate([prev_state.input_mask.np_arr, mask.np_arr], axis=1))
+
+    return models.AttenderState(curr_sent=sent, sent_context=context, input_mask=mask)
