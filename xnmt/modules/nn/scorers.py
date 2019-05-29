@@ -129,7 +129,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
     return dy.softmax(self.calc_scores(x))
 
   def calc_log_probs(self, x: dy.Expression) -> dy.Expression:
-    return dy.log_softmax(self.calc_scores(x))
+      return dy.log_softmax(self.calc_scores(x))
 
 
 #class LexiconSoftmax(Softmax, Serializable):

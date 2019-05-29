@@ -23,12 +23,14 @@ class ArbSeqLenUniDirectionalState(models.UniDirectionalState):
                context: dy.Expression,
                attender_state: Optional[models.AttenderState],
                timestep: int,
-               src: Optional[xnmt.Batch]):
+               src: Optional[xnmt.Batch],
+               prev_embedding: Optional[dy.Expression] = None):
     self._rnn_state = rnn_state
     self._attender_state = attender_state
     self._context = context
     self._timestep = timestep
     self._src = src
+    self._prev_embedding = prev_embedding
 
   @property
   def attender_state(self):
@@ -54,6 +56,10 @@ class ArbSeqLenUniDirectionalState(models.UniDirectionalState):
 
   def output(self):
     return self._rnn_state.output()
+ 
+  @property
+  def prev_embedding(self):
+    return self._prev_embedding
 
 
 class ArbLenDecoder(models.Decoder, xnmt.Serializable):
@@ -139,6 +145,8 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
       trg_embedding = self.embedder.embed(trg_word)
       inp_context = trg_embedding if not self.input_feeding else dy.concatenate([trg_embedding, prev_context])
       rnn_state = rnn_state.add_input(inp_context, trg_word.mask)
+    else:
+      trg_embedding = None
     # Calc Artention
     if self.attender is not None:
       context, attender_state = self.attender.calc_context(rnn_state.output(), dec_state.attender_state)
@@ -148,13 +156,16 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
     if trg_word is not None and trg_word.mask is not None:
       ret_context = trg_word.mask.cmult_by_timestep_expr(context, 0, inverse=True) + \
                     trg_word.mask.cmult_by_timestep_expr(prev_context, 0, inverse=False)
+      trg_embedding = trg_word.mask.cmult_by_timestep_expr(trg_embedding, 0, inverse=True)
+      if dec_state.prev_embedding is not None:
+        trg_embedding += trg_word.mask.cmult_by_timestep_expr(dec_state.prev_embedding, 0, inverse=False)
     else:
       ret_context = context
     if first_write is not None:
       ret_context += first_write.cmult_by_timestep_expr(context, 0, inverse=True)
 
     return ArbSeqLenUniDirectionalState(rnn_state=rnn_state, context=ret_context, attender_state=attender_state,
-                                        timestep=dec_state.timestep+1, src=dec_state.src)
+                                        timestep=dec_state.timestep+1, src=dec_state.src, prev_embedding=trg_embedding)
 
 
   def _calc_transform(self, dec_state: ArbSeqLenUniDirectionalState) -> dy.Expression:

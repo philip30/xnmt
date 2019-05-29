@@ -83,7 +83,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     self.oracle_in_test = oracle_in_test
 
     self.input_transform = self.add_serializable_component("input_transform", input_transform,
-                                                            lambda: nn.NonLinear(2 * default_layer_dim,
+                                                            lambda: nn.NonLinear(3 * default_layer_dim,
                                                                                  default_layer_dim))
     self.policy_network = self.add_serializable_component("policy_network", policy_network,
                                                           lambda: xnmt.rl.TransformPolicyNetwork(
@@ -147,7 +147,10 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     zeros = lambda: dy.zeros(self.default_layer_dim, batch_size=state.src.batch_size())
     encoder_state = dy.nobackprop(state.encoder_state()) if state.timestep > 0 else zeros()
     decoder_state = dy.nobackprop(state.decoder_state.context()) if state.decoder_state is not None  else zeros()
-    network_input = dy.concatenate([encoder_state, decoder_state])
+    trg_embedding = dy.nobackprop(state.decoder_state.prev_embedding if state.decoder_state is not None and \
+                                                                        state.decoder_state.prev_embedding is not None \
+                                    else zeros())
+    network_input = dy.concatenate([encoder_state, decoder_state, trg_embedding])
 
     return state.network_state.add_input(self.input_transform.transform(network_input))
 
@@ -170,14 +173,10 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
                oracle_in_test: bool = False,
                default_layer_dim: int = xnmt.default_layer_dim,
                encoder_attender: models.Attender = xnmt.bare(nn.MlpAttender),
-               decoder_attender: models.Attender = xnmt.bare(nn.MlpAttender),
-               encode_project: models.Transform =  xnmt.bare(nn.AuxNonLinear, activation="identity"),
-               decode_project: models.Transform = xnmt.bare(nn.AuxNonLinear, activation="identity")):
+               decoder_attender: models.Attender = xnmt.bare(nn.MlpAttender)):
     super().__init__(input_transform, policy_network, oracle_in_train, oracle_in_test, default_layer_dim)
     self.encoder_attender = encoder_attender
     self.decoder_attender = decoder_attender
-    self.encode_project = encode_project
-    self.decode_project = decode_project
 
   def initial_state(self, src: xnmt.Batch):
     return models.DoubleAttentionPolicyAgentState(
@@ -191,7 +190,10 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
     zeros = lambda: dy.zeros(self.default_layer_dim, batch_size=state.src.batch_size())
     encoder_state = dy.nobackprop(state.encoder_state()) if state.timestep > 0 else zeros()
     decoder_state = dy.nobackprop(state.decoder_state.context()) if state.decoder_state is not None else zeros()
-
+    trg_embedding = dy.nobackprop(state.decoder_state.prev_embedding if state.decoder_state is not None and \
+                                                                        state.decoder_state.prev_embedding is not None \
+                                    else zeros())
+    
     if isinstance(state.network_state, models.DoubleAttentionPolicyAgentState):
       if state.parent is None:
         read_flag = state.num_reads
@@ -220,10 +222,7 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
     enc_context, new_encoder_state = self.encoder_attender.calc_context(query_v, new_encoder_state)
     dec_context, new_decoder_state = self.encoder_attender.calc_context(query_v, new_decoder_state)
 
-    enc_context = self.encode_project.transform(dy.concatenate([enc_context, query_v]))
-    dec_context = self.decode_project.transform(dy.concatenate([dec_context, query_v]))
-
-    network_input = dy.concatenate([enc_context, dec_context])
+    network_input = dy.concatenate([enc_context+encoder_state, dec_context+decoder_state, trg_embedding])
     return models.DoubleAttentionPolicyAgentState(
       src = state.network_state.src,
       policy_state=state.network_state.policy_state.add_input(self.input_transform.transform(network_input)),

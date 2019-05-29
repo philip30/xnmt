@@ -225,7 +225,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
           attention=attender_state.attention
         ),
         timestep=decoder_state.timestep,
-        src=decoder_state.src
+        src=decoder_state.src,
+        prev_embedding=decoder_state.prev_embedding
       )
     num_writes = state.num_writes + write_flag
     equal_to_1 = np.logical_and(num_writes == 1, write_flag == 1)

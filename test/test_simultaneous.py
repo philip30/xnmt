@@ -106,7 +106,7 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
     for src, trg in zip(self.src, self.trg):
       loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()
       sloss, sloss_stat = mle_loss.calc_loss(self.seq2seq, src, trg).compute()
-      numpy.testing.assert_array_almost_equal(loss.npvalue(), sloss.npvalue(), decimal=8)
+      numpy.testing.assert_array_almost_equal(loss.npvalue(), sloss.npvalue(), decimal=4)
 
   def test_same_loss_batch_single_pol(self):
     xnmt.event_trigger.set_train(True)
@@ -266,9 +266,7 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
       self.model.policy_agent.oracle_in_test,
       self.model.policy_agent.default_layer_dim,
       nn.MlpAttender(self.layer_dim, self.layer_dim, self.layer_dim),
-      nn.MlpAttender(self.layer_dim, self.layer_dim, self.layer_dim),
-      nn.AuxNonLinear(self.layer_dim, self.layer_dim, self.layer_dim, True, 'identity'),
-      nn.AuxNonLinear(self.layer_dim, self.layer_dim, self.layer_dim, True, 'identity')
+      nn.MlpAttender(self.layer_dim, self.layer_dim, self.layer_dim)
     )
     self.model.train_pol_mle = True
     self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
