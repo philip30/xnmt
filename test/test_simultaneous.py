@@ -270,8 +270,9 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
       nn.AuxNonLinear(self.layer_dim, self.layer_dim, self.layer_dim, True, 'identity'),
       nn.AuxNonLinear(self.layer_dim, self.layer_dim, self.layer_dim, True, 'identity')
     )
+    self.model.train_pol_mle = True
     self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
-      scorer = nn.Softmax(self.layer_dim, 8, trg_reader=self.trg_reader),
+      scorer = nn.Softmax(self.layer_dim, 10, trg_reader=self.trg_reader, softmax_mask=[0,1,2,3,6,7,8,9]),
       rnn = nn.UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim= self.layer_dim)
     )
 

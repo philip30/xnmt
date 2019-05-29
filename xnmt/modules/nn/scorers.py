@@ -38,7 +38,8 @@ class Softmax(models.Scorer, xnmt.Serializable):
                label_smoothing: float = 0.0,
                param_init: xnmt.ParamInitializer = xnmt.default_param_init,
                bias_init: xnmt.ParamInitializer = xnmt.default_bias_init,
-               output_projector: transforms.Linear = None):
+               output_projector: transforms.Linear = None,
+               softmax_mask: Optional[List[int]] = None):
     self.input_dim = input_dim
     self.output_dim = self._choose_vocab_size(vocab_size, vocab, trg_reader)
     self.label_smoothing = label_smoothing
@@ -46,9 +47,18 @@ class Softmax(models.Scorer, xnmt.Serializable):
                                                             lambda: output_projector or transforms.Linear(
                                                               input_dim=self.input_dim, output_dim=self.output_dim,
                                                               param_init=param_init, bias_init=bias_init))
+    self.softmax_mask = softmax_mask
 
   def calc_scores(self, x: dy.Expression) -> dy.Expression:
-    return self.output_projector.transform(x)
+    scores = self.output_projector.transform(x)
+    
+    if self.softmax_mask is not None:
+      mask = np.zeros((scores.dim()[1], scores.dim()[0][0]), dtype=int)
+      mask[:, self.softmax_mask] = 1
+      mask = xnmt.Mask(mask)
+      scores = mask.add_to_tensor_expr(scores, multiplicator=-xnmt.globals.INF)
+    
+    return scores
 
   def best_k(self, x: dy.Expression, k: int, normalize_scores: bool = False) -> List[Tuple[int, dy.Expression]]:
     scores_expr = self.calc_log_probs(x) if normalize_scores else self.calc_scores(x)

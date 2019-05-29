@@ -88,7 +88,10 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     self.policy_network = self.add_serializable_component("policy_network", policy_network,
                                                           lambda: xnmt.rl.TransformPolicyNetwork(
                                                             nn.Softmax(input_dim=default_layer_dim,
-                                                                       vocab_size=xnmt.structs.vocabs.SimultActionVocab.VOCAB_SIZE)))
+                                                                       vocab_size=xnmt.structs.vocabs.SimultActionVocab.VOCAB_SIZE,
+                                                                       softmax_mask=[0,1,2,3,6,7,8,9]
+                                                                       )
+                                                          ))
     self.default_layer_dim = default_layer_dim
 
   def initial_state(self, src: xnmt.Batch) -> models.PolicyAgentState:
