@@ -266,7 +266,9 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
       self.model.policy_agent.oracle_in_test,
       self.model.policy_agent.default_layer_dim,
       nn.MlpAttender(self.layer_dim, self.layer_dim, self.layer_dim),
-      nn.MlpAttender(self.layer_dim, self.layer_dim, self.layer_dim)
+      nn.MlpAttender(self.layer_dim, self.layer_dim, self.layer_dim),
+      nn.AuxNonLinear(self.layer_dim, self.layer_dim, self.layer_dim, True, 'identity'),
+      nn.AuxNonLinear(self.layer_dim, self.layer_dim, self.layer_dim, True, 'identity')
     )
     self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
       scorer = nn.Softmax(self.layer_dim, 8, trg_reader=self.trg_reader),

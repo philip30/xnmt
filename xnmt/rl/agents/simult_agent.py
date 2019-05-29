@@ -167,10 +167,14 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
                oracle_in_test: bool = False,
                default_layer_dim: int = xnmt.default_layer_dim,
                encoder_attender: models.Attender = xnmt.bare(nn.MlpAttender),
-               decoder_attender: models.Attender = xnmt.bare(nn.MlpAttender)):
+               decoder_attender: models.Attender = xnmt.bare(nn.MlpAttender),
+               encode_project: models.Transform =  xnmt.bare(nn.AuxNonLinear, activation="identity"),
+               decode_project: models.Transform = xnmt.bare(nn.AuxNonLinear, activation="identity")):
     super().__init__(input_transform, policy_network, oracle_in_train, oracle_in_test, default_layer_dim)
     self.encoder_attender = encoder_attender
     self.decoder_attender = decoder_attender
+    self.encode_project = encode_project
+    self.decode_project = decode_project
 
   def initial_state(self, src: xnmt.Batch):
     return models.DoubleAttentionPolicyAgentState(
@@ -213,6 +217,9 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
     enc_context, new_encoder_state = self.encoder_attender.calc_context(query_v, new_encoder_state)
     dec_context, new_decoder_state = self.encoder_attender.calc_context(query_v, new_decoder_state)
 
+    enc_context = self.encode_project.transform(dy.concatenate([enc_context, query_v]))
+    dec_context = self.decode_project.transform(dy.concatenate([dec_context, query_v]))
+
     network_input = dy.concatenate([enc_context, dec_context])
     return models.DoubleAttentionPolicyAgentState(
       src = state.network_state.src,
@@ -232,5 +239,4 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
 
     if prev_state.input_mask is not None:
       mask = xnmt.Mask(np.concatenate([prev_state.input_mask.np_arr, mask.np_arr], axis=1))
-
     return models.AttenderState(curr_sent=sent, sent_context=context, input_mask=mask)
