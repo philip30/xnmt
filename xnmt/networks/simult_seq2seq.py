@@ -7,7 +7,7 @@ import xnmt.modules.nn as nn
 import xnmt.rl.agents as agents
 import xnmt.networks.seq2seq as base
 
-from typing import Any
+from typing import Any, Optional
 
 class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
   yaml_tag = "!SimultSeq2Seq"
@@ -19,12 +19,14 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                encoder: models.Encoder = xnmt.bare(nn.SeqEncoder),
                decoder: models.Decoder = xnmt.bare(nn.ArbLenDecoder),
                policy_agent: agents.SimultPolicyAgent = xnmt.bare(agents.SimultPolicyAgent),
-               train_nmt_mle: bool = True,
-               train_pol_mle: bool = True):
+               train_nmt_mle: Optional[bool] = True,
+               train_pol_mle: Optional[bool] = True,
+               train_pol_ent: Optional[bool] = False):
     super().__init__(src_reader=src_reader, trg_reader=trg_reader, encoder=encoder, decoder=decoder)
     self.policy_agent = policy_agent
     self.train_nmt_mle = train_nmt_mle
     self.train_pol_mle = train_pol_mle
+    self.train_pol_ent = train_pol_ent
 
     if isinstance(decoder, nn.ArbLenDecoder):
       if not isinstance(decoder.bridge, nn.NoBridge):
@@ -84,6 +86,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
     mle_loss = []
     pol_loss = []
+    pol_ent_loss = []
     while not self.finish_generating(-1, state):
       search_action, network_state = self.policy_agent.next_action(state)
       action_set = set(search_action.action_id)
@@ -134,18 +137,28 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         write_flag = np.zeros((trg.batch_size(), 1), dtype=int)
         write_flag[search_action.action_id == agents.SimultPolicyAgent.WRITE] = 1
 
-      if self.train_pol_mle:
+      if self.train_pol_mle or self.train_pol_ent:
         action_pad = xnmt.structs.vocabs.SimultActionVocab.PAD
         search_action = search_action.action_id
         oracle_action = [oracle[state.timestep] for oracle in state.oracle_batch]
         mask = xnmt.Mask(np.array([[1 if ref == action_pad else 0 for ref in oracle_action]]).transpose())
         oracle_batch = xnmt.mark_as_batch(oracle_action, mask)
-        loss = self.policy_agent.calc_loss(network_state, oracle_batch)
-
-        if oracle_batch.mask is not None:
-          loss = oracle_batch.mask.cmult_by_timestep_expr(loss, 0, True)
-        pol_loss.append(loss)
-
+        if self.train_pol_mle:
+          loss = self.policy_agent.calc_loss(network_state, oracle_batch)
+  
+          if oracle_batch.mask is not None:
+            loss = oracle_batch.mask.cmult_by_timestep_expr(loss, 0, True)
+          pol_loss.append(loss)
+        if self.train_pol_ent:
+          log_prob = self.policy_agent.policy_network.scorer.calc_log_probs(network_state.output())
+          exp_prob = dy.exp(log_prob)
+          ent = dy.sum_elems(dy.cmult(log_prob, exp_prob))
+          
+          if oracle_batch.mask is not None:
+            ent = oracle_batch.mask.cmult_by_timestep_expr(ent, 0, True)
+          pol_ent_loss.append(ent)
+          
+          
       state = agents.SimultSeqLenUniDirectionalState(
         src=state.src,
         full_encodings=state.full_encodings,
@@ -168,6 +181,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     if pol_loss:
       units = [src[i].oracle.len_unpadded() for i in range(src.batch_size())]
       total_loss["p(a|h)"] = xnmt.LossExpr(dy.esum(pol_loss), units=units)
+    if pol_ent_loss:
+      units = [src[i].oracle.len_unpadded() for i in range(src.batch_size())]
+      total_loss["ent(a)"] = xnmt.LossExpr(dy.esum(pol_ent_loss), units=units)
     return xnmt.FactoredLossExpr(total_loss)
 
   def finish_generating(self, output: Any, dec_state: agents.SimultSeqLenUniDirectionalState):

@@ -224,6 +224,22 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
       self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
 
 
+  def test_same_loss_batch_single_pol_ent(self):
+    xnmt.event_trigger.set_train(True)
+    self.model.train_nmt_mle = False
+    self.model.train_pol_ent = True
+    mle_loss = xnmt.train.MLELoss()
+    for src, trg in zip(self.src, self.trg):
+      loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()
+      losses = []
+      for s, t in zip(src, trg):
+        loss_i, _ = mle_loss.calc_loss(self.model,
+                                       xnmt.mark_as_batch([s.get_unpadded_sent()]),
+                                       xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
+        losses.append(loss_i)
+
+      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
+
   def test_generate_pol(self):
     xnmt.event_trigger.set_train(False)
     self.model.policy_agent.oracle_in_test = False
