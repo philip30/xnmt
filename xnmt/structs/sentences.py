@@ -292,7 +292,7 @@ class SegmentedSentence(SimpleSentence):
   def create_padded_sent(self, pad_len: int) -> 'SegmentedSentence':
     if pad_len == 0:
       return self
-    return self.sent_with_new_words(self.words + [SegmentedWord([self.pad_token], self.pad_token)] * pad_len)
+    return self.sent_with_new_words(self.words + [SegmentedWord((self.pad_token,), self.pad_token)] * pad_len)
 
   def sent_with_new_words(self, new_words):
     return SegmentedSentence(

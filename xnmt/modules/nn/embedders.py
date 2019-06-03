@@ -46,37 +46,13 @@ class WordEmbedder(models.Embedder):
     return ret
 
   def embed_sent(self, x: xnmt.Batch):
-    if self.is_batchable():
-      embeddings = []
-      for word_i in range(x.sent_len()):
-        batch = [single_sent[word_i] for single_sent in x]
-        if isinstance(batch[0], sent.SegmentedWord):
-          batch = [word.word for word in batch]
-        embeddings.append(self.embed(xnmt.mark_as_batch(batch), position=word_i))
-      expr = xnmt.ExpressionSequence(expr_list=embeddings, mask=x.mask)
-    else:
-      assert type(x[0]) == sent.SegmentedSentence, "Need to use CharFromWordTextReader for non standard embeddings."
-      embeddings = []
-      all_embeddings = []
-      for sentence in x:
-        embedding = []
-        for i in range(sentence.len_unpadded()):
-          embed_word = self.embed(sentence[i])
-          embedding.append(embed_word)
-          all_embeddings.append(embed_word)
-        embeddings.append(embedding)
-      # Useful when using dy.autobatch
-      dy.forward(all_embeddings)
-      all_embeddings.clear()
-      # Pad the results
-      expr = xnmt.structs.batchers.pad_embedding(embeddings)
-
-    return expr
+    embeddings = []
+    for word_i in range(x.sent_len()):
+      batch = [single_sent[word_i] for single_sent in x]
+      embeddings.append(self.embed(xnmt.mark_as_batch(batch), position=word_i))
+    return xnmt.ExpressionSequence(expr_list=embeddings, mask=x.mask)
 
   def _embed_word(self, word, is_batched):
-    raise NotImplementedError()
-
-  def is_batchable(self):
     raise NotImplementedError()
 
 
@@ -124,6 +100,8 @@ class LookupEmbedder(WordEmbedder, transforms.Linear, xnmt.Serializable):
 
   def _embed_word(self, word, is_batched):
     if is_batched:
+      if type(word[0]) == sent.SegmentedWord:
+        word = [w.word for w in word]
       embedding = dy.pick_batch(self.embeddings, word) if self.is_dense else self.embeddings.batch(word)
     else:
       if isinstance(word, sent.SegmentedWord):
@@ -184,9 +162,6 @@ class LookupEmbedder(WordEmbedder, transforms.Linear, xnmt.Serializable):
 
     return embeddings
 
-  def is_batchable(self):
-    return True
-
 
 class BagOfWordsEmbedder(WordEmbedder, xnmt.Serializable):
   yaml_tag = "!BagOfWordsEmbedder"
@@ -235,35 +210,31 @@ class BagOfWordsEmbedder(WordEmbedder, xnmt.Serializable):
     # Fill in word_vecs
     for i in range(len(chars)):
       for j in range(i+offset, min(i+self.ngram_size, len(chars))):
-        word_vector[chars[i:j+1]] += 1
+        ngram = self.ngram_vocab.convert(chars[i:j+1])
+        if ngram != self.ngram_vocab.UNK:
+          word_vector[ngram] += 1
+    
+    if len(word_vector) == 0:
+      word_vector[self.ngram_vocab.UNK] = 1
 
-    return word_vector
+    return dict(word_vector)
 
-  def _embed_word(self, segmented_word, is_batched):
+  def _embed_word(self, word: xnmt.Batch, is_batched):
     if self.word_vocab is not None:
-      ngram_stats = self.to_ngram_stats(segmented_word.word)
+      ngram_stats = [self.to_ngram_stats(w.word) for w in word]
     elif self.char_vocab is not None:
-      ngram_stats = self.to_ngram_stats(segmented_word.chars)
+      ngram_stats = [self.to_ngram_stats(w.chars) for w in word]
     else:
       raise ValueError("Either word vocab or char vocab should not be None")
 
-    not_in = [key for key in ngram_stats.keys() if key not in self.ngram_vocab.w2i]
-    for key in not_in:
-      ngram_stats.pop(key)
-
-    if len(ngram_stats) > 0:
-      ngrams = [self.ngram_vocab.convert(ngram) for ngram in ngram_stats.keys()]
-      counts = list(ngram_stats.values())
-    else:
-      ngrams = [self.ngram_vocab.UNK]
-      counts = [1]
-
-    input_tensor = dy.sparse_inputTensor([ngrams], counts, (self.ngram_vocab.vocab_size(),))
+    keys = [(x, i) for i in range(len(ngram_stats)) for x in ngram_stats[i].keys()]
+    keys = tuple(map(list, list(zip(*keys))))
+    values = [x for i in range(len(ngram_stats)) for x in ngram_stats[i].values()]
+    dim = self.ngram_vocab.vocab_size(), word.batch_size()
+    input_tensor = dy.sparse_inputTensor(keys, values, dim, batched=True)
     # Note: If one wants to use CHARAGRAM embeddings, use NonLinear with Relu.
     return self.transform.transform(input_tensor)
 
-  def is_batchable(self):
-    return False
 
 class CharCompositionEmbedder(WordEmbedder, xnmt.Serializable):
   yaml_tag = "!CharCompositionEmbedder"
@@ -290,14 +261,22 @@ class CharCompositionEmbedder(WordEmbedder, xnmt.Serializable):
     self.save_processed_arg("vocab_size", self.vocab_size)
 
 
-  def _embed_word(self, word: sent.SegmentedWord, is_batched: bool = False):
-    char_embeds = self.embeddings.batch(xnmt.mark_as_batch(word.chars))
-
-    char_embeds = [dy.pick_batch_elem(char_embeds, i) for i in range(len(word.chars))]
-    return self.composer.compose(char_embeds)
-
-  def is_batchable(self):
-    return False
+  def _embed_word(self, word: xnmt.Batch, is_batched: bool = False):
+    assert type(word[0]) == sent.SegmentedWord
+    char_inps = [w.chars for w in word]
+    max_len = max([len(x) for x in char_inps])
+    batch_size = len(char_inps)
+    
+    mask = np.zeros((batch_size, max_len), dtype=int)
+    content = np.ones((batch_size, max_len), dtype=int) * xnmt.Vocab.PAD
+    for i, ch in enumerate(char_inps):
+      deficit = max_len - len(ch)
+      if deficit > 0:
+        mask[i][-deficit:] = 1
+      content[i][:len(ch)] = ch
+    
+    char_embeds = dy.concatenate([self.embeddings.batch(ch) for ch in content.transpose()], d=1)
+    return self.composer.compose(xnmt.ExpressionSequence(expr_tensor=char_embeds, mask=xnmt.Mask(mask)))
 
 
 class CompositeEmbedder(models.Embedder, xnmt.Serializable):
@@ -313,16 +292,8 @@ class CompositeEmbedder(models.Embedder, xnmt.Serializable):
       ret.append(dy.esum([embeddings[i][j] for i in range(len(embeddings))]))
     return xnmt.ExpressionSequence(expr_list=ret, mask=embeddings[0].mask)
 
-  def embed(self, word: Any) -> dy.Expression:
-    def select_word(_word, _embedder):
-      if type(_word) == sent.SegmentedWord and type(_embedder) == LookupEmbedder:
-        _word = _word.word
-      return _word
-
-    return dy.esum([embedder.embed(select_word(word, embedder)) for embedder in self.embedders])
-
-  def is_batchable(self):
-    return False
+  def embed(self, word: Any, position: Optional[int] = None) -> dy.Expression:
+    return dy.esum([embedder.embed(word, position) for embedder in self.embedders])
 
 
 class SinCosPositionEmbedder(models.PositionEmbedder, xnmt.Serializable):

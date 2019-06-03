@@ -9,7 +9,7 @@ import xnmt.internal.events
 
 from xnmt.modules.input_readers import PlainTextReader, CharFromWordTextReader
 from xnmt.modules.nn.embedders import LookupEmbedder, BagOfWordsEmbedder, CharCompositionEmbedder, CompositeEmbedder
-from xnmt.modules.nn.composers import SumComposer, SeqTransducerComposer, DyerHeadComposer
+from xnmt.modules.nn.composers import SumComposer, SeqTransducerComposer
 from xnmt.modules.nn.composers import MaxComposer, AverageComposer, ConvolutionComposer
 from xnmt.modules.nn.transforms import NonLinear, AuxNonLinear
 from xnmt.structs.sentences import SegmentedWord
@@ -20,6 +20,7 @@ from xnmt import event_trigger
 from xnmt.structs import batchers
 from xnmt.internal import events
 from xnmt.structs.vocabs import Vocab, CharVocab
+
 
 class PretrainedSimpleWordEmbedderSanityTest(unittest.TestCase):
   def setUp(self):
@@ -92,7 +93,7 @@ class TestEmbedder(unittest.TestCase):
     embedder.embed_sent(self.src[1])
 
   def test_conv_composer(self):
-    composer = ConvolutionComposer(ngram_size=2,
+    composer = ConvolutionComposer(ngram_size=5,
                                    transform=NonLinear(self.layer_dim, self.layer_dim, activation="relu"),
                                    embed_dim=self.layer_dim,
                                    hidden_dim=self.layer_dim)
@@ -120,24 +121,8 @@ class TestEmbedder(unittest.TestCase):
     event_trigger.set_train(True)
     embedder.embed_sent(self.src[1])
 
-  def test_dyer_composer(self):
-    composer = DyerHeadComposer(fwd_combinator=UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim=self.layer_dim),
-                                bwd_combinator=UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim=self.layer_dim),
-                                transform=AuxNonLinear(input_dim=self.layer_dim,
-                                                       output_dim=self.layer_dim,
-                                                       aux_input_dim=self.layer_dim))
-    embedder = CharCompositionEmbedder(emb_dim=self.layer_dim,
-                                       composer=composer,
-                                       char_vocab=self.src_char_vocab)
-    event_trigger.set_train(True)
-    embedder.embed_sent(self.src[1])
-
   def test_composite_composer(self):
-    composer = DyerHeadComposer(fwd_combinator=UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim=self.layer_dim),
-                                bwd_combinator=UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim=self.layer_dim),
-                                transform=AuxNonLinear(input_dim=self.layer_dim,
-                                                       output_dim=self.layer_dim,
-                                                       aux_input_dim=self.layer_dim))
+    composer = SumComposer()
     embedder_1 = CharCompositionEmbedder(emb_dim=self.layer_dim,
                                        composer=composer,
                                        char_vocab=self.src_char_vocab)
@@ -145,7 +130,6 @@ class TestEmbedder(unittest.TestCase):
     embedder = CompositeEmbedder(embedders=[embedder_1, embedder_2])
     event_trigger.set_train(True)
     embedder.embed_sent(self.src[1])
-    embedder.embed(self.src[1][0].words[0])
 
   def test_segmented_word(self):
     a = SegmentedWord([1,2,3], 10)

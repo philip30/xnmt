@@ -200,9 +200,6 @@ class Embedder(object):
                        f"but path was not src_embedder, decoder.embedder, or output_projector, so it could not determine what part of the model to use. "
                        f"Please set vocab_size or vocab explicitly.")
 
-  def is_batchable(self):
-    raise NotImplementedError()
-
 
 class PositionEmbedder(object):
   
@@ -218,7 +215,7 @@ class Encoder(object):
 
 class SequenceComposer(object):
 
-  def compose(self, embeds: Union[dy.Expression, List[dy.Expression]]) -> dy.Expression:
+  def compose(self, embeds: xnmt.ExpressionSequence) -> dy.Expression:
     raise NotImplementedError()
 
 
