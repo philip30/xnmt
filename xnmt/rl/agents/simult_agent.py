@@ -42,6 +42,9 @@ class SimultSeqLenUniDirectionalState(models.UniDirectionalState):
 
   def context(self) -> dy.Expression:
     return self.decoder_state.context()
+  
+  def position(self):
+    return self.num_writes
 
   def add_input(self, word: dy.Expression, mask: Optional[xnmt.Mask] = None):
     raise NotImplementedError("Should not call this line of code")

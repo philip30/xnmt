@@ -23,38 +23,36 @@ class WordEmbedder(models.Embedder):
   def __init__(self,
                emb_dim: int,
                weight_noise: float,
+               position_embedder: Optional[models.PositionEmbedder] = None,
                fix_norm: Optional[float] = None):
     self.fix_norm = fix_norm
     self.weight_noise = weight_noise
     self.emb_dim = emb_dim
-    self.train = True
+    self.position_embedder = position_embedder
 
-  def embed(self, x: Union[xnmt.Batch, int]) -> dy.Expression:
+  def embed(self, x: xnmt.Batch, position: Optional[int] = None) -> dy.Expression:
     """
     Embed a single word in a sentence.
-    :param x: A word id.
-    :return: Embedded word.
     """
     ret = self._embed_word(x, xnmt.is_batched(x))
     ## Applying Fix normalization
     if self.fix_norm is not None:
       ret = dy.cdiv(ret, dy.l2_norm(ret)) * self.fix_norm
     ## Weight noise only when training
-    if self.train and self.weight_noise > 0.0:
+    if xnmt.globals.is_train() and self.weight_noise > 0.0:
       ret = dy.noise(ret, self.weight_noise)
+    if self.position_embedder is not None and position is not None:
+      ret = ret + self.position_embedder.embed_position(position)
     return ret
 
-  def embed_sent(self, x: Any):
-    if not xnmt.is_batched(x):
-      expr = xnmt.ExpressionSequence(expr_list=[self.embed(word) for word in x])
-    # minibatch mode
-    elif self.is_batchable():
+  def embed_sent(self, x: xnmt.Batch):
+    if self.is_batchable():
       embeddings = []
       for word_i in range(x.sent_len()):
         batch = [single_sent[word_i] for single_sent in x]
         if isinstance(batch[0], sent.SegmentedWord):
           batch = [word.word for word in batch]
-        embeddings.append(self.embed(xnmt.mark_as_batch(batch)))
+        embeddings.append(self.embed(xnmt.mark_as_batch(batch), position=word_i))
       expr = xnmt.ExpressionSequence(expr_list=embeddings, mask=x.mask)
     else:
       assert type(x[0]) == sent.SegmentedSentence, "Need to use CharFromWordTextReader for non standard embeddings."
@@ -90,6 +88,7 @@ class LookupEmbedder(WordEmbedder, transforms.Linear, xnmt.Serializable):
                vocab_size: Optional[int] = None,
                vocab: Optional[xnmt.Vocab] = None,
                yaml_path: xnmt.Path = xnmt.Path(''),
+               position_embedder: Optional[models.PositionEmbedder] = None,
                src_reader: Optional[models.InputReader] = xnmt.ref_src_reader,
                trg_reader: Optional[models.InputReader] = xnmt.ref_trg_reader,
                is_dense: bool = False,
@@ -98,7 +97,8 @@ class LookupEmbedder(WordEmbedder, transforms.Linear, xnmt.Serializable):
                init_fastext: Optional[str] = None,
                weight_noise: float = xnmt.default_weight_noise,
                fix_norm: Optional[float] = None):
-    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, fix_norm=fix_norm)
+    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise,
+                     position_embedder=position_embedder, fix_norm=fix_norm)
     # Embedding Parameters
     pcol = xnmt.param_manager(self)
     self.vocab_size = self.choose_vocab_size(vocab_size, vocab, yaml_path, src_reader, trg_reader)
@@ -199,12 +199,13 @@ class BagOfWordsEmbedder(WordEmbedder, xnmt.Serializable):
                ngram_vocab: xnmt.Vocab = None,
                word_vocab: Optional[xnmt.Vocab] = xnmt.Ref("model.src_reader.vocab", default=None),
                char_vocab: Optional[xnmt.Vocab] = xnmt.Ref("model.src_reader.char_vocab", default=None),
+               position_embedder: Optional[models.PositionEmbedder] = None,
                ngram_size: int = 1,
                transform: Optional[xnmt.models.Transform] = None,
                include_lower_ngrams: bool = True,
                weight_noise: float = xnmt.default_weight_noise,
                fix_norm: Optional[float] = None):
-    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, fix_norm=fix_norm)
+    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, fix_norm=fix_norm, position_embedder=position_embedder)
     self.transform = self.add_serializable_component("transform", transform,
                                                      lambda: xnmt.modules.nn.transforms.NonLinear(
                                                        input_dim=ngram_vocab.vocab_size(),
@@ -269,13 +270,14 @@ class CharCompositionEmbedder(WordEmbedder, xnmt.Serializable):
   @xnmt.serializable_init
   def __init__(self,
                char_vocab: Optional[xnmt.structs.vocabs.CharVocab] = xnmt.Ref("model.src_reader.char_vocab", default=None),
+               position_embedder: Optional[models.PositionEmbedder] = None,
                vocab_size: Optional[int] = None,
                emb_dim: int = xnmt.default_layer_dim,
                weight_noise: float = xnmt.default_weight_noise,
                param_init: xnmt.models.templates.ParamInitializer = xnmt.default_param_init,
                composer: models.SequenceComposer = xnmt.bare(composers.SumComposer),
                fix_norm: Optional[float] = None):
-    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, fix_norm=fix_norm)
+    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, fix_norm=fix_norm, position_embedder=position_embedder)
     self.composer = composer
     # Embedding Parameters
     pcol = xnmt.param_manager(self)
@@ -296,6 +298,7 @@ class CharCompositionEmbedder(WordEmbedder, xnmt.Serializable):
 
   def is_batchable(self):
     return False
+
 
 class CompositeEmbedder(models.Embedder, xnmt.Serializable):
   yaml_tag = "!CompositeEmbedder"
@@ -322,67 +325,26 @@ class CompositeEmbedder(models.Embedder, xnmt.Serializable):
     return False
 
 
-class NoopEmbedder(models.Embedder, xnmt.Serializable):
-  yaml_tag = "!NoopEmbedder"
-  """
-  This embedder performs no lookups but only passes through the inputs.
-
-  Normally, the input is a Sentence object, which is converted to an expression.
-
-  Args:
-    emb_dim: Size of the inputs
-  """
+class SinCosPositionEmbedder(models.PositionEmbedder, xnmt.Serializable):
+  yaml_tag = "!SinCosPositionEmbedder"
+  
   @xnmt.serializable_init
-  def __init__(self, emb_dim: Optional[int]) -> None:
-    self.emb_dim = emb_dim
-
-  def embed(self, x: Union[np.ndarray, list]) -> dy.Expression:
-    return dy.inputTensor(x, batched=xnmt.is_batched(x))
-
-  def embed_sent(self, x: sent.Sentence) -> xnmt.ExpressionSequence:
-    # TODO refactor: seems a bit too many special cases that need to be distinguished
-    batched = xnmt.is_batched(x)
-    first_sent = x[0] if batched else x
-    if hasattr(first_sent, "get_array"):
-      if not batched:
-        return xnmt.LazyNumpyExpressionSequence(lazy_data=x.get_array())
-      else:
-        return xnmt.LazyNumpyExpressionSequence(lazy_data=xnmt.mark_as_batch([s for s in x]), mask=x.mask)
-    else:
-      if not batched:
-        embeddings = [self.embed(word) for word in x]
-      else:
-        embeddings = []
-        for word_i in range(x.sent_len()):
-          embeddings.append(self.embed(xnmt.mark_as_batch([single_sent[word_i] for single_sent in x])))
-      return xnmt.ExpressionSequence(expr_list=embeddings, mask=x.mask)
-
-  def is_batchable(self):
-    return True
-
-
-class PositionEmbedder(models.Embedder, xnmt.Serializable):
-  yaml_tag = "!PositionEmbedder"
-  @xnmt.serializable_init
-  def __init__(self,
-               max_pos: int,
-               emb_dim: int = xnmt.default_layer_dim,
-               param_init: xnmt.models.templates.ParamInitializer = xnmt.default_param_init):
-    """
-    max_pos: largest embedded position
-    emb_dim: embedding size
-    param_init: how to initialize embedding matrix
-    """
-    self.max_pos = max_pos
-    self.emb_dim = emb_dim
-    param_collection = xnmt.param_manager(self)
-    dim = (self.emb_dim, max_pos)
-    self.embeddings = param_collection.add_parameters(dim, init=param_init.initializer(dim, is_lookup=True))
-
-  def embed(self, word): raise NotImplementedError("Position-embedding for individual words not implemented yet.")
-  def embed_sent(self, sent_len: int) -> xnmt.ExpressionSequence:
-    embeddings = dy.strided_select(dy.parameter(self.embeddings), [1,1], [0,0], [self.emb_dim, sent_len])
-    return xnmt.ExpressionSequence(expr_tensor=embeddings, mask=None)
-
-  def is_batchable(self):
-    return True
+  def __init__(self, embed_dim: int = xnmt.default_layer_dim):
+    self.embed_dim = embed_dim
+    
+  def embed_position(self, position: int):
+    if type(position) == int:
+      position = [position]
+    even_flag = xnmt.Mask(np.expand_dims(np.asarray([1 if x % 2 == 0 else 0 for x in position]), axis=0).transpose())
+    scale = [10000 ** ((pos - (pos%2)) / self.embed_dim) for pos in position]
+    position = dy.inputTensor(position, batched=True)
+    scale = dy.inputTensor(scale, batched=True)
+    
+    angle = dy.cdiv(position, scale)
+    
+    sin_pos = dy.sin(angle)
+    cos_pos = dy.cos(angle)
+    
+    return even_flag.cmult_by_timestep_expr(sin_pos, 0) + \
+           even_flag.cmult_by_timestep_expr(cos_pos, 0, inverse=True)
+    

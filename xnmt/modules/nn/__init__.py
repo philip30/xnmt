@@ -4,9 +4,6 @@ from xnmt.modules.nn.transforms import *
 import xnmt.modules.nn.scorers
 from xnmt.modules.nn.scorers import *
 
-import xnmt.modules.nn.transformer
-from xnmt.modules.nn.transformer import *
-
 import xnmt.modules.nn.attenders
 from xnmt.modules.nn.attenders import *
 

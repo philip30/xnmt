@@ -26,20 +26,27 @@ class UniDirectionalState(object):
 
   def output(self) -> dy.Expression:
     raise NotImplementedError()
+  
+  def position(self):
+    raise NotImplementedError()
 
   def context(self) -> dy.Expression:
     return self.output()
 
 
 class IdentityUniDirectionalState(UniDirectionalState):
-  def __init__(self, content: Optional[dy.Expression] = None):
+  def __init__(self, content: Optional[dy.Expression] = None, timestep: int = 0):
     self.content = content
+    self.timestep = timestep
 
   def output(self):
     return self.content
+  
+  def position(self):
+    return self.timestep
 
   def add_input(self, word: dy.Expression, mask: Optional[xnmt.Mask] = None):
-    return IdentityUniDirectionalState(word)
+    return IdentityUniDirectionalState(word, self.timestep+1)
 
 
 class SentenceStats(object):

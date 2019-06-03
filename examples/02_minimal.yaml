@@ -8,7 +8,7 @@
 # examples since nothing is specified.
 !Experiment
   name: minimal
-  model: !DefaultTranslator
+  model: !Seq2Seq
     src_reader: !PlainTextReader
       vocab: !Vocab {vocab_file: examples/data/head.ja.vocab}
     trg_reader: !PlainTextReader

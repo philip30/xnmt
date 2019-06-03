@@ -37,6 +37,7 @@ class TestFreeDecodingLoss(unittest.TestCase):
     self.trg_data = list(self.model.trg_reader.read_sents("examples/data/head.en"))
     self.batcher = xnmt.structs.batchers.SrcBatcher(batch_size=2)
     self.src, self.trg = self.batcher.pack(self.src_data, self.trg_data)
+    self.layer_dim = layer_dim
 
   def test_single(self):
     self.model.generate(self.src[0], xnmt.inferences.GreedySearch())
@@ -56,6 +57,21 @@ class TestFreeDecodingLoss(unittest.TestCase):
                                                         reporter=xnmt.reports.ProbReporter())
     inference.perform_inference(self.model)
     xnmt.event_trigger.set_reporting(False)
+    
+  def test_position_embedder(self):
+    self.model.decoder.embedder.position_embedder = nn.SinCosPositionEmbedder(self.layer_dim)
+    xnmt.event_trigger.set_train(True)
+    mle_loss = xnmt.train.MLELoss()
+    loss, loss_stat = mle_loss.calc_loss(self.model, self.src[0], self.trg[0]).compute()
+    losses = []
+    for s, t in zip(self.src[0], self.trg[0]):
+      loss_i, _ = mle_loss.calc_loss(self.model,
+                                     xnmt.mark_as_batch([s.get_unpadded_sent()]),
+                                     xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
+      losses.append(loss_i)
+
+    self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=8)
+
 
   def test_same_loss_batch_single(self):
     xnmt.event_trigger.set_train(True)

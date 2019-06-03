@@ -102,13 +102,13 @@ class Embedder(object):
   This can be done on a word-by-word basis, or over a sequence.
   """
 
-  def embed(self, word: Any) -> dy.Expression:
+  def embed(self, word: Any, position: Optional[int]=None) -> dy.Expression:
     """Embed a single word.
 
     Args:
       word: This will generally be an integer word ID, but could also be something like a string. It could
             also be batched, in which case the input will be a :class:`xnmt.batcher.Batch` of integers or other things.
-
+      position
     Returns:
       Expression corresponding to the embedding of the word(s).
     """
@@ -201,6 +201,12 @@ class Embedder(object):
                        f"Please set vocab_size or vocab explicitly.")
 
   def is_batchable(self):
+    raise NotImplementedError()
+
+
+class PositionEmbedder(object):
+  
+  def embed_position(self, position: int):
     raise NotImplementedError()
 
 

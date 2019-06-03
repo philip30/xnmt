@@ -18,18 +18,23 @@ class UniLSTMState(models.UniDirectionalState):
                c: Sequence[dy.Expression] = None,
                h: Sequence[dy.Expression] = None,
                dropout_mask = None,
-               init: Optional[Sequence[dy.Expression]] = None):
+               init: Optional[Sequence[dy.Expression]] = None,
+               timestep: Optional[int] = 0):
     self._network = weakref.ref(network)
     self._prev = prev
     self._dropout_mask = dropout_mask
     self._num_layers = network.num_layers
     self._weightnoise_std = network.weightnoise_std
     self._hidden_dim = network.hidden_dim
+    self._timestep = timestep
     if init is not None:
       self.set_s(init)
     else:
       self._c = c
       self._h = h
+      
+  def position(self):
+    return self._timestep
 
   def add_input(self, x: dy.Expression, mask: Optional[xnmt.Mask] = None, position=0) -> models.UniDirectionalState:
     network = self._network()
@@ -72,7 +77,7 @@ class UniLSTMState(models.UniDirectionalState):
       new_h.append(h_t)
       x = new_h[-1]
 
-    return UniLSTMState(network, prev=self, c=new_c, h=new_h, dropout_mask=self._dropout_mask)
+    return UniLSTMState(network, prev=self, c=new_c, h=new_h, dropout_mask=self._dropout_mask, timestep=self._timestep+1)
 
   def b(self) -> 'UniLSTMSeqTransducer':
     return self._network()
@@ -183,7 +188,7 @@ class UniLSTMSeqTransducer(xnmt.models.UniDiSeqTransducer, xnmt.Serializable):
 
 
   def initial_state(self, init=None) -> UniLSTMState:
-    return UniLSTMState(self, init=init)
+    return UniLSTMState(self, init=init, timestep=0)
 
   def add_input(self, prev_state: UniLSTMState, x: dy.Expression, mask: Optional[xnmt.Mask]) \
       -> models.states.UniDirectionalState:
