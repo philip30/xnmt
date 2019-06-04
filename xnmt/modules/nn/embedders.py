@@ -2,7 +2,7 @@ import functools
 import collections
 import numpy as np
 import dynet as dy
-from typing import Any, Optional, Union
+from typing import Any, Optional, List
 
 import xnmt
 import xnmt.models as models
@@ -282,15 +282,12 @@ class CharCompositionEmbedder(WordEmbedder, xnmt.Serializable):
 class CompositeEmbedder(models.Embedder, xnmt.Serializable):
   yaml_tag = "!CompositeEmbedder"
   @xnmt.serializable_init
-  def __init__(self, embedders):
+  def __init__(self, embedders: List[models.Embedder]):
     self.embedders = embedders
 
-  def embed_sent(self, x: Any):
-    embeddings = [embedder.embed_sent(x) for embedder in self.embedders]
-    ret = []
-    for j in range(len(embeddings[0])):
-      ret.append(dy.esum([embeddings[i][j] for i in range(len(embeddings))]))
-    return xnmt.ExpressionSequence(expr_list=ret, mask=embeddings[0].mask)
+  def embed_sent(self, x: xnmt.Batch) -> xnmt.ExpressionSequence:
+    embeddings = [embedder.embed_sent(x).as_tensor() for embedder in self.embedders]
+    return xnmt.ExpressionSequence(expr_tensor=dy.esum(embeddings), mask=x.mask)
 
   def embed(self, word: Any, position: Optional[int] = None) -> dy.Expression:
     return dy.esum([embedder.embed(word, position) for embedder in self.embedders])

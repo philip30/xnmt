@@ -56,24 +56,25 @@ class Mask(object):
       timestep: index of current timestep
       inverse: True will keep the unmasked parts, False will zero out the unmasked parts
     """
+    np_arr = self.np_arr.transpose()
     if inverse:
-      if np.count_nonzero(self.np_arr[:,timestep:timestep+1]) == 0:
+      if np.count_nonzero(np_arr[timestep]) == 0:
         return expr
-      mask_exp = dy.inputTensor((1.0 - self.np_arr)[:,timestep:timestep+1].transpose(), batched=True)
+      mask_exp = dy.inputTensor((1.0 - np_arr[timestep]), batched=True)
     else:
-      if np.count_nonzero(self.np_arr[:,timestep:timestep+1]) == self.np_arr[:,timestep:timestep+1].size:
+      if np.count_nonzero(np_arr[timestep]) == np_arr[timestep].size:
         return expr
-      mask_exp = dy.inputTensor(self.np_arr[:,timestep:timestep+1].transpose(), batched=True)
+      mask_exp = dy.inputTensor(np_arr[timestep], batched=True)
     return dy.cmult(expr, mask_exp)
 
   def cmult_to_tensor_expr(self, tensor_exp: dy.Expression, inverse=True):
     inp = self.np_arr if not inverse else 1-self.np_arr
-    inp_expr = dy.inputTensor(np.expand_dims(inp.transpose(),axis=0), batched=True)
+    inp_expr = dy.inputTensor(np.expand_dims(inp.transpose(), axis=0), batched=True)
     return dy.cmult(tensor_exp, inp_expr)
-
 
   def __repr__(self):
     return str(self.np_arr.transpose()[0])
+
 
 class Batch(collections.Sequence):
   """
