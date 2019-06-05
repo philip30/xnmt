@@ -121,7 +121,7 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
                                        xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
         losses.append(loss_i)
 
-      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=8)
+      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=5)
 
 
 class TestSimultaneousTranslationOracle(unittest.TestCase):
@@ -248,7 +248,8 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
 
   def test_recurrent_agent(self):
     self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
-      scorer = nn.Softmax(self.layer_dim, 8, trg_reader=self.trg_reader),
+      transform = nn.NonLinear(self.layer_dim, self.layer_dim),
+      scorer = nn.Softmax(self.layer_dim, 10, trg_reader=self.trg_reader),
       rnn = nn.UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim= self.layer_dim)
     )
     xnmt.event_trigger.set_train(True)
@@ -286,6 +287,7 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
     )
     self.model.train_pol_mle = True
     self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
+      transform = nn.NonLinear(self.layer_dim, self.layer_dim),
       scorer = nn.Softmax(self.layer_dim, 10, trg_reader=self.trg_reader, softmax_mask=[0,1,2,3,6,7,8,9]),
       rnn = nn.UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim= self.layer_dim)
     )

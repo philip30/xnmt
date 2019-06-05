@@ -31,11 +31,11 @@ class Softmax(models.Scorer, xnmt.Serializable):
   """
   @xnmt.serializable_init
   def __init__(self,
-               input_dim: int = xnmt.default_layer_dim,
+               input_dim: Optional[int] = xnmt.default_layer_dim,
                vocab_size: Optional[int] = None,
                vocab: Optional[xnmt.Vocab] = None,
                trg_reader: Optional[xnmt.models.InputReader] = xnmt.ref_trg_reader,
-               label_smoothing: float = 0.0,
+               label_smoothing: Optional[float] = 0.0,
                param_init: xnmt.ParamInitializer = xnmt.default_param_init,
                bias_init: xnmt.ParamInitializer = xnmt.default_bias_init,
                output_projector: models.Transform = None,

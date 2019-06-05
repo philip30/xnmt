@@ -86,15 +86,22 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     self.oracle_in_test = oracle_in_test
 
     self.input_transform = self.add_serializable_component("input_transform", input_transform,
-                                                            lambda: nn.NonLinear(3 * default_layer_dim,
+                                                            lambda: nn.Linear(3 * default_layer_dim,
                                                                                  default_layer_dim))
-    self.policy_network = self.add_serializable_component("policy_network", policy_network,
-                                                          lambda: xnmt.rl.TransformPolicyNetwork(
-                                                            nn.Softmax(input_dim=default_layer_dim,
-                                                                       vocab_size=xnmt.structs.vocabs.SimultActionVocab.VOCAB_SIZE,
-                                                                       softmax_mask=[0,1,2,3,6,7,8,9]
-                                                                       )
-                                                          ))
+    self.policy_network = self.add_serializable_component(
+      "policy_network", policy_network,
+      lambda: xnmt.rl.TransformPolicyNetwork(
+        transform=nn.NonLinear(
+          input_dim=default_layer_dim,
+          output_dim=default_layer_dim
+        ),
+        scorer=nn.Softmax(
+          input_dim=default_layer_dim,
+          vocab_size=xnmt.structs.vocabs.SimultActionVocab.VOCAB_SIZE,
+          softmax_mask=[0,1,2,3,6,7,8,9]
+        )
+      )
+    )
     self.default_layer_dim = default_layer_dim
 
   def initial_state(self, src: xnmt.Batch) -> models.PolicyAgentState:
