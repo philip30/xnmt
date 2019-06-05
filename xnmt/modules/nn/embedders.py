@@ -279,18 +279,20 @@ class CharCompositionEmbedder(WordEmbedder, xnmt.Serializable):
     return self.composer.compose(xnmt.ExpressionSequence(expr_tensor=char_embeds, mask=xnmt.Mask(mask)))
 
 
-class CompositeEmbedder(models.Embedder, xnmt.Serializable):
+class CompositeEmbedder(WordEmbedder, xnmt.Serializable):
   yaml_tag = "!CompositeEmbedder"
   @xnmt.serializable_init
-  def __init__(self, embedders: List[models.Embedder]):
+  def __init__(self,
+               embedders: List[WordEmbedder],
+               emb_dim: Optional[int] = xnmt.default_layer_dim,
+               position_embedder: Optional[models.PositionEmbedder] = None,
+               weight_noise: Optional[float] = xnmt.default_weight_noise,
+               fix_norm: Optional[float] = None):
+    super().__init__(emb_dim=emb_dim, weight_noise=weight_noise, position_embedder=position_embedder, fix_norm=fix_norm)
     self.embedders = embedders
 
-  def embed_sent(self, x: xnmt.Batch) -> xnmt.ExpressionSequence:
-    embeddings = [embedder.embed_sent(x).as_tensor() for embedder in self.embedders]
-    return xnmt.ExpressionSequence(expr_tensor=dy.esum(embeddings), mask=x.mask)
-
-  def embed(self, word: Any, position: Optional[int] = None) -> dy.Expression:
-    return dy.esum([embedder.embed(word, position) for embedder in self.embedders])
+  def _embed_word(self, word: xnmt.Batch, is_batched: bool = False):
+    return dy.esum([embedder._embed_word(word, is_batched) for embedder in self.embedders])
 
 
 class SinCosPositionEmbedder(models.PositionEmbedder, xnmt.Serializable):

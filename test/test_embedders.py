@@ -127,7 +127,7 @@ class TestEmbedder(unittest.TestCase):
                                        composer=composer,
                                        char_vocab=self.src_char_vocab)
     embedder_2 = LookupEmbedder(emb_dim=self.layer_dim, vocab_size=100)
-    embedder = CompositeEmbedder(embedders=[embedder_1, embedder_2])
+    embedder = CompositeEmbedder(embedders=[embedder_1, embedder_2], emb_dim=self.layer_dim)
     event_trigger.set_train(True)
     embedder.embed_sent(self.src[1])
 
