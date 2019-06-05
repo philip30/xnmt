@@ -165,7 +165,10 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
 
 
   def _calc_transform(self, dec_state: ArbSeqLenUniDirectionalState) -> dy.Expression:
-    h = dy.concatenate([dec_state.output(), dec_state.context()])
+    if self.attender is not None:
+      h = dy.concatenate([dec_state.output(), dec_state.context()])
+    else:
+      h = dec_state.output()
     return self.transform.transform(h)
 
   def best_k(self, dec_state: ArbSeqLenUniDirectionalState, k: int, normalize_scores: bool = False) \
@@ -185,7 +188,7 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
     return ret
 
   def pick_oracle(self, oracle, dec_state: ArbSeqLenUniDirectionalState):
-    log_prob = self.scorer.calc_log_probs(dec_state.output())
+    log_prob = self.scorer.calc_log_probs(self._calc_transform(dec_state))
     return [models.SearchAction(dec_state, oracle, dy.pick_batch(log_prob, oracle), log_prob, None)]
 
   def calc_loss(self, dec_state: ArbSeqLenUniDirectionalState, ref_action: xnmt.Batch) -> dy.Expression:

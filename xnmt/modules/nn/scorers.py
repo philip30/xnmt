@@ -38,7 +38,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
                label_smoothing: float = 0.0,
                param_init: xnmt.ParamInitializer = xnmt.default_param_init,
                bias_init: xnmt.ParamInitializer = xnmt.default_bias_init,
-               output_projector: transforms.Linear = None,
+               output_projector: models.Transform = None,
                softmax_mask: Optional[List[int]] = None):
     self.input_dim = input_dim
     self.output_dim = self._choose_vocab_size(vocab_size, vocab, trg_reader)

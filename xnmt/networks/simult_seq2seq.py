@@ -240,7 +240,6 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
           read_mask=xnmt.Mask(read_masks),
           attention=attender_state.attention
         ),
-        timestep=decoder_state.timestep,
         src=decoder_state.src,
         prev_embedding=decoder_state.prev_embedding
       )
