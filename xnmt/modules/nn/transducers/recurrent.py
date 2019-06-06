@@ -70,7 +70,7 @@ class UniLSTMSeqTransducer(xnmt.models.UniDiSeqTransducer, xnmt.Serializable):
     self.total_input_dim = input_dim
     
   def initial_state(self, init: List[dy.Expression] = None) -> MaskedRNNState:
-    if not xnmt.globals.is_train() and self.dropout > 0.0:
+    if xnmt.globals.is_train() and self.dropout > 0.0:
       self.builder.set_dropouts(self.dropout, self.dropout)
     else:
       self.builder.disable_dropout()
