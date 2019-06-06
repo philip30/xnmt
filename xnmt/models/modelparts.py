@@ -244,7 +244,8 @@ class UniDiSeqTransducer(SeqTransducer):
   def initial_state(self, init: Any=None) -> states.UniDirectionalState:
     raise NotImplementedError()
 
-  def add_input(self, word: Any, previous_state: states.UniDirectionalState, mask: Optional[xnmt.Mask]) \
+  def add_input(self, word: Any, previous_state: states.UniDirectionalState, mask: Optional[xnmt.Mask],
+                position: Optional[int] = 0) \
       -> states.UniDirectionalState:
     raise NotImplementedError()
 

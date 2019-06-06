@@ -23,12 +23,14 @@ class ArbSeqLenUniDirectionalState(models.UniDirectionalState):
                context: dy.Expression,
                attender_state: Optional[models.AttenderState],
                src: Optional[xnmt.Batch],
-               prev_embedding: Optional[dy.Expression] = None):
+               prev_embedding: Optional[dy.Expression] = None,
+               position: Optional[int] = 0):
     self._rnn_state = rnn_state
     self._attender_state = attender_state
     self._context = context
     self._src = src
     self._prev_embedding = prev_embedding
+    self._position = position
 
   @property
   def attender_state(self):
@@ -55,8 +57,9 @@ class ArbSeqLenUniDirectionalState(models.UniDirectionalState):
   def prev_embedding(self):
     return self._prev_embedding
   
+  @property
   def position(self):
-    return self._rnn_state.position()
+    return self._position
 
 
 class ArbLenDecoder(models.Decoder, xnmt.Serializable):
@@ -119,7 +122,7 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
       ss_expr = self.embedder.embed(xnmt.mark_as_batch([xnmt.Vocab.SS] * batch_size))
       if self.input_feeding:
         ss_expr = dy.concatenate([ss_expr, zeros])
-      rnn_state = rnn_state.add_input(ss_expr if self.input_feeding else ss_expr)
+      rnn_state = rnn_state.add_input(ss_expr)
     return ArbSeqLenUniDirectionalState(rnn_state=rnn_state, context=zeros, attender_state=attender_state, src=src)
 
   def add_input(self, dec_state: ArbSeqLenUniDirectionalState, trg_word: xnmt.Batch,
@@ -138,9 +141,9 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
     prev_context = dec_state.context()
 
     if trg_word is not None:
-      trg_embedding = self.embedder.embed(trg_word, position=dec_state.position())
+      trg_embedding = self.embedder.embed(trg_word, position=dec_state.position)
       inp_context = trg_embedding if not self.input_feeding else dy.concatenate([trg_embedding, prev_context])
-      rnn_state = rnn_state.add_input(inp_context, trg_word.mask)
+      rnn_state = self.rnn.add_input(rnn_state, inp_context, trg_word.mask)
     else:
       trg_embedding = None
     # Calc Artention
@@ -161,7 +164,7 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
       ret_context += first_write.cmult_by_timestep_expr(context, 0, inverse=True)
 
     return ArbSeqLenUniDirectionalState(rnn_state=rnn_state, context=ret_context, attender_state=attender_state,
-                                        src=dec_state.src, prev_embedding=trg_embedding)
+                                        src=dec_state.src, prev_embedding=trg_embedding, position=dec_state.position+1)
 
 
   def _calc_transform(self, dec_state: ArbSeqLenUniDirectionalState) -> dy.Expression:

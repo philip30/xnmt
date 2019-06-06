@@ -56,15 +56,15 @@ class Mask(object):
       timestep: index of current timestep
       inverse: True will keep the unmasked parts, False will zero out the unmasked parts
     """
-    np_arr = self.np_arr.transpose()
+    np_arr = self.np_arr[:, timestep]
     if inverse:
-      if np.count_nonzero(np_arr[timestep]) == 0:
+      if np.count_nonzero(np_arr) == 0:
         return expr
-      mask_exp = dy.inputTensor((1.0 - np_arr[timestep]), batched=True)
+      mask_exp = dy.inputTensor((1.0 - np_arr), batched=True)
     else:
-      if np.count_nonzero(np_arr[timestep]) == np_arr[timestep].size:
+      if np.count_nonzero(np_arr) == np_arr.size:
         return expr
-      mask_exp = dy.inputTensor(np_arr[timestep], batched=True)
+      mask_exp = dy.inputTensor(np_arr, batched=True)
     return dy.cmult(expr, mask_exp)
 
   def cmult_to_tensor_expr(self, tensor_exp: dy.Expression, inverse=True):

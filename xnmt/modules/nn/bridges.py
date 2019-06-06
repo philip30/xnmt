@@ -53,8 +53,8 @@ class CopyBridge(models.Bridge, xnmt.Serializable):
       raise RuntimeError("CopyBridge requires enc_dim == dec_dim, but got {} and {}".format(
                          enc_final_states[0].main_expr().dim()[0][0], self.dec_dim))
 
-    cell_exprs = [enc_state.cell_expr() for enc_state in enc_final_states[-self.dec_layers:]]
-    main_exprs = [enc_state.main_expr() for enc_state in enc_final_states[-self.dec_layers:]]
+    cell_exprs = [enc_state.cell_expr() for enc_state in enc_final_states]
+    main_exprs = [enc_state.main_expr() for enc_state in enc_final_states]
 
     return cell_exprs + main_exprs
 

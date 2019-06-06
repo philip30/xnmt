@@ -19,7 +19,7 @@ class TestFreeDecodingLoss(unittest.TestCase):
       trg_reader=modules.PlainTextReader(vocab=trg_vocab),
       encoder=nn.SeqEncoder(
         embedder=nn.LookupEmbedder(emb_dim=layer_dim, vocab=src_vocab),
-        seq_transducer=nn.BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim)),
+        seq_transducer=nn.BiLSTMSeqTransducer(input_dim=layer_dim, hidden_dim=layer_dim, layers=3)),
       decoder=nn.ArbLenDecoder(
         input_dim=layer_dim,
         attender=nn.MlpAttender(input_dim=layer_dim, state_dim=layer_dim, hidden_dim=layer_dim),
@@ -27,10 +27,11 @@ class TestFreeDecodingLoss(unittest.TestCase):
         rnn=nn.UniLSTMSeqTransducer(input_dim=layer_dim,
                                     hidden_dim=layer_dim,
                                     decoder_input_dim=layer_dim,
+                                    layers=3,
                                     yaml_path=xnmt.Path("model.decoder.rnn")),
         transform=nn.NonLinear(input_dim=layer_dim*2, output_dim=layer_dim),
         scorer=nn.Softmax(input_dim=layer_dim, vocab=trg_vocab),
-        bridge=nn.NoBridge(dec_dim=layer_dim))
+        bridge=nn.CopyBridge(dec_dim=layer_dim))
     )
     xnmt.event_trigger.set_train(False)
     self.src_data = list(self.model.src_reader.read_sents("examples/data/head.ja"))
@@ -70,7 +71,7 @@ class TestFreeDecodingLoss(unittest.TestCase):
                                      xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
       losses.append(loss_i)
 
-    self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=8)
+    self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
 
 
   def test_same_loss_batch_single(self):
@@ -84,7 +85,7 @@ class TestFreeDecodingLoss(unittest.TestCase):
                                      xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
       losses.append(loss_i)
 
-    self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=8)
+    self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
 
 
 if __name__ == '__main__':
