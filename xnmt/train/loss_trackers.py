@@ -75,10 +75,12 @@ class TrainLossTracker(object):
       fractional_epoch = (self.training_task.training_state.epoch_num - 1) \
                          + self.training_task.training_state.sents_into_epoch / self.training_task.cur_num_sentences()
       accum_time = self.time_tracker.get_and_reset()
+      
+      this_loss = sum([loss_value/units for loss_value, units in loss_data.values()])
       rep_train_loss = sum([self.epoch_loss[k]/self.epoch_words[k] for k in self.epoch_loss.keys()])
       utils.log_readable_and_tensorboard(
         template = TrainLossTracker.REPORT_TEMPLATE_SPEED if accum_time else TrainLossTracker.REPORT_TEMPLATE,
-        args = {"loss": rep_train_loss},
+        args = {"loss": this_loss},
         n_iter = fractional_epoch,
         time = utils.format_time(time.time() - self.start_time),
         words = self.epoch_words["__TRG__"],
@@ -88,9 +90,9 @@ class TrainLossTracker(object):
       )
 
       if len(self.epoch_loss) > 1:
-        for loss_name, loss_values in self.epoch_loss.items():
+        for loss_name, (loss_values, units) in loss_data.items():
           utils.log_readable_and_tensorboard(template=TrainLossTracker.REPORT_TEMPLATE_ADDITIONAL,
-                                             args={loss_name: loss_values / self.epoch_words[loss_name]},
+                                             args={loss_name: loss_values / units},
                                              n_iter=fractional_epoch,
                                              data_name="train",
                                              task_name=self.name,
