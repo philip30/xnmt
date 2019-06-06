@@ -64,6 +64,7 @@ class LookupEmbedder(WordEmbedder, transforms.Linear, xnmt.Serializable):
                vocab_size: Optional[int] = None,
                vocab: Optional[xnmt.Vocab] = None,
                yaml_path: xnmt.Path = xnmt.Path(''),
+               dropout: Optional[float] = 0.0,
                position_embedder: Optional[models.PositionEmbedder] = None,
                src_reader: Optional[models.InputReader] = xnmt.ref_src_reader,
                trg_reader: Optional[models.InputReader] = xnmt.ref_trg_reader,
@@ -78,6 +79,7 @@ class LookupEmbedder(WordEmbedder, transforms.Linear, xnmt.Serializable):
     # Embedding Parameters
     pcol = xnmt.param_manager(self)
     self.vocab_size = self.choose_vocab_size(vocab_size, vocab, yaml_path, src_reader, trg_reader)
+    self.dropout = dropout
     emb_mtr_dim = (self.vocab_size, self.emb_dim)
 
     if init_fastext is not None:
@@ -99,14 +101,17 @@ class LookupEmbedder(WordEmbedder, transforms.Linear, xnmt.Serializable):
     self.save_processed_arg("vocab_size", self.vocab_size)
 
   def _embed_word(self, word, is_batched):
-    if is_batched:
-      if type(word[0]) == sent.SegmentedWord:
-        word = [w.word for w in word]
-      embedding = dy.pick_batch(self.embeddings, word) if self.is_dense else self.embeddings.batch(word)
-    else:
-      if isinstance(word, sent.SegmentedWord):
-        word = word.word
-      embedding = dy.pick(self.embeddings, index=word) if self.is_dense else self.embeddings[word]
+    if not is_batched:
+      word = xnmt.mark_as_batch([word])
+    
+    if type(word[0]) == sent.SegmentedWord:
+      word = [w.word for w in word]
+    embedding = dy.pick_batch(self.embeddings, word) if self.is_dense else self.embeddings.batch(word)
+    
+    if xnmt.globals.is_train() and self.dropout > 0.0:
+      dropout_mask = np.random.binomial(1, self.dropout, self.vocab_size)
+      word_mask = xnmt.Mask(np.expand_dims(np.asarray([dropout_mask[w] for w in word]), axis=1))
+      embedding = word_mask.cmult_by_timestep_expr(embedding, 0, inverse=True)
     return embedding
 
   def transform(self, input_expr: dy.Expression) -> dy.Expression:

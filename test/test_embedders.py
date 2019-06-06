@@ -73,7 +73,13 @@ class TestEmbedder(unittest.TestCase):
     embedder = LookupEmbedder(emb_dim=self.layer_dim, vocab_size=100)
     embedder.embed_sent(self.src[1])
     embedder.embed(self.src[1][1][1])
-
+    
+  def test_lookup_composer_with_dropout(self):
+    event_trigger.set_train(True)
+    embedder = LookupEmbedder(emb_dim=self.layer_dim, vocab_size=100, dropout=0.2)
+    embedder.embed_sent(self.src[1])
+    embedder.embed(self.src[1][1][1])
+    
   def test_sum_composer(self):
     embedder = CharCompositionEmbedder(emb_dim=self.layer_dim,
                                        composer=SumComposer(),
