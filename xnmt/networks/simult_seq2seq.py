@@ -38,7 +38,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     trg_count = None
     if type(src[0]) == xnmt.structs.sentences.OracleSentence:
       oracle = [src[i].oracle for i in range(src.batch_size())]
-      trg_count = [sum([1 for x in src[i].oracle if x == agents.SimultPolicyAgent.WRITE]) for i in range(src.batch_size())]
+      trg_count = [sum([1 for x in src[i].oracle if x == agents.SimultPolicyAgent.WRITE \
+                        or x == agents.SimultPolicyAgent.PREDICT_WRITE]) for i in range(src.batch_size())]
       oracle_batch = xnmt.structs.batchers.pad(oracle)
 
     encoding = self.encoder.encode(src)
@@ -93,14 +94,16 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       search_action, network_state = self.policy_agent.next_action(state)
       action_set = set(search_action.action_id)
       #print(search_action.action_id)
-      if agents.SimultPolicyAgent.READ in action_set or agents.SimultPolicyAgent.PREDICT_READ in action_set:
+      if agents.SimultPolicyAgent.READ in action_set or \
+          agents.SimultPolicyAgent.PREDICT_READ in action_set:
         new_state = self._perform_read(state, search_action, network_state)
         num_reads = new_state.num_reads
       else:
         num_reads = state.num_reads
 
       write_flag = np.zeros(trg.batch_size(), dtype=int)
-      if agents.SimultPolicyAgent.WRITE in action_set or agents.SimultPolicyAgent.PREDICT_WRITE in action_set:
+      if agents.SimultPolicyAgent.WRITE in action_set or \
+         agents.SimultPolicyAgent.PREDICT_WRITE in action_set:
         write_flag[np.logical_or(search_action.action_id == agents.SimultPolicyAgent.WRITE,
                                  search_action.action_id == agents.SimultPolicyAgent.PREDICT_WRITE)] = 1
 
@@ -159,7 +162,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
             ent = oracle_batch.mask.cmult_by_timestep_expr(ent, 0, True)
           pol_ent_loss.append(ent)
           
-          
+      read_w_performed = agents.SimultPolicyAgent.READ in action_set or \
+                         agents.SimultPolicyAttentionAgent.PREDICT_READ in action_set
       state = agents.SimultSeqLenUniDirectionalState(
         src=state.src,
         full_encodings=state.full_encodings,
@@ -168,7 +172,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         num_reads=num_reads,
         num_writes=num_writes,
         simult_action=search_action,
-        read_was_performed=agents.SimultPolicyAgent.READ in action_set,
+        read_was_performed=read_w_performed,
         network_state=network_state,
         parent=state,
         force_oracle=state.force_oracle,
