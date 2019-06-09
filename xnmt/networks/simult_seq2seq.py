@@ -99,10 +99,10 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       else:
         num_reads = state.num_reads
 
-      write_flag = np.zeros((trg.batch_size(), 1), dtype=int)
+      write_flag = np.zeros(trg.batch_size(), dtype=int)
       if agents.SimultPolicyAgent.WRITE in action_set or agents.SimultPolicyAgent.PREDICT_WRITE:
-        write_flag[search_action.action_id == agents.SimultPolicyAgent.WRITE or \
-                   search_action.action_id == agents.SimultPolicyAgent.PREDICT_WRITE] = 1
+        write_flag[np.logical_or(search_action.action_id == agents.SimultPolicyAgent.WRITE,
+                                 search_action.action_id == agents.SimultPolicyAgent.PREDICT_WRITE)] = 1
 
         prev_word = [trg[i][state.num_writes[i]-1] \
                        if write_flag[i] > 0 and state.num_writes[i] > 0 \
@@ -123,7 +123,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         decoder_state = new_state.decoder_state
 
         if self.train_nmt_mle:
-          ref_word = xnmt.mark_as_batch(data=ref_word, mask=xnmt.Mask(1-write_flag))
+          ref_word = xnmt.mark_as_batch(data=ref_word, mask=xnmt.Mask(1-np.expand_dims(write_flag, axis=1)))
           loss = self.decoder.calc_loss(decoder_state, ref_word)
           if ref_word.mask is not None:
             loss = ref_word.mask.cmult_by_timestep_expr(loss, 0, True)
@@ -198,9 +198,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                     state: agents.SimultSeqLenUniDirectionalState,
                     search_action: models.SearchAction,
                     network_state: models.PolicyAgentState) -> agents.SimultSeqLenUniDirectionalState:
-    read_inc = np.zeros(search_action.action_id.shape, dtype=int)
-    read_inc[search_action.action_id == agents.SimultPolicyAgent.READ or \
-             search_action.action_id == agents.SimultPolicyAgent.PREDICT_READ] = 1
+    read_inc = np.zeros(state.num_reads.shape, dtype=int)
+    read_inc[np.logical_or(search_action.action_id == agents.SimultPolicyAgent.READ,
+                           search_action.action_id == agents.SimultPolicyAgent.PREDICT_READ)] = 1
 
     return agents.SimultSeqLenUniDirectionalState(
       src=state.src,

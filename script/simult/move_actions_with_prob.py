@@ -28,7 +28,6 @@ def main(args):
     print(" ".join(shift_actions_according_to_prob(actions, sprob, tprob, args.threshold)))
 
 
-
 def shift_actions_according_to_prob(actions, sprob, tprob, threshold):
   s_ctr = 0
   t_ctr = 0
@@ -36,19 +35,22 @@ def shift_actions_according_to_prob(actions, sprob, tprob, threshold):
     act = actions[i]
     if act == READ:
       if sprob is not None and sprob[s_ctr] > threshold:
-        actions[i] = PR_READ
         j = i-1
-        while j >= 0 and actions[j] == WRITE:
-          actions[j], actions[j+1] = actions[j+1], actions[j]
-          j -= 1
+        if j >= 0 and actions[j] == WRITE:
+          actions[i] = PR_READ
+          while j >= 0 and actions[j] == WRITE:
+            actions[j], actions[j+1] = actions[j+1], actions[j]
+            j -= 1
       s_ctr += 1
     elif act == WRITE:
       if tprob is not None and tprob[t_ctr] > threshold:
-        actions[i] = PR_WRITE
         j= i-1
-        while j >= 0 and actions[j] == READ:
-          actions[j], actions[j+1] = actions[j+1], actions[j]
-          j -= 1
+        if j >= 0 and actions[j] == READ:
+          actions[i] = PR_WRITE
+          while j >= 0 and actions[j] == READ:
+            actions[j], actions[j+1] = actions[j+1], actions[j]
+            j -= 1
+      t_ctr += 1
     else:
       raise ValueError()
   return actions
@@ -60,7 +62,7 @@ if __name__ == '__main__':
   parser.add_argument("actions")
   parser.add_argument("--src_prob")
   parser.add_argument("--trg_prob")
-  parser.add_argument("--threshold", default=0.5)
+  parser.add_argument("--threshold", type=float, default=0.5)
   main(parser.parse_args())
   
 

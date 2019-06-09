@@ -13,7 +13,7 @@ for prob_line, text_line in itertools.zip_longest(args.prob_file, args.text_file
   
   assert len(p) == len(t), "Unmatching length of prob and text"
   
-  max_col = [max([len(x), len(y)]) + 1 for x, y in zip(p, t)]
+  max_col = [max([len(x), len(y)]) for x, y in zip(p, t)]
   
   line1 = []
   for text, mc in zip(t, max_col):
