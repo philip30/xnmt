@@ -142,7 +142,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     new_actions = []
     modified =  False
     for l, r, a in zip(src_len, num_reads, actions):
-      if l == r and a == self.READ:
+      if l == r and (a == self.READ or a == self.PREDICT_READ):
         new_actions.append(self.WRITE)
         modified = True
       else:

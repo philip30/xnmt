@@ -46,7 +46,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     decoder_init = self.decoder.initial_state(encoding, src)
 
     if isinstance(decoder_init, nn.decoders.arb_len.ArbSeqLenUniDirectionalState):
-      decoder_init.attender_state.read_mask = xnmt.Mask(np.array([1] * src.batch_size()).transpose())
+      decoder_init.attender_state.read_mask = xnmt.Mask(np.expand_dims(np.array([1] * src.batch_size()), axis=1))
 
     return agents.SimultSeqLenUniDirectionalState(
       oracle_batch=oracle_batch, src=src, full_encodings=encoder_seqs, network_state=self.policy_agent.initial_state(src),
