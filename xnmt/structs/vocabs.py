@@ -119,7 +119,7 @@ class SimultActionVocab(Vocab):
 
   @serializable_init
   def __init__(self, i2w=None, vocab_file=None, w2i=None):
-    self.i2w = [Vocab.SS_STR, Vocab.ES_STR, Vocab.PAD_STR, Vocab.UNK_STR, "READ", "WRITE", "PREDICT_READ", "PREDCIT_WRITE",
+    self.i2w = [Vocab.SS_STR, Vocab.ES_STR, Vocab.PAD_STR, Vocab.UNK_STR, "READ", "WRITE", "PREDICT_READ", "PREDICT_WRITE",
                 "PAD_A", "PAD_B"]
     self.w2i = {word: word_id for (word_id, word) in enumerate(self.i2w)}
 

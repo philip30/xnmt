@@ -59,9 +59,11 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
     while not self.finish_generating(prev_word, state):
       search_action, network_state = self.policy_agent.next_action(state)
-      if search_action.action_id == agents.SimultPolicyAgent.READ:
+      if search_action.action_id == agents.SimultPolicyAgent.READ or \
+         search_action.action_id == agents.SimultPolicyAgent.PREDICT_READ:
         state = self._perform_read(state, search_action, network_state)
-      elif search_action.action_id == agents.SimultPolicyAgent.WRITE:
+      elif search_action.action_id == agents.SimultPolicyAgent.WRITE or \
+           search_action.action_id == agents.SimultPolicyAgent.PREDICT_WRITE:
         state = self._perform_write(state, search_action, prev_word, network_state)
         break
       else:
@@ -91,15 +93,16 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       search_action, network_state = self.policy_agent.next_action(state)
       action_set = set(search_action.action_id)
       #print(search_action.action_id)
-      if agents.SimultPolicyAgent.READ in action_set:
+      if agents.SimultPolicyAgent.READ in action_set or agents.SimultPolicyAgent.PREDICT_READ:
         new_state = self._perform_read(state, search_action, network_state)
         num_reads = new_state.num_reads
       else:
         num_reads = state.num_reads
 
-      if agents.SimultPolicyAgent.WRITE in action_set:
-        write_flag = np.zeros((trg.batch_size(), 1), dtype=int)
-        write_flag[search_action.action_id == agents.SimultPolicyAgent.WRITE] = 1
+      write_flag = np.zeros((trg.batch_size(), 1), dtype=int)
+      if agents.SimultPolicyAgent.WRITE in action_set or agents.SimultPolicyAgent.PREDICT_WRITE:
+        write_flag[search_action.action_id == agents.SimultPolicyAgent.WRITE or \
+                   search_action.action_id == agents.SimultPolicyAgent.PREDICT_WRITE] = 1
 
         prev_word = [trg[i][state.num_writes[i]-1] \
                        if write_flag[i] > 0 and state.num_writes[i] > 0 \
@@ -134,9 +137,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       else:
         num_writes = state.num_writes
         decoder_state = state.decoder_state
-        write_flag = np.zeros((trg.batch_size(), 1), dtype=int)
-        write_flag[search_action.action_id == agents.SimultPolicyAgent.WRITE] = 1
-
+        
       if self.train_pol_mle or self.train_pol_ent:
         action_pad = xnmt.structs.vocabs.SimultActionVocab.PAD
         search_action = search_action.action_id
@@ -198,7 +199,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                     search_action: models.SearchAction,
                     network_state: models.PolicyAgentState) -> agents.SimultSeqLenUniDirectionalState:
     read_inc = np.zeros(search_action.action_id.shape, dtype=int)
-    read_inc[search_action.action_id == agents.SimultPolicyAgent.READ] = 1
+    read_inc[search_action.action_id == agents.SimultPolicyAgent.READ or \
+             search_action.action_id == agents.SimultPolicyAgent.PREDICT_READ] = 1
 
     return agents.SimultSeqLenUniDirectionalState(
       src=state.src,

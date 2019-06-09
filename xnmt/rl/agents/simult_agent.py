@@ -71,8 +71,10 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
   yaml_tag = "!SimultPolicyAgent"
   READ = xnmt.structs.vocabs.SimultActionVocab.READ
   WRITE = xnmt.structs.vocabs.SimultActionVocab.WRITE
+  PREDICT_READ = xnmt.structs.vocabs.SimultActionVocab.PREDICT_READ
+  PREDICT_WRITE = xnmt.structs.vocabs.SimultActionVocab.PREDICT_WRITE
 
-  __ACTIONS__ = [READ, WRITE]
+  __ACTIONS__ = [READ, WRITE, PREDICT_READ, PREDICT_WRITE]
 
   @xnmt.serializable_init
   def __init__(self,
@@ -98,7 +100,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
         scorer=nn.Softmax(
           input_dim=default_layer_dim,
           vocab_size=xnmt.structs.vocabs.SimultActionVocab.VOCAB_SIZE,
-          softmax_mask=[0,1,2,3,6,7,8,9]
+          softmax_mask=[0,1,2,3,8,9]
         )
       )
     )
