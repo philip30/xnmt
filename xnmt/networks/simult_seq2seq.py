@@ -93,14 +93,14 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       search_action, network_state = self.policy_agent.next_action(state)
       action_set = set(search_action.action_id)
       #print(search_action.action_id)
-      if agents.SimultPolicyAgent.READ in action_set or agents.SimultPolicyAgent.PREDICT_READ:
+      if agents.SimultPolicyAgent.READ in action_set or agents.SimultPolicyAgent.PREDICT_READ in action_set:
         new_state = self._perform_read(state, search_action, network_state)
         num_reads = new_state.num_reads
       else:
         num_reads = state.num_reads
 
       write_flag = np.zeros(trg.batch_size(), dtype=int)
-      if agents.SimultPolicyAgent.WRITE in action_set or agents.SimultPolicyAgent.PREDICT_WRITE:
+      if agents.SimultPolicyAgent.WRITE in action_set or agents.SimultPolicyAgent.PREDICT_WRITE in action_set:
         write_flag[np.logical_or(search_action.action_id == agents.SimultPolicyAgent.WRITE,
                                  search_action.action_id == agents.SimultPolicyAgent.PREDICT_WRITE)] = 1
 
