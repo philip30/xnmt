@@ -24,8 +24,25 @@ def main(args):
   for i, actions in enumerate(actions):
     sprob = src_prob[i] if src_prob else None
     tprob = trg_prob[i] if trg_prob else None
+    ret_actions = shift_actions_according_to_prob(actions, sprob, tprob, args.threshold)
+    assert sanity_check(actions, ret_actions)
+    print(" ".join(ret_actions))
 
-    print(" ".join(shift_actions_according_to_prob(actions, sprob, tprob, args.threshold)))
+
+def count_read_write(act):
+  read = 0
+  write = 0
+  for a in act:
+    if a == "READ" or a == "PREDICT_READ": read += 1
+    elif a == "WRITE" or a == "PREDICT_WRITE": write += 1
+    else: raise ValueError()
+  return read, write
+
+
+def sanity_check(act, ret):
+  r1, w1 = count_read_write(act)
+  r2, w2 = count_read_write(ret)
+  return r1 == r2 and w1 == w2
 
 
 def shift_actions_according_to_prob(actions, sprob, tprob, threshold):
