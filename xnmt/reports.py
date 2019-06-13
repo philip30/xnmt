@@ -52,7 +52,49 @@ class ProbReporter(models.Reporter, xnmt.Serializable):
     if self.fp is not None and self.report_path is not None:
       self.fp.close()
       self.fp = None
+      
+class SimultActionReporter(models.Reporter, xnmt.Serializable):
+  yaml_tag = "!SimultActionReporter"
+  @xnmt.serializable_init
+  def __init__(self, report_path: Optional[str] = None):
+    self.report_path = report_path
+    self.fp = None
 
+  def create_sent_report(self, hyp: models.Hypothesis, src: xnmt.Sentence, hyp_num: int, src_vocab: xnmt.Vocab, trg_vocab: xnmt.Vocab, *args, **kwargs):
+    if self.fp is None:
+      self.fp = sys.stdout if self.report_path is None else open(self.report_path, "w")
+
+    last_decoder_state = hyp.action.decoder_state
+    if isinstance(last_decoder_state, xnmt.rl.agents.SimultSeqLenUniDirectionalState):
+      act = list(reversed([x.simult_action.action_id[0] for x in last_decoder_state.collect_trajectories_backward()]))
+    else:
+      raise ValueError()
+    
+    write = []
+    while hyp.parent is not None:
+      write.append(hyp.action.action_id[0])
+      hyp = hyp.parent
+    write = iter(list(reversed(write)))
+    
+    ret = []
+    for a in act:
+      if a == 4:
+        ret.append("READ")
+      elif a == 5:
+        ret.append("WRITE('{}')".format(trg_vocab[next(write)]))
+      elif a == 6:
+        ret.append("PREDICT_READ")
+      elif a == 7:
+        ret.append("PREDICT_WRITE('{}')".format(trg_vocab[next(write)]))
+      else:
+        raise NotImplementedError()
+    print(" ".join(ret), file=self.fp)
+
+  def conclude_report(self):
+    if self.fp is not None and self.report_path is not None:
+      self.fp.close()
+      self.fp = None
+   
 
 #
 #class ReferenceDiffReporter(models.Reporter, xnmt.Serializable):

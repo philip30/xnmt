@@ -68,7 +68,7 @@ class Seq2Seq(models.AutoRegressiveModel, xnmt.Serializable, models.Reportable):
     if self.is_reporting():
       for src_i, search_hyps in zip(src, ret):
         for i, search_hyp in enumerate(search_hyps):
-          self.report_sent_info({"hyp": search_hyp, "src": src_i, "hyp_num": i})
+          self.report_sent_info({"hyp": search_hyp, "src": src_i, "hyp_num": i, "src_vocab": self.src_reader.vocab, "trg_vocab": self.trg_reader.vocab})
 
     return ret
 

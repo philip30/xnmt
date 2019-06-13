@@ -209,7 +209,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         (not xnmt.is_train() and  self.policy_agent.oracle_in_test):
       return self.policy_agent.finish_generating(dec_state)
     return super().finish_generating(output, dec_state)
-
+  
   def _perform_read(self,
                     state: agents.SimultSeqLenUniDirectionalState,
                     search_action: models.SearchAction,

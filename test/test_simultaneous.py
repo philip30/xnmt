@@ -385,6 +385,20 @@ class TestSimultaneousTranslationPredict(unittest.TestCase):
     inference.perform_inference(self.model)
 
 
+  def test_report(self):
+    xnmt.event_trigger.set_train(False)
+    xnmt.event_trigger.set_reporting(True)
+    self.model.policy_agent.oracle_in_test = False
+    self.model.policy_agent.policy_network.scorer.softmax_mask = [0,1,2,3,6,7,8,9]
+    inference = xnmt.inferences.AutoRegressiveInference(src_file=["examples/data/head.ja",
+                                                                  "examples/data/simult/head.jaen.lm.actions"],
+                                                        ref_file="examples/data/head.en",
+                                                        trg_file="test/output/hyp",
+                                                        search_strategy=xnmt.inferences.GreedySearch(),
+                                                        reporter=xnmt.reports.SimultActionReporter())
+    inference.perform_inference(self.model)
+    xnmt.event_trigger.set_reporting(False)
+
   def test_same_loss_batch_single(self):
     xnmt.event_trigger.set_train(True)
     self.model.policy_agent.policy_network = None
