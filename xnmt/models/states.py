@@ -12,12 +12,14 @@ class AttenderState(object):
                sent_context: Optional[dy.Expression] = None,
                input_mask: Optional[xnmt.Mask] = None,
                read_mask: Optional[xnmt.Mask] = None,
-               attention: Optional[dy.Expression] = None):
+               attention: Optional[dy.Expression] = None,
+               curr_value: Optional[dy.Expression] = None):
     self.curr_sent = curr_sent
     self.sent_context = sent_context
     self.attention = attention
     self.input_mask = input_mask
     self.read_mask = read_mask
+    self.curr_value = curr_value if curr_value is not None else curr_sent
 
 
 class UniDirectionalState(object):

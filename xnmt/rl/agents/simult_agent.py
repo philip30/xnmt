@@ -185,10 +185,22 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
                oracle_in_test: bool = False,
                default_layer_dim: int = xnmt.default_layer_dim,
                encoder_attender: models.Attender = xnmt.bare(nn.MlpAttender),
-               decoder_attender: models.Attender = xnmt.bare(nn.MlpAttender)):
+               decoder_attender: models.Attender = xnmt.bare(nn.MlpAttender),
+               encoder_q_transform: models.Transform = xnmt.bare(nn.Linear, bias=False),
+               encoder_k_transform: models.Transform = xnmt.bare(nn.Linear, bias=False),
+               encoder_v_transform: models.Transform = xnmt.bare(nn.Linear, bias=False),
+               decoder_q_transform: models.Transform = xnmt.bare(nn.Linear, bias=False),
+               decoder_k_transform: models.Transform = xnmt.bare(nn.Linear, bias=False),
+               decoder_v_transform: models.Transform = xnmt.bare(nn.Linear, bias=False)):
     super().__init__(input_transform, policy_network, oracle_in_train, oracle_in_test, default_layer_dim)
     self.encoder_attender = encoder_attender
     self.decoder_attender = decoder_attender
+    self.encoder_q_transform = encoder_q_transform
+    self.encoder_k_transform = encoder_k_transform
+    self.encoder_v_transform = encoder_v_transform
+    self.decoder_q_transform = decoder_q_transform
+    self.decoder_k_transform = decoder_k_transform
+    self.decoder_v_transform = decoder_v_transform
 
   def initial_state(self, src: xnmt.Batch):
     return models.DoubleAttentionPolicyAgentState(
@@ -216,25 +228,34 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
       read_flag = np.expand_dims(read_flag, axis=1)
       write_flag = np.expand_dims(write_flag, axis=1)
 
+
+      encoder_key = self.encoder_k_transform.transform(encoder_state)
+      encoder_value = self.encoder_v_transform.transform(encoder_state)
+      decoder_key = self.decoder_k_transform.transform(decoder_state)
+      decoder_value = self.decoder_v_transform.transform(decoder_state)
       # Appending new item in the sentences
       new_encoder_state = self.concat_attender_state(
         prev_state=state.network_state.encoder_state,
-        next_state=self.encoder_attender.initial_state(xnmt.ExpressionSequence([encoder_state])),
+        next_state=self.encoder_attender.initial_state(xnmt.ExpressionSequence([encoder_key]),
+                                                       xnmt.ExpressionSequence([encoder_value])),
         mask=xnmt.Mask(1-read_flag)
       )
       new_decoder_state = self.concat_attender_state(
         prev_state=state.network_state.decoder_state,
-        next_state=self.decoder_attender.initial_state(xnmt.ExpressionSequence([decoder_state])),
+        next_state=self.decoder_attender.initial_state(xnmt.ExpressionSequence([decoder_key]),
+                                                       xnmt.ExpressionSequence([decoder_value])),
         mask=xnmt.Mask(1-write_flag)
       )
     else:
       raise ValueError()
 
     query_v = state.network_state.policy_state.output() if state.parent is not None else zeros()
-    enc_context, new_encoder_state = self.encoder_attender.calc_context(query_v, new_encoder_state)
-    dec_context, new_decoder_state = self.encoder_attender.calc_context(query_v, new_decoder_state)
+    query_e = self.encoder_q_transform.transform(query_v)
+    query_d = self.decoder_q_transform.transform(query_v)
+    enc_context, new_encoder_state = self.encoder_attender.calc_context(query_e, new_encoder_state)
+    dec_context, new_decoder_state = self.encoder_attender.calc_context(query_d, new_decoder_state)
 
-    network_input = dy.concatenate([enc_context+encoder_state, dec_context+decoder_state, trg_embedding])
+    network_input = dy.concatenate([enc_context, dec_context, trg_embedding])
     return models.DoubleAttentionPolicyAgentState(
       src = state.network_state.src,
       policy_state=state.network_state.policy_state.add_input(self.input_transform.transform(network_input)),
@@ -246,11 +267,13 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
       -> models.AttenderState:
     if prev_state.curr_sent is None:
       sent = dy.concatenate([next_state.curr_sent], d=1)
+      value = dy.concatenate([next_state.curr_value], d=1)
       context = dy.concatenate([next_state.sent_context], d=1)
     else:
       sent = dy.concatenate([prev_state.curr_sent, next_state.curr_sent], d=1)
       context = dy.concatenate([prev_state.sent_context, next_state.sent_context], d=1)
+      value = dy.concatenate([prev_state.curr_value, next_state.curr_value], d=1)
 
     if prev_state.input_mask is not None:
       mask = xnmt.Mask(np.concatenate([prev_state.input_mask.np_arr, mask.np_arr], axis=1))
-    return models.AttenderState(curr_sent=sent, sent_context=context, input_mask=mask)
+    return models.AttenderState(curr_sent=sent, sent_context=context, input_mask=mask, curr_value=value)

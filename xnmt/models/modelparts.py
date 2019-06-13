@@ -12,13 +12,13 @@ class Attender(object):
   A template class for functions implementing attention.
   """
 
-  def initial_state(self, sent: Optional[xnmt.ExpressionSequence] = None) -> states.AttenderState:
+  def initial_state(self, sent: Optional[xnmt.ExpressionSequence] = None, value: Optional[xnmt.ExpressionSequence] = None) -> states.AttenderState:
     if sent is None:
       return states.AttenderState()
     else:
-      return self.not_empty_initial_state(sent)
+      return self.not_empty_initial_state(sent, value)
 
-  def not_empty_initial_state(self, sent: xnmt.ExpressionSequence):
+  def not_empty_initial_state(self, sent: xnmt.ExpressionSequence, value: xnmt.ExpressionSequence):
     """Args:
          sent: the encoder states, aka keys and values. Usually but not necessarily an :class:`expression_seqs.ExpressionSequence`
     """
@@ -47,7 +47,7 @@ class Attender(object):
     Args:
     """
     attention = self.calc_attention(decoder_context, attender_state)
-    context = attender_state.curr_sent * attention
+    context = attender_state.curr_value * attention
     return context, states.AttenderState(
       curr_sent=attender_state.curr_sent, sent_context=attender_state.sent_context, input_mask=attender_state.input_mask,
       read_mask=attender_state.read_mask, attention=attention

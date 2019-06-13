@@ -286,8 +286,14 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
       self.model.policy_agent.oracle_in_train,
       self.model.policy_agent.oracle_in_test,
       self.model.policy_agent.default_layer_dim,
-      nn.MlpAttender(self.layer_dim, self.layer_dim, self.layer_dim),
-      nn.MlpAttender(self.layer_dim, self.layer_dim, self.layer_dim)
+      nn.DotAttender(True),
+      nn.DotAttender(True),
+      nn.Linear(self.layer_dim, self.layer_dim, False),
+      nn.Linear(self.layer_dim, self.layer_dim, False),
+      nn.Linear(self.layer_dim, self.layer_dim, False),
+      nn.Linear(self.layer_dim, self.layer_dim, False),
+      nn.Linear(self.layer_dim, self.layer_dim, False),
+      nn.Linear(self.layer_dim, self.layer_dim, False)
     )
     self.model.train_pol_mle = True
     self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
