@@ -63,9 +63,10 @@ class DotAttender(models.Attender, xnmt.Serializable):
     scale: whether to perform scaling
   """
   @xnmt.serializable_init
-  def __init__(self, scale: bool = True):
+  def __init__(self, scale: bool = True, layer_dim=xnmt.default_layer_dim):
     self.curr_sent = None
-    self.scale = scale
+    self.is_scale = scale
+    self.scale = math.sqrt(layer_dim)
 
   def not_empty_initial_state(self, sent: xnmt.ExpressionSequence, value: xnmt.ExpressionSequence) -> models.AttenderState:
     sent_input = sent.as_tensor()
@@ -74,8 +75,8 @@ class DotAttender(models.Attender, xnmt.Serializable):
 
   def calc_scores(self, decoder_context: dy.Expression, attender_state: models.AttenderState) -> dy.Expression:
     scores = dy.transpose(attender_state.curr_sent) * decoder_context
-    if self.scale:
-      scores /= math.sqrt(decoder_context.dim()[0][0])
+    if self.is_scale:
+      scores = scores * (1/self.scale)
     return scores
 
 
