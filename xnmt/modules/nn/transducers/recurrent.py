@@ -12,7 +12,7 @@ class MaskedRNNState(models.UniDirectionalState):
     
   def add_input(self, word: dy.Expression, mask: Optional[xnmt.Mask] = None, position: int = 0):
     next_state = self.state.add_input(word)
-    if mask is not None and len(self.state.s()) > 0:
+    if mask is not None and len(self.state.s()) != 0:
       s = [mask.cmult_by_timestep_expr(x, position) + mask.cmult_by_timestep_expr(y, position, inverse=True) \
            for x, y in zip(self.state.s(), next_state.s())]
       next_state = next_state.set_s(s)

@@ -89,10 +89,11 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
 
     self.input_transform = self.add_serializable_component("input_transform", input_transform,
                                                             lambda: nn.Linear(3 * default_layer_dim,
-                                                                                 default_layer_dim))
+                                                                              default_layer_dim))
     self.policy_network = self.add_serializable_component(
       "policy_network", policy_network,
-      lambda: xnmt.rl.TransformPolicyNetwork(
+      lambda: xnmt.rl.RecurrentPolicyNetwork(
+        rnn=nn.UniLSTMSeqTransducer(input_dim=default_layer_dim, hidden_dim=default_layer_dim),
         transform=nn.NonLinear(
           input_dim=default_layer_dim,
           output_dim=default_layer_dim
@@ -157,13 +158,12 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
 
   def add_input_to_network(self, state: SimultSeqLenUniDirectionalState) -> models.PolicyAgentState:
     zeros = lambda: dy.zeros(self.default_layer_dim, batch_size=state.src.batch_size())
-    encoder_state = dy.nobackprop(state.encoder_state()) if state.timestep > 0 else zeros()
-    decoder_state = dy.nobackprop(state.decoder_state.context()) if state.decoder_state is not None  else zeros()
-    trg_embedding = dy.nobackprop(state.decoder_state.prev_embedding if state.decoder_state is not None and \
-                                                                        state.decoder_state.prev_embedding is not None \
-                                    else zeros())
+    estate = state.encoder_state()if state.timestep > 0 else zeros()
+    dstate = state.decoder_state
+    encoder_state = dy.nobackprop(estate)
+    decoder_state = dy.nobackprop(dstate.merged_context) if dstate.merged_context is not None else dstate.rnn_state.output()
+    trg_embedding = dy.nobackprop(dstate.prev_embedding) if dstate.prev_embedding is not None else zeros()
     network_input = dy.concatenate([encoder_state, decoder_state, trg_embedding])
-
     return state.network_state.add_input(self.input_transform.transform(network_input))
 
 
@@ -200,12 +200,12 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
 
   def add_input_to_network(self, state: SimultSeqLenUniDirectionalState) -> models.DoubleAttentionPolicyAgentState:
     zeros = lambda: dy.zeros(self.default_layer_dim, batch_size=state.src.batch_size())
-    encoder_state = dy.nobackprop(state.encoder_state()) if state.timestep > 0 else zeros()
-    decoder_state = dy.nobackprop(state.decoder_state.context()) if state.decoder_state is not None else zeros()
-    trg_embedding = dy.nobackprop(state.decoder_state.prev_embedding if state.decoder_state is not None and \
-                                                                        state.decoder_state.prev_embedding is not None \
-                                    else zeros())
-    
+    estate = state.encoder_state()if state.timestep > 0 else zeros()
+    dstate = state.decoder_state
+    encoder_state = dy.nobackprop(estate)
+    decoder_state = dy.nobackprop(dstate.merged_context) if dstate.merged_context is not None else zeros()
+    trg_embedding = dy.nobackprop(dstate.prev_embedding) if dstate.prev_embedding is not None else zeros()
+   
     if isinstance(state.network_state, models.DoubleAttentionPolicyAgentState):
       if state.parent is None:
         read_flag = state.num_reads

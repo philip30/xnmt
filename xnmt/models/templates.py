@@ -234,7 +234,7 @@ class SearchStrategy(object):
 class ForceableSearchStrategy(object):
   def generate_forced_output(self,
                              generator: Union[models.GeneratorModel, models.AutoRegressiveModel],
-                             initial_state:models.UniDirectionalState,
+                             src: xnmt.Batch,
                              trg: xnmt.Batch) -> List[models.Hypothesis]:
     raise NotImplementedError()
 

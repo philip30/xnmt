@@ -29,8 +29,11 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     self.train_pol_ent = train_pol_ent
 
     if isinstance(decoder, nn.ArbLenDecoder):
-      if not isinstance(decoder.bridge, nn.NoBridge):
-        xnmt.logger.warning("Cannot use any bridge except no bridge for SimultSeq2Seq.")
+      if not isinstance(decoder.bridge, nn.ZeroBridge):
+        if isinstance(decoder.bridge, nn.NoBridge):
+          decoder.bridge = nn.ZeroBridge(decoder.bridge.dec_layers, decoder.bridge.dec_dim)
+        else:
+          xnmt.logger.warning("Cannot use any bridge except ZeroBridge for SimultSeq2Seq.")
 
 
   def initial_state(self, src: xnmt.Batch, force_oracle=False) -> agents.SimultSeqLenUniDirectionalState:
@@ -91,9 +94,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     pol_loss = []
     pol_ent_loss = []
     while not self.finish_generating(-1, state):
+      # BEGIN DEBUG
       search_action, network_state = self.policy_agent.next_action(state)
       action_set = set(search_action.action_id)
-      #print(search_action.action_id)
       if agents.SimultPolicyAgent.READ in action_set or \
           agents.SimultPolicyAgent.PREDICT_READ in action_set:
         new_state = self._perform_read(state, search_action, network_state)
@@ -101,17 +104,21 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       else:
         num_reads = state.num_reads
 
+      
+
       write_flag = np.zeros(trg.batch_size(), dtype=int)
       if agents.SimultPolicyAgent.WRITE in action_set or \
          agents.SimultPolicyAgent.PREDICT_WRITE in action_set:
         write_flag[np.logical_or(search_action.action_id == agents.SimultPolicyAgent.WRITE,
                                  search_action.action_id == agents.SimultPolicyAgent.PREDICT_WRITE)] = 1
 
-        prev_word = [trg[i][state.num_writes[i]-1] \
-                       if write_flag[i] > 0 and state.num_writes[i] > 0 \
-                       else word_pad for i in range(trg.batch_size())]
-        prev_mask = np.array([[1 if word == word_pad else 0 for word in prev_word]])
-        prev_word = xnmt.mark_as_batch(data=prev_word, mask=xnmt.Mask(prev_mask.transpose()))
+        prev_word = np.asarray([trg[i][state.num_writes[i]-1] if state.num_writes[i] > 0 else xnmt.Vocab.SS \
+                               for i in range(trg.batch_size())])
+        prev_mask = np.zeros_like(write_flag)
+        prev_mask[prev_word == word_pad] = 1
+        prev_mask[write_flag == 0] = 1
+        prev_mask = np.expand_dims(prev_mask, axis=1)
+        prev_word = xnmt.mark_as_batch(data=prev_word, mask=xnmt.Mask(prev_mask))
 
 
         ref_word = [trg[i][state.num_writes[i]] \
@@ -128,14 +135,15 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         if self.train_nmt_mle:
           ref_word = xnmt.mark_as_batch(data=ref_word, mask=xnmt.Mask(1-np.expand_dims(write_flag, axis=1)))
           loss = self.decoder.calc_loss(decoder_state, ref_word)
+
           if ref_word.mask is not None:
             loss = ref_word.mask.cmult_by_timestep_expr(loss, 0, True)
 
           mle_loss.append(loss)
         # BEGIN(DEBUG)
-#        print("{} {} {} {} {} {}".format(search_action.action_id, mle_loss[-1].npvalue(), prev_word,
+#        print("{} {} {} {} {} {} {}".format(search_action.action_id, mle_loss[-1].npvalue(), prev_word,
 #                                      prev_word.mask.np_arr.transpose(), ref_word,
-#                                      ref_word.mask.np_arr.transpose()))
+#                                      ref_word.mask.np_arr.transpose(), state.decoder_state.merged_context.npvalue()[0]))
         # END(DEBUG)
       else:
         num_writes = state.num_writes
@@ -145,6 +153,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         action_pad = xnmt.structs.vocabs.SimultActionVocab.PAD
         search_action = search_action.action_id
         oracle_action = [oracle[state.timestep] for oracle in state.oracle_batch]
+        #print(oracle_action)
         mask = xnmt.Mask(np.array([[1 if ref == action_pad else 0 for ref in oracle_action]]).transpose())
         oracle_batch = xnmt.mark_as_batch(oracle_action, mask)
         if self.train_pol_mle:
@@ -152,6 +161,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
   
           if oracle_batch.mask is not None:
             loss = oracle_batch.mask.cmult_by_timestep_expr(loss, 0, True)
+          #print(network_state.output().npvalue()[0], loss.npvalue(), oracle_action)
+          #print("------")
           pol_loss.append(loss)
         if self.train_pol_ent:
           log_prob = self.policy_agent.policy_network.scorer.calc_log_probs(network_state.output())
@@ -185,6 +196,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       total_loss["p(e|f)"] = xnmt.LossExpr(dy.esum(mle_loss), units=state.num_writes)
     if pol_loss:
       units = [src[i].oracle.len_unpadded() for i in range(src.batch_size())]
+      
       total_loss["p(a|h)"] = xnmt.LossExpr(dy.esum(pol_loss), units=units)
     if pol_ent_loss:
       units = [src[i].oracle.len_unpadded() for i in range(src.batch_size())]
@@ -248,21 +260,15 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         ),
         src=decoder_state.src,
         prev_embedding=decoder_state.prev_embedding,
-        position=decoder_state.position
+        position=decoder_state.position,
+        merged_context=decoder_state.merged_context
       )
     num_writes = state.num_writes + write_flag
-    equal_to_1 = np.logical_and(num_writes == 1, write_flag == 1)
-    if any(equal_to_1):
-      first_mask = np.ones_like(num_writes, dtype=int)
-      first_mask[equal_to_1] = 0
-      first_mask = xnmt.Mask(np.expand_dims(first_mask.transpose(), axis=1))
-    else:
-      first_mask = None
 
     return agents.SimultSeqLenUniDirectionalState(
       src=state.src,
       full_encodings=state.full_encodings,
-      decoder_state=self.decoder.add_input(decoder_state, prev_word, first_mask),
+      decoder_state=self.decoder.add_input(decoder_state, prev_word),
       num_reads=state.num_reads,
       num_writes=num_writes,
       simult_action=search_action,

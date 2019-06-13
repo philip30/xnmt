@@ -1,6 +1,5 @@
 import itertools
 import xnmt
-import numpy as np
 import dynet as dy
 import xnmt.models.states as states
 
@@ -78,9 +77,9 @@ class GeneratorModel(object):
       src_i = xnmt.mark_as_batch(data=[src[i].get_unpadded_sent()], mask=None)
       if isinstance(search_strategy, xnmt.models.ForceableSearchStrategy) and search_strategy.is_forced():
         ref_i = xnmt.mark_as_batch(data=[ref[i].get_unpadded_sent()], mask=None)
-        search_hyps = search_strategy.generate_forced_output(self, self.initial_state(src_i), ref_i)
+        search_hyps = search_strategy.generate_forced_output(self, src_i, ref_i)
       else:
-        search_hyps = search_strategy.generate_output(self, self.initial_state(src_i))
+        search_hyps = search_strategy.generate_output(self, src_i)
       outputs.append(search_hyps)
     return outputs
 

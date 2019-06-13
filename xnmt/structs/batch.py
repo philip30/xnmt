@@ -66,6 +66,10 @@ class Mask(object):
         return expr
       mask_exp = dy.inputTensor(np_arr, batched=True)
     return dy.cmult(expr, mask_exp)
+  
+  def combine_expr_by_timestep(self, now_expr, prev_expr, timestep=0):
+    return self.cmult_by_timestep_expr(now_expr, inverse=True, timestep=timestep) + \
+           self.cmult_by_timestep_expr(prev_expr, inverse=False, timestep=timestep)
 
   def cmult_to_tensor_expr(self, tensor_exp: dy.Expression, inverse=True):
     inp = self.np_arr if not inverse else 1-self.np_arr

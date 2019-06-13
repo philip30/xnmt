@@ -57,7 +57,7 @@ class Seq2Seq(models.AutoRegressiveModel, xnmt.Serializable, models.Reportable):
     decoder_states = []
     dec_state = self.initial_state(src)
     for i in range(len(trg)):
-      prev_word = None if i == 0 else trg[i-1]
+      prev_word = xnmt.mark_as_batch([xnmt.Vocab.SS] * src.batch_size()) if i == 0 else trg[i-1]
       dec_state = self.decoder.add_input(dec_state, prev_word)
       decoder_states.append(dec_state)
     return decoder_states

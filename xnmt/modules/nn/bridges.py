@@ -59,6 +59,22 @@ class CopyBridge(models.Bridge, xnmt.Serializable):
     return cell_exprs + main_exprs
 
 
+class ZeroBridge(models.Bridge, xnmt.Serializable):
+  yaml_tag = "!ZeroBridge"
+  
+  @xnmt.serializable_init
+  def __init__(self, dec_layers: int=1, dec_dim: int = xnmt.default_layer_dim):
+    self.dec_layers = dec_layers
+    self.dec_dim = dec_dim
+    
+  def decoder_init(self, enc_final_states: Sequence[models.FinalTransducerState]):
+    dim = enc_final_states[0].main_expr().dim()
+    cell_exprs = [dy.zeros(dim[0], dim[1]) for _ in enc_final_states]
+    main_exprs = [dy.zeros(dim[0], dim[1]) for _ in enc_final_states]
+
+    return cell_exprs + main_exprs
+
+
 class LinearBridge(models.Bridge, xnmt.Serializable):
   yaml_tag = "!LinearBridge"
   """

@@ -22,17 +22,33 @@ class GreedySearch(models.SearchStrategy, models.ForceableSearchStrategy, xnmt.S
 
   def generate_forced_output(self,
                       generator: models.AutoRegressiveModel,
-                      initial_state: models.UniDirectionalState,
+                      src: Optional[xnmt.Batch],
                       trg: Optional[xnmt.Batch]) -> List[models.Hypothesis]:
-    seq_len = self._max_len if trg is None else trg.sent_len()
+    initial_state = generator.initial_state(src)
+    not_forced = trg is None
+    seq_len = self._max_len if not_forced else trg.sent_len()
+    
     # Search Variables
     hyp = models.Hypothesis(0, models.SearchAction(initial_state))
     for length in range(seq_len):
       prev_word = hyp.action.action_id
-      if trg is None and generator.finish_generating(prev_word, hyp.action.decoder_state):
-        break
+      
+      ## If not forced (normal generation), end of the generation depends on the
+      # seq_len or decided by the generator
+      if not_forced:
+        if generator.finish_generating(prev_word, hyp.action.decoder_state):
+          break
+          
+      ## Case first item in the sequence, input the network with special BOS item
+      # to mark the beginning of a generation
+      if prev_word is None:
+        prev_word = xnmt.mark_as_batch([xnmt.Vocab.SS] * src.batch_size())
+      
+      ## Feeding the prev input to the generator to generate the next state
       next_state = generator.add_input(prev_word, hyp.action.decoder_state)
-      if trg is None:
+      
+      ## Decide the next action
+      if not_forced:
         if self._is_sampling:
           next_action = generator.sample(next_state, 1)[0]
         else:
@@ -40,14 +56,16 @@ class GreedySearch(models.SearchStrategy, models.ForceableSearchStrategy, xnmt.S
       else:
         ref_word = xnmt.mark_as_batch([trg[i][length] for i in range(trg.batch_size())])
         next_action = generator.pick_oracle(next_state, ref_word)[0]
+     
+      ## Hypothesis of t+1 (next hyp)
       next_score = hyp.score + next_action.log_likelihood.value()
       hyp = models.Hypothesis(score=next_score, action=next_action, timestep=hyp.timestep+1, parent=hyp)
     return [hyp]
 
   def generate_output(self,
                       generator: Union[models.GeneratorModel, models.AutoRegressiveModel],
-                      initial_state: models.UniDirectionalState):
-    return self.generate_forced_output(generator, initial_state, None)
+                      src: xnmt.Batch):
+    return self.generate_forced_output(generator, src, None)
 
   def is_forced(self):
     return self._is_forced
@@ -79,7 +97,8 @@ class BeamSearch(models.SearchStrategy, xnmt.Serializable):
 
   def generate_output(self,
                       generator: models.AutoRegressiveModel,
-                      initial_state: models.UniDirectionalState) -> List[models.Hypothesis]:
+                      src: xnmt.Batch) -> List[models.Hypothesis]:
+    initial_state = generator.initial_state(src)
     active_hyp = [models.Hypothesis(0, models.SearchAction(initial_state))]
     completed_hyp = []
     for length in range(self.max_len):
@@ -94,6 +113,8 @@ class BeamSearch(models.SearchStrategy, xnmt.Serializable):
         if generator.finish_generating(prev_word, prev_state):
           completed_hyp.append(hyp)
           continue
+        if prev_word is None:
+          prev_word = xnmt.mark_as_batch([xnmt.Vocab.SS] * src.batch_size())
         # Find the k best words at the next time step
         next_state = generator.add_input(prev_word, prev_state)
         if self.is_sampling:

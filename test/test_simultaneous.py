@@ -10,8 +10,8 @@ import xnmt.modules.nn as nn
 class TestSimultaneousTranslationRRWW(unittest.TestCase):
 
   def setUp(self):
-    random.seed(7)
-    numpy.random.seed(7)
+    #random.seed(7)
+    #numpy.random.seed(7)
     # Seeding
     layer_dim = 32
     xnmt.internal.events.clear()
@@ -46,7 +46,7 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
                                     decoder_input_feeding=True),
         transform=nn.NonLinear(input_dim=layer_dim*2, output_dim=layer_dim),
         scorer=nn.Softmax(input_dim=layer_dim, vocab=self.trg_reader.vocab),
-        bridge=nn.NoBridge(dec_dim=layer_dim)),
+        bridge=nn.ZeroBridge(dec_dim=layer_dim)),
       policy_agent=xnmt.rl.agents.SimultPolicyAgent(
         oracle_in_train=True,
         oracle_in_test=True,
@@ -64,6 +64,7 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
     my_batcher = xnmt.structs.batchers.TrgBatcher(batch_size=3)
     self.src, self.trg = my_batcher.pack(self.src_data, self.trg_data)
     dy.renew_cg(immediate_compute=True, check_validity=True)
+    xnmt.event_trigger.set_train(False)
 
   def test_train_nll(self):
     xnmt.event_trigger.set_train(True)
@@ -81,9 +82,10 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
                                                         search_strategy=xnmt.inferences.GreedySearch(),
                                                         reporter=None)
     inference.perform_inference(self.model)
+    xnmt.event_trigger.set_train(False)
 
   def test_same_loss_batch_single(self):
-    xnmt.event_trigger.set_train(True)
+    #xnmt.event_trigger.set_train(True)
     self.model.policy_agent.policy_network = None
     self.model.train_pol_mle = False
     mle_loss = xnmt.train.MLELoss()
@@ -106,7 +108,7 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
     for src, trg in zip(self.src, self.trg):
       loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()
       sloss, sloss_stat = mle_loss.calc_loss(self.seq2seq, src, trg).compute()
-      numpy.testing.assert_array_almost_equal(loss.npvalue(), sloss.npvalue(), decimal=4)
+      numpy.testing.assert_array_almost_equal(loss.npvalue(), sloss.npvalue(), decimal=8)
 
   def test_same_loss_batch_single_pol(self):
     xnmt.event_trigger.set_train(True)
@@ -162,7 +164,7 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
                                     yaml_path=xnmt.Path("model.decoder.rnn")),
         transform=nn.NonLinear(input_dim=layer_dim*2, output_dim=layer_dim),
         scorer=nn.Softmax(input_dim=layer_dim, vocab=self.trg_reader.vocab),
-        bridge=nn.NoBridge(dec_dim=layer_dim)),
+        bridge=nn.ZeroBridge(dec_dim=layer_dim)),
       policy_agent=xnmt.rl.agents.SimultPolicyAgent(
         oracle_in_train=True,
         oracle_in_test=True,
@@ -173,6 +175,7 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
     my_batcher = xnmt.structs.batchers.TrgBatcher(batch_size=3)
     self.src, self.trg = my_batcher.pack(self.src_data, self.trg_data)
     dy.renew_cg(immediate_compute=True, check_validity=True)
+    xnmt.event_trigger.set_train(False)
 
   def test_train_nll(self):
     xnmt.event_trigger.set_train(True)
@@ -190,10 +193,11 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
                                                         search_strategy=xnmt.inferences.GreedySearch(),
                                                         reporter=None)
     inference.perform_inference(self.model)
+    xnmt.event_trigger.set_train(False)
 
 
   def test_same_loss_batch_single(self):
-    xnmt.event_trigger.set_train(True)
+    #xnmt.event_trigger.set_train(True)
     self.model.policy_agent.policy_network = None
     self.model.train_pol_mle = False
     mle_loss = xnmt.train.MLELoss()
@@ -209,7 +213,7 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
       self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
 
   def test_same_loss_batch_single_pol(self):
-    xnmt.event_trigger.set_train(True)
+    #xnmt.event_trigger.set_train(True)
     self.model.train_nmt_mle = False
     mle_loss = xnmt.train.MLELoss()
     for src, trg in zip(self.src, self.trg):
@@ -221,11 +225,11 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
                                        xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
         losses.append(loss_i)
 
-      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
+      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=8)
 
 
   def test_same_loss_batch_single_pol_ent(self):
-    xnmt.event_trigger.set_train(True)
+    #xnmt.event_trigger.set_train(True)
     self.model.train_nmt_mle = False
     self.model.train_pol_ent = True
     mle_loss = xnmt.train.MLELoss()
@@ -344,7 +348,7 @@ class TestSimultaneousTranslationPredict(unittest.TestCase):
                                     yaml_path=xnmt.Path("model.decoder.rnn")),
         transform=nn.NonLinear(input_dim=layer_dim*2, output_dim=layer_dim),
         scorer=nn.Softmax(input_dim=layer_dim, vocab=self.trg_reader.vocab),
-        bridge=nn.NoBridge(dec_dim=layer_dim)),
+        bridge=nn.ZeroBridge(dec_dim=layer_dim)),
       policy_agent=xnmt.rl.agents.SimultPolicyAgent(
         oracle_in_train=True,
         oracle_in_test=True,
@@ -355,6 +359,7 @@ class TestSimultaneousTranslationPredict(unittest.TestCase):
     my_batcher = xnmt.structs.batchers.InOrderBatcher(batch_size=3)
     self.src, self.trg = my_batcher.pack(self.src_data, self.trg_data)
     dy.renew_cg(immediate_compute=True, check_validity=True)
+    xnmt.event_trigger.set_train(False)
 
   def test_train_nll(self):
     xnmt.event_trigger.set_train(True)
