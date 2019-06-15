@@ -80,16 +80,8 @@ class Softmax(models.Scorer, xnmt.Serializable):
     scores_expr = self.calc_log_probs(x)
     if temperature != 1.0:
       scores_expr *= 1.0 / temperature
-      scores = dy.softmax(scores_expr).npvalue()
-    else:
-      scores = dy.exp(scores_expr).npvalue()
 
-    # Numpy is very picky. If the sum is off even by 1e-8 it complains.
-    scores /= sum(scores)
-
-    a = range(scores.shape[0])
-    samples = np.random.choice(a, (n,), replace=True, p=scores)
-
+    samples = scores_expr.tensor_value().categorical_sample_log_prob(num=n).as_numpy()
     ret = []
     for word in samples:
       ret.append((word, scores_expr))
