@@ -265,6 +265,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       ### Calculate Rewards ###
       words = [w[1:] for w in words]
       bleus = [np.asarray(xnmt_cython.bleu_sentence_prog(4, 1, ref_i, hyp_i)) for ref_i, hyp_i in zip(refs, words)]
+      tr_bleus = []
 
       actions = np.asarray(actions).transpose()
       reward = np.zeros_like(actions)
@@ -280,14 +281,17 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
           if actions[i][j] == agents.SimultPolicyAgent.WRITE or \
              actions[i][j] == agents.SimultPolicyAgent.PREDICT_WRITE:
             reward[i][j] = next(q_reward)
+        tr_bleus.append(true_bleu)
       reward = dy.inputTensor(np.asarray(reward).transpose(), batched=True)
+
+      print("AVG BLEU:", sum(tr_bleus) / len(tr_bleus))
 
       ### Reward Normalization ###
       baseline = dy.concatenate(baseline_inp, d=0)
       reward = reward - baseline
-      r_mean = dy.mean_dim(reward, d=[0], b=False)
-      r_std = dy.std_dim(reward, d=[0], b=False)
-      reward = dy.cdiv((reward - r_mean), r_std + xnmt.globals.EPS)
+#      r_mean = dy.mean_dim(reward, d=[0], b=False)
+#      r_std = dy.std_dim(reward, d=[0], b=False)
+#      reward = dy.cdiv((reward - r_mean), r_std + xnmt.globals.EPS)
       reward = dy.nobackprop(reward)
 
       ### calculate loss ###
