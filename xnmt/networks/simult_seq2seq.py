@@ -286,7 +286,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         tr_bleus.append(true_bleu)
       reward = dy.inputTensor(np.asarray(reward).transpose(), batched=True)
 
-      print("AVG BLEU:", sum(tr_bleus) / len(tr_bleus))
+      print("AVG BLEU: {}".format(sum(tr_bleus) / len(tr_bleus)))
 
       ### Reward Discount ###
       baseline = dy.concatenate(baseline_inp, d=0)
