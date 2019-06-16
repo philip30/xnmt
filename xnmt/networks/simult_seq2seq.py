@@ -213,7 +213,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         actions.append(search_action.action_id)
 
         ### Baseline
-        baseline_inp.append(self.baseline_network.transform(network_state.output()))
+        baseline_inp.append(self.baseline_network.transform(dy.nobackprop(network_state.output())))
         baseline_flg.append(done_mask)
 
         ### PERFORM READING + WRITING
@@ -288,6 +288,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       r_mean = dy.mean_dim(reward, d=[0], b=False)
       r_std = dy.std_dim(reward, d=[0], b=False)
       reward = dy.cdiv((reward - r_mean), r_std + xnmt.globals.EPS)
+      reward = dy.nobackprop(reward)
 
       ### calculate loss ###
       log_ll = dy.esum(log_ll)
