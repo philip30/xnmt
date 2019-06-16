@@ -294,18 +294,17 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       log_ll = dy.esum(log_ll)
       rf_loss = -1 * dy.cmult(reward, log_ll)
       rf_units = [len(x) for (x) in words]
-      reinf_losses.append(xnmt.LossExpr(rf_loss, rf_units))
+      reinf_losses.append(xnmt.LossExpr(dy.sum_elems(rf_loss), rf_units))
 
       flags = dy.concatenate(baseline_flg, d=0)
       baseline_loss = dy.squared_distance(baseline, reward)
       baseline_loss = dy.cmult(baseline_loss, flags)
       baseline_units = np.sum(flags.npvalue(), axis=0)
-      basel_losses.append(xnmt.LossExpr(baseline_loss, baseline_units))
+      basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
 
     # END LOOP: Sample
     rf_loss = functools.reduce(lambda x, y: x+y, reinf_losses)
     bs_loss = functools.reduce(lambda x, y: x+y,basel_losses)
-
     return xnmt.FactoredLossExpr({"rf_loss": rf_loss, "bs_loss": bs_loss})
 
   def finish_generating(self, output: Any, dec_state: agents.SimultSeqLenUniDirectionalState):

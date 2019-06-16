@@ -31,7 +31,7 @@ class ReinforceLoss(models.LossCalculator, xnmt.Serializable):
                          model: models.ConditionedModel,
                          src: xnmt.Batch,
                          trg: xnmt.Batch):
-    return xnmt.FactoredLossExpr({"rfc": model.calc_reinforce_loss(src, trg, self.num_sample, self.max_len)})
+    return model.calc_reinforce_loss(src, trg, self.num_sample, self.max_len)
 
 
 class CompositeLoss(models.LossCalculator, xnmt.Serializable):
