@@ -268,7 +268,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       tr_bleus = []
 
       actions = np.asarray(actions).transpose()
-      reward = np.zeros_like(actions)
+      reward = np.zeros_like(actions, dtype=float)
       for i, bleu in enumerate(bleus):
         true_bleu = bleu[-1]
         now_bleu = bleu
@@ -276,26 +276,32 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         shf_bleu[0] = 0
         diff = now_bleu - shf_bleu
         diff[-1] = true_bleu
-        q_reward = iter(diff[::-1].cumsum()[::-1])
+        k = 0
         for j in range(len(actions[i])):
-          if actions[i][j] == agents.SimultPolicyAgent.WRITE or \
-             actions[i][j] == agents.SimultPolicyAgent.PREDICT_WRITE:
-            reward[i][j] = next(q_reward)
+          if actions[i][j] == 5 or \
+             actions[i][j] == 7:
+            reward[i][j] = diff[k]
+            k += 1
+        reward[i] = reward[i][::-1].cumsum()[::-1]
         tr_bleus.append(true_bleu)
       reward = dy.inputTensor(np.asarray(reward).transpose(), batched=True)
 
       print("AVG BLEU:", sum(tr_bleus) / len(tr_bleus))
 
-      ### Reward Normalization ###
+      ### Reward Discount ###
       baseline = dy.concatenate(baseline_inp, d=0)
       reward = reward - baseline
-#      r_mean = dy.mean_dim(reward, d=[0], b=False)
-#      r_std = dy.std_dim(reward, d=[0], b=False)
-#      reward = dy.cdiv((reward - r_mean), r_std + xnmt.globals.EPS)
-      reward = dy.nobackprop(reward)
+
+      ### Variance Reduction ###
+      z_normalization = False
+      if z_normalization:
+        r_mean = dy.mean_dim(reward, d=[0], b=False)
+        r_std = dy.std_dim(reward, d=[0], b=False)
+        reward = dy.cdiv((reward - r_mean), r_std + xnmt.globals.EPS)
 
       ### calculate loss ###
-      log_ll = dy.esum(log_ll)
+      reward = dy.nobackprop(reward)
+      log_ll = dy.concatenate(log_ll, d=0)
       rf_loss = -1 * dy.cmult(reward, log_ll)
       rf_units = [len(x) for (x) in words]
       reinf_losses.append(xnmt.LossExpr(dy.sum_elems(rf_loss), rf_units))
