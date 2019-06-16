@@ -10,8 +10,6 @@ import xnmt.modules.nn as nn
 class TestSimultaneousTranslationRRWW(unittest.TestCase):
 
   def setUp(self):
-    #random.seed(7)
-    #numpy.random.seed(7)
     # Seeding
     layer_dim = 32
     xnmt.internal.events.clear()
@@ -51,7 +49,8 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
         oracle_in_train=True,
         oracle_in_test=True,
         default_layer_dim=layer_dim
-      )
+      ),
+      default_layer_dim=layer_dim
     )
 
     self.seq2seq = xnmt.networks.Seq2Seq(
@@ -61,8 +60,11 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
       decoder=self.model.decoder
     )
 
-    my_batcher = xnmt.structs.batchers.TrgBatcher(batch_size=3)
+    my_batcher = xnmt.structs.batchers.TrgBatcher(batch_size=3, break_ties_randomly=False)
     self.src, self.trg = my_batcher.pack(self.src_data, self.trg_data)
+    self.special_src, self.special_trg = my_batcher.pack([self.src_data[8], self.src_data[6], self.src_data[2]],
+                                                         [self.trg_data[8], self.trg_data[6], self.trg_data[2]])
+
     dy.renew_cg(immediate_compute=True, check_validity=True)
     xnmt.event_trigger.set_train(False)
 
@@ -85,7 +87,7 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
     xnmt.event_trigger.set_train(False)
 
   def test_same_loss_batch_single(self):
-    #xnmt.event_trigger.set_train(True)
+    xnmt.event_trigger.set_train(True)
     self.model.policy_agent.policy_network = None
     self.model.train_pol_mle = False
     mle_loss = xnmt.train.MLELoss()
@@ -101,17 +103,17 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
       self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
 
   def test_loss_equal_to_seq2seq(self):
-    xnmt.event_trigger.set_train(True)
+    xnmt.event_trigger.set_train(False)
     self.model.policy_agent.policy_network = None
     self.model.train_pol_mle = False
     mle_loss = xnmt.train.MLELoss()
-    for src, trg in zip(self.src, self.trg):
+    for src, trg in zip(self.special_src, self.special_trg):
       loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()
       sloss, sloss_stat = mle_loss.calc_loss(self.seq2seq, src, trg).compute()
       numpy.testing.assert_array_almost_equal(loss.npvalue(), sloss.npvalue(), decimal=8)
 
   def test_same_loss_batch_single_pol(self):
-    xnmt.event_trigger.set_train(True)
+    xnmt.event_trigger.set_train(False)
     self.model.train_nmt_mle = False
     mle_loss = xnmt.train.MLELoss()
     for src, trg in zip(self.src, self.trg):
@@ -122,15 +124,12 @@ class TestSimultaneousTranslationRRWW(unittest.TestCase):
                                        xnmt.mark_as_batch([s.get_unpadded_sent()]),
                                        xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
         losses.append(loss_i)
-
       self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
 
 
 class TestSimultaneousTranslationOracle(unittest.TestCase):
 
   def setUp(self):
-    random.seed(7)
-    numpy.random.seed(7)
     # Seeding
     layer_dim = 32
     xnmt.internal.events.clear()
@@ -169,11 +168,18 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
         oracle_in_train=True,
         oracle_in_test=True,
         default_layer_dim=layer_dim
-      )
+      ),
+      default_layer_dim=layer_dim
     )
 
-    my_batcher = xnmt.structs.batchers.TrgBatcher(batch_size=3)
+    my_batcher = xnmt.structs.batchers.TrgBatcher(batch_size=3, break_ties_randomly=False)
     self.src, self.trg = my_batcher.pack(self.src_data, self.trg_data)
+    self.special_src, self.special_trg = xnmt.structs.batchers.InOrderBatcher(3).pack(
+      [self.src_data[8], self.src_data[2], self.src_data[6]],
+      [self.trg_data[8], self.trg_data[2], self.trg_data[6]]
+    )
+
+
     dy.renew_cg(immediate_compute=True, check_validity=True)
     xnmt.event_trigger.set_train(False)
 
@@ -225,45 +231,12 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
                                        xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
         losses.append(loss_i)
 
-      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=8)
-
-
-  def test_same_loss_batch_single_pol_ent(self):
-    #xnmt.event_trigger.set_train(True)
-    self.model.train_nmt_mle = False
-    self.model.train_pol_ent = True
-    mle_loss = xnmt.train.MLELoss()
-    for src, trg in zip(self.src, self.trg):
-      loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()
-      losses = []
-      for s, t in zip(src, trg):
-        loss_i, _ = mle_loss.calc_loss(self.model,
-                                       xnmt.mark_as_batch([s.get_unpadded_sent()]),
-                                       xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
-        losses.append(loss_i)
-
       self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
 
   def test_generate_pol(self):
     xnmt.event_trigger.set_train(False)
     self.model.policy_agent.oracle_in_test = False
     self.model.generate(self.src[0], xnmt.inferences.GreedySearch())
-
-
-  def test_recurrent_agent(self):
-    self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
-      transform = nn.NonLinear(self.layer_dim, self.layer_dim),
-      scorer = nn.Softmax(self.layer_dim, 10, trg_reader=self.trg_reader),
-      rnn = nn.UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim= self.layer_dim)
-    )
-    xnmt.event_trigger.set_train(True)
-    mle_loss = xnmt.train.MLELoss()
-    mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
-    xnmt.event_trigger.set_train(False)
-    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
-    self.assertNotEqual(len(result), 0)
-    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
-    self.assertNotEqual(len(result), 0)
 
   def test_sanity(self):
     state = xnmt.rl.agents.SimultSeqLenUniDirectionalState(
@@ -319,8 +292,6 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
 class TestSimultaneousTranslationPredict(unittest.TestCase):
 
   def setUp(self):
-    random.seed(7)
-    numpy.random.seed(7)
     # Seeding
     layer_dim = 32
     xnmt.internal.events.clear()
@@ -359,10 +330,11 @@ class TestSimultaneousTranslationPredict(unittest.TestCase):
         oracle_in_train=True,
         oracle_in_test=True,
         default_layer_dim=layer_dim
-      )
+      ),
+      default_layer_dim=layer_dim
     )
 
-    my_batcher = xnmt.structs.batchers.InOrderBatcher(batch_size=3)
+    my_batcher = xnmt.structs.batchers.TrgBatcher(batch_size=3, break_ties_randomly=False)
     self.src, self.trg = my_batcher.pack(self.src_data, self.trg_data)
     dy.renew_cg(immediate_compute=True, check_validity=True)
     xnmt.event_trigger.set_train(False)
@@ -383,6 +355,12 @@ class TestSimultaneousTranslationPredict(unittest.TestCase):
                                                         search_strategy=xnmt.inferences.GreedySearch(),
                                                         reporter=None)
     inference.perform_inference(self.model)
+
+
+  def test_train_reinforce(self):
+    xnmt.event_trigger.set_train(True)
+    reinf_loss = xnmt.train.ReinforceLoss(1, 20)
+    reinf_loss.calc_loss(self.model, self.src[0], self.trg[0])
 
 
   def test_report(self):
@@ -418,23 +396,6 @@ class TestSimultaneousTranslationPredict(unittest.TestCase):
   def test_same_loss_batch_single_pol(self):
     xnmt.event_trigger.set_train(True)
     self.model.train_nmt_mle = False
-    mle_loss = xnmt.train.MLELoss()
-    for src, trg in zip(self.src, self.trg):
-      loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()
-      losses = []
-      for s, t in zip(src, trg):
-        loss_i, _ = mle_loss.calc_loss(self.model,
-                                       xnmt.mark_as_batch([s.get_unpadded_sent()]),
-                                       xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
-        losses.append(loss_i)
-
-      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
-
-
-  def test_same_loss_batch_single_pol_ent(self):
-    xnmt.event_trigger.set_train(True)
-    self.model.train_nmt_mle = False
-    self.model.train_pol_ent = True
     mle_loss = xnmt.train.MLELoss()
     for src, trg in zip(self.src, self.trg):
       loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()

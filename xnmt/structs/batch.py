@@ -77,7 +77,7 @@ class Mask(object):
     return dy.cmult(tensor_exp, inp_expr)
 
   def __repr__(self):
-    return str(self.np_arr.transpose()[0])
+    return str(self.np_arr.transpose())
 
 
 class Batch(collections.Sequence):

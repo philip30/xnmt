@@ -54,15 +54,15 @@ class ArbSeqLenUniDirectionalState(models.UniDirectionalState):
 
   def output(self):
     return self._merged_context
- 
+
   @property
   def prev_embedding(self):
     return self._prev_embedding
-  
+
   @property
   def merged_context(self):
     return self._merged_context
-  
+
   @property
   def position(self):
     return self._position
@@ -139,28 +139,28 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
     rnn_state = dec_state._rnn_state
     prev_context = dec_state.context()
 
-    
+
     trg_embedding = self.embedder.embed(trg_word, position=dec_state.position)
     inp_context = trg_embedding if not self.input_feeding else dy.concatenate([trg_embedding, prev_context])
     rnn_state = self.rnn.add_input(rnn_state, inp_context, trg_word.mask)
-    
+
     # Calc Atention
     if self.attender is not None:
       context, attender_state = self.attender.calc_context(rnn_state.output(), dec_state.attender_state)
     else:
       context, attender_state = prev_context, None
-    
+
     if trg_word is not None and trg_word.mask is not None:
       context = trg_word.mask.combine_expr_by_timestep(context, prev_context)
-      
+
     #
     h = dy.concatenate([rnn_state.output(), context]) if self.attender is not None else rnn_state.output()
     h = self.transform.transform(h)
-    
+
     if trg_word is not None and trg_word.mask is not None:
       h = trg_word.mask.combine_expr_by_timestep(h, dec_state.merged_context)
       trg_embedding = trg_word.mask.combine_expr_by_timestep(trg_embedding, dec_state.prev_embedding)
-    
+
     ### Merged Context
     return ArbSeqLenUniDirectionalState(rnn_state=rnn_state, context=context, attender_state=attender_state,
                                         src=dec_state.src, prev_embedding=trg_embedding,
@@ -170,14 +170,14 @@ class ArbLenDecoder(models.Decoder, xnmt.Serializable):
   def best_k(self, dec_state: ArbSeqLenUniDirectionalState, k: int, normalize_scores: bool = False) \
       -> List[models.SearchAction]:
     best_k = self.scorer.best_k(dec_state.output(), k, normalize_scores=normalize_scores)
-    ret  = [models.SearchAction(dec_state, best_word, dy.pick(log_softmax, best_word), log_softmax, None) \
+    ret  = [models.SearchAction(dec_state, best_word, dy.pick_batch(log_softmax, best_word), log_softmax, None) \
             for best_word, log_softmax in best_k]
     return ret
 
   def sample(self, dec_state: ArbSeqLenUniDirectionalState, n: int, temperature=1.0) \
       -> List[models.SearchAction]:
     sample_k  = self.scorer.sample(dec_state.output(), n)
-    ret  = [models.SearchAction(dec_state, best_word, dy.pick(log_softmax, best_word), log_softmax, None) \
+    ret  = [models.SearchAction(dec_state, best_word, dy.pick_batch(log_softmax, best_word), log_softmax, None) \
             for best_word, log_softmax in sample_k]
     return ret
 

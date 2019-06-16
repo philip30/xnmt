@@ -56,6 +56,9 @@ class ConditionedModel(TrainableModel):
     """
     raise NotImplementedError("must be implemented by subclasses")
 
+  def calc_reinforce_loss(self, src, trg, num_sample, max_len) -> xnmt.LossExpr:
+    raise NotImplementedError()
+
 
 class GeneratorModel(object):
 

@@ -62,7 +62,8 @@ class Vocab(Serializable):
       for line in f:
         word = line.strip()
         word = word.split('\t')[0]
-        self._add_word_to_vocab(vocab, word)
+        if word not in reserved:
+          self._add_word_to_vocab(vocab, word)
     vocab = [word for word, word_id in sorted(vocab.items(), key=lambda x: x[1])]
     return vocab
 

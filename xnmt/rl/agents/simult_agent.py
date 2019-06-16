@@ -21,7 +21,6 @@ class SimultSeqLenUniDirectionalState(models.UniDirectionalState):
                read_was_performed: bool = False,
                network_state: Optional[models.PolicyAgentState] = None,
                parent: Optional['SimultSeqLenUniDirectionalState'] = None,
-               force_oracle: bool = False,
                timestep: int = 0):
     self.decoder_state = decoder_state
     self.num_reads = num_reads if num_reads is not None else np.zeros(src.batch_size(), dtype=int)
@@ -33,7 +32,6 @@ class SimultSeqLenUniDirectionalState(models.UniDirectionalState):
     self.parent = parent
     self.src = src
     self.network_state = network_state
-    self.force_oracle = force_oracle
     self.timestep = timestep
     self.trg_counts = trg_counts
 
@@ -42,7 +40,7 @@ class SimultSeqLenUniDirectionalState(models.UniDirectionalState):
 
   def context(self) -> dy.Expression:
     return self.decoder_state.context()
-  
+
   def position(self):
     return self.num_writes
 
@@ -111,8 +109,8 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     policy_state = self.policy_network.initial_state(src) if self.policy_network is not None else None
     return models.PolicyAgentState(src, policy_state)
 
-  def next_action(self, state: SimultSeqLenUniDirectionalState) -> Tuple[models.SearchAction, models.PolicyAgentState]:
-    if (xnmt.is_train() and self.oracle_in_train) or (not xnmt.is_train() and self.oracle_in_test) or state.force_oracle:
+  def next_action(self, state: SimultSeqLenUniDirectionalState, force_oracle = False, is_sample = False) -> Tuple[models.SearchAction, models.PolicyAgentState]:
+    if (xnmt.is_train() and self.oracle_in_train) or (not xnmt.is_train() and self.oracle_in_test) or force_oracle:
       oracle_action = np.array([state.oracle_batch[i][state.timestep] for i in range(state.oracle_batch.batch_size())])
     else:
       oracle_action = None
@@ -120,7 +118,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     if self.policy_network is not None:
       network_state = self.add_input_to_network(state)
       if oracle_action is None:
-        if xnmt.is_train():
+        if is_sample:
           policy_action = self.policy_network.sample(network_state, 1)[0]
         else:
           policy_action = self.policy_network.best_k(network_state, 1)[0]
@@ -152,7 +150,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     if modified and policy_action.log_likelihood is not None:
       log_likelihood = dy.pick_batch(policy_action.log_softmax, actions)
     else:
-      log_likelihood = policy_action.log_softmax
+      log_likelihood = policy_action.log_likelihood
 
     return models.SearchAction(state.decoder_state, np.asarray(new_actions, dtype=int), log_likelihood, policy_action.log_softmax, policy_action.mask)
 
@@ -171,7 +169,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     return self.policy_network.calc_loss(dec_state, ref)
 
   def finish_generating(self, state: SimultSeqLenUniDirectionalState):
-    return all([x == y for x, y in zip(state.num_writes, state.trg_counts)])
+    return state.timestep == state.oracle_batch.sent_len()
 
 
 class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
@@ -217,7 +215,7 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
     encoder_state = dy.nobackprop(estate)
     decoder_state = dy.nobackprop(dstate.merged_context) if dstate.merged_context is not None else zeros()
     trg_embedding = dy.nobackprop(dstate.prev_embedding) if dstate.prev_embedding is not None else zeros()
-   
+
     if isinstance(state.network_state, models.DoubleAttentionPolicyAgentState):
       if state.parent is None:
         read_flag = state.num_reads

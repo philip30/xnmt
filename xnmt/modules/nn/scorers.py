@@ -51,13 +51,13 @@ class Softmax(models.Scorer, xnmt.Serializable):
 
   def calc_scores(self, x: dy.Expression) -> dy.Expression:
     scores = self.output_projector.transform(x)
-    
+
     if self.softmax_mask is not None:
       mask = np.zeros((scores.dim()[1], scores.dim()[0][0]), dtype=int)
       mask[:, self.softmax_mask] = 1
       mask = xnmt.Mask(mask)
       scores = mask.add_to_tensor_expr(scores, multiplicator=-xnmt.globals.INF)
-    
+
     return scores
 
   def best_k(self, x: dy.Expression, k: int, normalize_scores: bool = False) -> List[Tuple[int, dy.Expression]]:
@@ -81,7 +81,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
     if temperature != 1.0:
       scores_expr *= 1.0 / temperature
 
-    samples = scores_expr.tensor_value().categorical_sample_log_prob(num=n).as_numpy()
+    samples = scores_expr.tensor_value().categorical_sample_log_prob(num=1).as_numpy()[0]
     ret = []
     for word in samples:
       ret.append((word, scores_expr))
@@ -121,7 +121,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
     return dy.softmax(self.calc_scores(x))
 
   def calc_log_probs(self, x: dy.Expression) -> dy.Expression:
-      return dy.log_softmax(self.calc_scores(x))
+    return dy.log_softmax(self.calc_scores(x))
 
 
 #class LexiconSoftmax(Softmax, Serializable):
