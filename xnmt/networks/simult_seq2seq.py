@@ -279,26 +279,26 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       # END LOOP: Create trajectory
       ### Calculate Rewards ###
       words = [w[1:] for w in words]
-      bleus = [np.asarray(xnmt_cython.bleu_sentence_prog(4, 1, ref_i, hyp_i)) for ref_i, hyp_i in zip(refs, words)]
+      bleus = [np.asarray(xnmt_cython.bleu_sentence(4, 1, ref_i, hyp_i)) for ref_i, hyp_i in zip(refs, words)]
       tr_bleus = []
-      tr_len = []
 
       actions = np.asarray(actions).transpose()
       reward = np.zeros_like(actions, dtype=float)
       for i, bleu in enumerate(bleus):
-        true_bleu = bleu[-1]
-        now_bleu = bleu
-        shf_bleu = np.roll(bleu, shift=True)
-        shf_bleu[0] = 0
-        diff = now_bleu - shf_bleu
-        diff[-1] = true_bleu
-        k = 0
-        for j in range(len(actions[i])):
-          if actions[i][j] == 5 or actions[i][j] == 7:
-            reward[i][j] = diff[k]
-            k += 1
+        true_bleu = bleu
+#        now_bleu = bleu
+#        shf_bleu = np.roll(bleu, shift=True)
+#        shf_bleu[0] = 0
+#        diff = now_bleu - shf_bleu
+#        diff[-1] = true_bleu
+#        k = 0
+#        for j in range(len(actions[i])):
+#          if actions[i][j] == 5 or actions[i][j] == 7:
+#            reward[i][j] = diff[k]
+#            k += 1
+        reward[i][-1] = true_bleu
         if self.len_reward:
-          reward[i][-1] += min(1.0, k/trg[i].len_unpadded())
+          reward[i][-1] += min(1.0, len(words[i])/trg[i].len_unpadded())
         reward[i] = reward[i][::-1].cumsum()[::-1]
         tr_bleus.append(true_bleu)
       reward = dy.inputTensor(np.asarray(reward).transpose(), batched=True)
