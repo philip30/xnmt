@@ -26,6 +26,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                train_nmt_mle: Optional[bool] = True,
                train_pol_mle: Optional[bool] = True,
                baseline_network: Optional[models.Transform] = None,
+               len_reward: Optional[bool] = False,
+               no_baseline: Optional[bool] = False,
                default_layer_dim: int = xnmt.default_layer_dim):
     super().__init__(src_reader=src_reader, trg_reader=trg_reader, encoder=encoder, decoder=decoder)
     self.policy_agent = policy_agent
@@ -34,6 +36,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     self.baseline_network = self.add_serializable_component(
       "baseline_network", baseline_network, lambda: nn.Linear(default_layer_dim, 1)
     )
+    self.len_reward = len_reward
+    self.no_baseline = no_baseline
 
     if isinstance(decoder, nn.ArbLenDecoder):
       if not isinstance(decoder.bridge, nn.ZeroBridge):
@@ -277,6 +281,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       words = [w[1:] for w in words]
       bleus = [np.asarray(xnmt_cython.bleu_sentence_prog(4, 1, ref_i, hyp_i)) for ref_i, hyp_i in zip(refs, words)]
       tr_bleus = []
+      tr_len = []
 
       actions = np.asarray(actions).transpose()
       reward = np.zeros_like(actions, dtype=float)
@@ -290,38 +295,41 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         k = 0
         for j in range(len(actions[i])):
           if actions[i][j] == 5 or actions[i][j] == 7:
-              #len_reward = 1 if k < trg[i].len_unpadded() else 0
-            reward[i][j] = diff[k] #+ len_reward
+            reward[i][j] = diff[k]
             k += 1
+        if self.len_reward:
+          reward[i][-1] += min(1.0, k/trg[i].len_unpadded())
         reward[i] = reward[i][::-1].cumsum()[::-1]
         tr_bleus.append(true_bleu)
       reward = dy.inputTensor(np.asarray(reward).transpose(), batched=True)
 
       ### Reward Discount ###
       baseline = dy.concatenate(baseline_inp, d=0)
-      reward = reward - baseline
+      if not self.no_baseline:
+        reward = reward - baseline
       disc_reward = dy.nobackprop(reward)
 
       ### Variance Reduction ###
-      z_normalization = True
+      z_normalization = False
       if z_normalization:
         r_mean = dy.mean_dim(reward, d=[0], b=True)
         r_std = dy.std_dim(reward, d=[0], b=True)
         reward = dy.cdiv((reward - r_mean), r_std + xnmt.globals.EPS)
 
       ### calculate loss ###
-      reward = dy.nobackprop(-reward)
+      reward = dy.nobackprop(reward)
       flags = dy.concatenate(baseline_flg, d=0)
       reward = dy.cmult(reward, flags)
       log_ll = dy.concatenate(log_ll, d=0)
-      rf_loss = dy.cmult(reward, log_ll)
+      rf_loss = dy.cmult(-reward, log_ll)
       rf_units = [len(x) for (x) in words]
       reinf_losses.append(xnmt.LossExpr(dy.sum_elems(rf_loss), rf_units))
 
-      baseline_loss = dy.squared_distance(baseline, disc_reward)
-      baseline_loss = dy.cmult(baseline_loss, flags)
       baseline_units = np.sum(flags.npvalue(), axis=0)
-      basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
+      if not self.no_baseline:
+        baseline_loss = dy.squared_distance(baseline, disc_reward)
+        baseline_loss = dy.cmult(baseline_loss, flags)
+        basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
 
       print("[{}] BLEU: {}, LL: {}, RW: {}".format(
         1 if force_oracle else 0,
@@ -330,9 +338,13 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         np.mean(dy.sum_elems(reward).value())
       ))
     # END LOOP: Sample
+
     rf_loss = functools.reduce(lambda x, y: x+y, reinf_losses)
-    bs_loss = functools.reduce(lambda x, y: x+y,basel_losses)
-    return xnmt.FactoredLossExpr({"rf_loss": rf_loss, "bs_loss": bs_loss})
+    if self.no_baseline:
+      return xnmt.FactoredLossExpr({"rf_loss": rf_loss})
+    else:
+      bs_loss = functools.reduce(lambda x, y: x+y,basel_losses)
+      return xnmt.FactoredLossExpr({"rf_loss": rf_loss, "bs_loss": bs_loss})
 
   def finish_generating(self, output: Any, dec_state: agents.SimultSeqLenUniDirectionalState):
     if (self.policy_agent.oracle_in_train and xnmt.is_train()) or \
