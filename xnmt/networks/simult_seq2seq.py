@@ -292,7 +292,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       reward = reward - baseline
 
       ### Variance Reduction ###
-      z_normalization = False
+      z_normalization = True
       if z_normalization:
         r_mean = dy.mean_dim(reward, d=[0], b=False)
         r_std = dy.std_dim(reward, d=[0], b=False)
