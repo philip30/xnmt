@@ -209,12 +209,12 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       baseline_inp = []
       baseline_flg = []
 
-      
+
       # BEGIN LOOP: Create trajectory
       while not np.all(done):
         if force_oracle and state.timestep >= state.oracle_batch.sent_len():
           break
-        
+
         ### Next Actions
         search_action, network_state = self.policy_agent.next_action(state, is_sample=True, force_oracle=force_oracle)
         done_mask = dy.inputTensor([0 if done[i] else 1 for i in range(batch_size)], batched=True)
@@ -290,16 +290,17 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         k = 0
         for j in range(len(actions[i])):
           if actions[i][j] == 5 or actions[i][j] == 7:
-            #len_reward = 1 if k < trg[i].len_unpadded() else 0
+              #len_reward = 1 if k < trg[i].len_unpadded() else 0
             reward[i][j] = diff[k] #+ len_reward
             k += 1
-        reward[i] = reward[i][::-1].cumsum()[::-1]
+        #reward[i] = reward[i][::-1].cumsum()[::-1]
         tr_bleus.append(true_bleu)
       reward = dy.inputTensor(np.asarray(reward).transpose(), batched=True)
 
       ### Reward Discount ###
       baseline = dy.concatenate(baseline_inp, d=0)
       reward = reward - baseline
+      disc_reward = dy.nobackprop(reward)
 
       ### Variance Reduction ###
       z_normalization = True
@@ -310,20 +311,22 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
       ### calculate loss ###
       reward = dy.nobackprop(reward)
-      log_ll = dy.concatenate(log_ll, d=0)
-      rf_loss = dy.cmult(reward, log_ll)
-      rf_units = [len(x) for (x) in words]
-      reinf_losses.append(xnmt.LossExpr(dy.sum_elems(-1 * rf_loss), rf_units))
-
       flags = dy.concatenate(baseline_flg, d=0)
-      baseline_loss = dy.squared_distance(baseline, reward)
+      reward = dy.cmult(reward, flags)
+      log_ll = dy.concatenate(log_ll, d=0)
+      rf_loss = dy.cmult(-reward, log_ll)
+      rf_units = [len(x) for (x) in words]
+      reinf_losses.append(xnmt.LossExpr(dy.sum_elems(rf_loss), rf_units))
+
+      baseline_loss = dy.squared_distance(baseline, disc_reward)
       baseline_loss = dy.cmult(baseline_loss, flags)
       baseline_units = np.sum(flags.npvalue(), axis=0)
       basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
 
-      print("[{}] BLEU: {}, LOG LL: {}".format(1 if force_oracle else 0,
-                                               np.mean(tr_bleus),
-                                               np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value())))
+      print("[{}] BLEU: {}, LL: {}, RW: {}".format(
+        1 if force_oracle else 0, np.mean(dy.sum_elems(reward).value()),
+        np.mean(tr_bleus), np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value()))
+      )
     # END LOOP: Sample
     rf_loss = functools.reduce(lambda x, y: x+y, reinf_losses)
     bs_loss = functools.reduce(lambda x, y: x+y,basel_losses)
