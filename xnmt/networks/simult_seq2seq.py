@@ -278,15 +278,12 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         diff[-1] = true_bleu
         k = 0
         for j in range(len(actions[i])):
-          if actions[i][j] == 5 or \
-             actions[i][j] == 7:
+          if actions[i][j] == 5 or actions[i][j] == 7:
             reward[i][j] = diff[k]
             k += 1
         reward[i] = reward[i][::-1].cumsum()[::-1]
         tr_bleus.append(true_bleu)
       reward = dy.inputTensor(np.asarray(reward).transpose(), batched=True)
-
-      print("AVG BLEU: {}".format(sum(tr_bleus) / len(tr_bleus)))
 
       ### Reward Discount ###
       baseline = dy.concatenate(baseline_inp, d=0)
@@ -312,6 +309,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       baseline_units = np.sum(flags.npvalue(), axis=0)
       basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
 
+      print("BLEU: {}, LOG LL: {}".format(np.mean(tr_bleus), np.mean(dy.sum_elems(log_ll).value())))
     # END LOOP: Sample
     rf_loss = functools.reduce(lambda x, y: x+y, reinf_losses)
     bs_loss = functools.reduce(lambda x, y: x+y,basel_losses)
