@@ -309,7 +309,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       baseline_units = np.sum(flags.npvalue(), axis=0)
       basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
 
-      print("BLEU: {}, LOG LL: {}".format(np.mean(tr_bleus), np.mean(dy.sum_elems(log_ll).value())))
+      print("BLEU: {}, LOG LL: {}".format(np.mean(tr_bleus),
+                                          np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value())))
     # END LOOP: Sample
     rf_loss = functools.reduce(lambda x, y: x+y, reinf_losses)
     bs_loss = functools.reduce(lambda x, y: x+y,basel_losses)
