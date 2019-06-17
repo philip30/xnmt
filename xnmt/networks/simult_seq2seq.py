@@ -293,7 +293,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
               #len_reward = 1 if k < trg[i].len_unpadded() else 0
             reward[i][j] = diff[k] #+ len_reward
             k += 1
-        #reward[i] = reward[i][::-1].cumsum()[::-1]
+        reward[i] = reward[i][::-1].cumsum()[::-1]
         tr_bleus.append(true_bleu)
       reward = dy.inputTensor(np.asarray(reward).transpose(), batched=True)
 
@@ -310,11 +310,11 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         reward = dy.cdiv((reward - r_mean), r_std + xnmt.globals.EPS)
 
       ### calculate loss ###
-      reward = dy.nobackprop(reward)
+      reward = dy.nobackprop(-reward)
       flags = dy.concatenate(baseline_flg, d=0)
       reward = dy.cmult(reward, flags)
       log_ll = dy.concatenate(log_ll, d=0)
-      rf_loss = dy.cmult(-reward, log_ll)
+      rf_loss = dy.cmult(reward, log_ll)
       rf_units = [len(x) for (x) in words]
       reinf_losses.append(xnmt.LossExpr(dy.sum_elems(rf_loss), rf_units))
 
@@ -324,8 +324,10 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
 
       print("[{}] BLEU: {}, LL: {}, RW: {}".format(
-        1 if force_oracle else 0, np.mean(dy.sum_elems(reward).value()),
-        np.mean(tr_bleus), np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value()))
+        1 if force_oracle else 0,
+        np.mean(tr_bleus),
+        np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value())),
+        np.mean(dy.sum_elems(reward).value()),
       )
     # END LOOP: Sample
     rf_loss = functools.reduce(lambda x, y: x+y, reinf_losses)
