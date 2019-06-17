@@ -265,7 +265,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       # END LOOP: Create trajectory
       ### Calculate Rewards ###
       words = [w[1:] for w in words]
-      bleus = [np.asarray(xnmt_cython.bleu_sentence_prog(4, 1, ref_i, hyp_i)) for ref_i, hyp_i in zip(refs, words)]
+      bleus = [10 * np.asarray(xnmt_cython.bleu_sentence_prog(4, 1, ref_i, hyp_i)) for ref_i, hyp_i in zip(refs, words)]
       tr_bleus = []
 
       actions = np.asarray(actions).transpose()
@@ -280,7 +280,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         k = 0
         for j in range(len(actions[i])):
           if actions[i][j] == 5 or actions[i][j] == 7:
-            reward[i][j] = diff[k]
+            len_reward = 1 if k < trg[i].len_unpadded() else 0
+            reward[i][j] = diff[k] + len_reward
             k += 1
         reward[i] = reward[i][::-1].cumsum()[::-1]
         tr_bleus.append(true_bleu)
