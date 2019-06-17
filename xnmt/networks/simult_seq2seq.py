@@ -326,9 +326,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       print("[{}] BLEU: {}, LL: {}, RW: {}".format(
         1 if force_oracle else 0,
         np.mean(tr_bleus),
-        np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value())),
-        np.mean(dy.sum_elems(reward).value()),
-      )
+        np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value()),
+        np.mean(dy.sum_elems(reward).value())
+      ))
     # END LOOP: Sample
     rf_loss = functools.reduce(lambda x, y: x+y, reinf_losses)
     bs_loss = functools.reduce(lambda x, y: x+y,basel_losses)
