@@ -61,9 +61,11 @@ class TrainLossTracker(object):
     """
     Accumulate training loss and report every REPORT_EVERY sentences.
     """
+    total_words = 0
     for loss_name, (loss_value, units) in loss_data.items():
       self.epoch_words[loss_name] += units
       self.epoch_loss[loss_name] += loss_value
+      total_words += units
 
     self.epoch_words["__TRG__"] += sum(inp.len_unpadded() for inp in trg)
 
@@ -75,9 +77,8 @@ class TrainLossTracker(object):
       fractional_epoch = (self.training_task.training_state.epoch_num - 1) \
                          + self.training_task.training_state.sents_into_epoch / self.training_task.cur_num_sentences()
       accum_time = self.time_tracker.get_and_reset()
-      
+
       this_loss = sum([loss_value/units for loss_value, units in loss_data.values()])
-      rep_train_loss = sum([self.epoch_loss[k]/self.epoch_words[k] for k in self.epoch_loss.keys()])
       utils.log_readable_and_tensorboard(
         template = TrainLossTracker.REPORT_TEMPLATE_SPEED if accum_time else TrainLossTracker.REPORT_TEMPLATE,
         args = {"loss": this_loss},
