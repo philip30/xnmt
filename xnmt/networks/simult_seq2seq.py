@@ -213,7 +213,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         actions.append(search_action.action_id)
 
         ### Baseline
-        baseline_inp.append(self.baseline_network.transform(dy.nobackprop(network_state.output())))
+        bs_inp = state.network_state.output() or dy.zeros(*network_state.output().dim())
+        baseline_inp.append(self.baseline_network.transform(dy.nobackprop(bs_inp)))
         baseline_flg.append(done_mask)
 
         ### PERFORM READING + WRITING
