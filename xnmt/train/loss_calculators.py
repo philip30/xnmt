@@ -23,15 +23,16 @@ class ReinforceLoss(models.LossCalculator, xnmt.Serializable):
   yaml_tag = "!ReinforceLoss"
 
   @xnmt.serializable_init
-  def __init__(self, num_sample: int = 1, max_len: int = 100):
+  def __init__(self, num_sample: int = 1, max_len: int = 100, dagger_eps: float = 0.10):
     self.num_sample = num_sample
     self.max_len = max_len
+    self.dagger_eps = dagger_eps
 
   def _perform_calc_loss(self,
                          model: models.ConditionedModel,
                          src: xnmt.Batch,
                          trg: xnmt.Batch):
-    return model.calc_reinforce_loss(src, trg, self.num_sample, self.max_len)
+    return model.calc_reinforce_loss(src, trg, self.num_sample, self.max_len, self.dagger_eps)
 
 
 class CompositeLoss(models.LossCalculator, xnmt.Serializable):

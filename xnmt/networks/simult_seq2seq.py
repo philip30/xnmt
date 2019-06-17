@@ -43,7 +43,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
           xnmt.logger.warning("Cannot use any bridge except ZeroBridge for SimultSeq2Seq.")
 
 
-  def initial_state(self, src: xnmt.Batch, force_oracle=False) -> agents.SimultSeqLenUniDirectionalState:
+  def initial_state(self, src: xnmt.Batch) -> agents.SimultSeqLenUniDirectionalState:
     oracle_batch = None
     trg_count = None
     if type(src[0]) == xnmt.structs.sentences.OracleSentence:
@@ -185,10 +185,15 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                           src: xnmt.Batch,
                           trg: xnmt.Batch,
                           num_sample=1,
-                          max_len=100):
+                          max_len=100,
+                          dagger_eps=0.10):
     self.policy_agent.oracle_in_train = False
     batch_size = src.batch_size()
     refs = [trg[i].get_unpadded_sent().words for i in range(trg.batch_size())]
+    force_oracle = np.random.binomial(1, dagger_eps) == 0
+
+    if force_oracle:
+      num_sample = 1
 
     reinf_losses = []
     basel_losses = []
@@ -204,9 +209,14 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       baseline_inp = []
       baseline_flg = []
 
+      
       # BEGIN LOOP: Create trajectory
       while not np.all(done):
-        search_action, network_state = self.policy_agent.next_action(state, is_sample=True)
+        if force_oracle and state.timestep >= state.oracle_batch.sent_len():
+          break
+        
+        ### Next Actions
+        search_action, network_state = self.policy_agent.next_action(state, is_sample=True, force_oracle=force_oracle)
         done_mask = dy.inputTensor([0 if done[i] else 1 for i in range(batch_size)], batched=True)
         search_action.action_id[done] = xnmt.structs.vocabs.SimultActionVocab.PAD
         log_ll.append(dy.cmult(search_action.log_likelihood, done_mask))
@@ -280,8 +290,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         k = 0
         for j in range(len(actions[i])):
           if actions[i][j] == 5 or actions[i][j] == 7:
-            len_reward = 1 if k < trg[i].len_unpadded() else 0
-            reward[i][j] = 10 * diff[k] + len_reward
+            #len_reward = 1 if k < trg[i].len_unpadded() else 0
+            reward[i][j] = diff[k] #+ len_reward
             k += 1
         reward[i] = reward[i][::-1].cumsum()[::-1]
         tr_bleus.append(true_bleu)
@@ -294,16 +304,16 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       ### Variance Reduction ###
       z_normalization = True
       if z_normalization:
-        r_mean = dy.mean_dim(reward, d=[0], b=False)
-        r_std = dy.std_dim(reward, d=[0], b=False)
+        r_mean = dy.mean_dim(reward, d=[0], b=True)
+        r_std = dy.std_dim(reward, d=[0], b=True)
         reward = dy.cdiv((reward - r_mean), r_std + xnmt.globals.EPS)
 
       ### calculate loss ###
       reward = dy.nobackprop(reward)
       log_ll = dy.concatenate(log_ll, d=0)
-      rf_loss = -1 * dy.cmult(reward, log_ll)
+      rf_loss = dy.cmult(reward, log_ll)
       rf_units = [len(x) for (x) in words]
-      reinf_losses.append(xnmt.LossExpr(dy.sum_elems(rf_loss), rf_units))
+      reinf_losses.append(xnmt.LossExpr(dy.sum_elems(-1 * rf_loss), rf_units))
 
       flags = dy.concatenate(baseline_flg, d=0)
       baseline_loss = dy.squared_distance(baseline, reward)
@@ -311,8 +321,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       baseline_units = np.sum(flags.npvalue(), axis=0)
       basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
 
-      print("BLEU: {}, LOG LL: {}".format(np.mean(tr_bleus),
-                                          np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value())))
+      print("[{}] BLEU: {}, LOG LL: {}".format(1 if force_oracle else 0,
+                                               np.mean(tr_bleus),
+                                               np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value())))
     # END LOOP: Sample
     rf_loss = functools.reduce(lambda x, y: x+y, reinf_losses)
     bs_loss = functools.reduce(lambda x, y: x+y,basel_losses)
