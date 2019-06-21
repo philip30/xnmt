@@ -393,6 +393,16 @@ class TestSimultaneousTranslationPredict(unittest.TestCase):
 
       self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
 
+  def test_permute(self):
+    self.model.permute = 0.5
+    xnmt.event_trigger.set_train(True)
+    self.model.policy_agent.policy_network = None
+    self.model.train_pol_mle = False
+    mle_loss = xnmt.train.MLELoss()
+    for src, trg in zip(self.src, self.trg):
+      loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()
+
+
   def test_same_loss_batch_single_pol(self):
     xnmt.event_trigger.set_train(True)
     self.model.train_nmt_mle = False

@@ -28,7 +28,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                baseline_network: Optional[models.Transform] = None,
                len_reward: Optional[bool] = False,
                no_baseline: Optional[bool] = False,
-               default_layer_dim: int = xnmt.default_layer_dim):
+               default_layer_dim: int = xnmt.default_layer_dim,
+               permute: Optional[float] = 0):
     super().__init__(src_reader=src_reader, trg_reader=trg_reader, encoder=encoder, decoder=decoder)
     self.policy_agent = policy_agent
     self.train_nmt_mle = train_nmt_mle
@@ -38,6 +39,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     )
     self.len_reward = len_reward
     self.no_baseline = no_baseline
+    self.permute = permute
 
     if isinstance(decoder, nn.ArbLenDecoder):
       if not isinstance(decoder.bridge, nn.ZeroBridge):
@@ -51,7 +53,23 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     oracle_batch = None
     trg_count = None
     if type(src[0]) == xnmt.structs.sentences.OracleSentence:
-      oracle = [src[i].oracle for i in range(src.batch_size())]
+      if self.permute == 0 or not xnmt.is_train():
+        oracle = [src[i].oracle for i in range(src.batch_size())]
+      else:
+        oracle = []
+        for i in range(src.batch_size()):
+          oracle_i = [x for x in src[i].oracle.words]
+          permute = np.random.binomial(1, self.permute, size=len(oracle_i))
+          idx_0 = np.nonzero(permute)[0]
+          idx_p = np.random.permutation(idx_0)
+          for j, p in zip(idx_0, idx_p):
+            oracle_i[j] = src[i].oracle.words[p]
+
+          oracle.append(xnmt.structs.sentences.SimpleSentence(
+            oracle_i, vocab=src[i].oracle.vocab, pad_token=src[i].oracle.pad_token)
+          )
+
+
       trg_count = [sum([1 for x in src[i].oracle if x == agents.SimultPolicyAgent.WRITE \
                         or x == agents.SimultPolicyAgent.PREDICT_WRITE]) for i in range(src.batch_size())]
       oracle_batch = xnmt.structs.batchers.pad(oracle)
