@@ -298,13 +298,13 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       # END LOOP: Create trajectory
       ### Calculate Rewards ###
       words = [w[1:] for w in words]
-      bleus = [np.asarray(xnmt_cython.bleu_sentence(4, 1, ref_i, hyp_i)) for ref_i, hyp_i in zip(refs, words)]
+      bleus = [np.asarray(xnmt_cython.bleu_sentence_prog(4, 1, ref_i, hyp_i)) for ref_i, hyp_i in zip(refs, words)]
       tr_bleus = []
 
       actions = np.asarray(actions).transpose()
       reward = np.zeros_like(actions, dtype=float)
       for i, bleu in enumerate(bleus):
-        true_bleu = bleu
+        true_bleu = bleu[-1]
         now_bleu = bleu
         shf_bleu = np.roll(bleu, shift=True)
         shf_bleu[0] = 0
@@ -349,9 +349,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         baseline_loss = dy.squared_distance(baseline, disc_reward)
         baseline_loss = dy.cmult(baseline_loss, flags)
         basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
-      
+
       if xnmt.is_train():
-        print("[{}] BLEU: {.5f}, LL: {.5f}, RW: {.5f}".format(
+        print("[{}] BLEU: {:.5f}, LL: {:.5f}, RW: {:.5f}".format(
           1 if force_oracle else 0,
           np.mean(tr_bleus),
           np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value()),
