@@ -29,7 +29,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                len_reward: Optional[bool] = False,
                no_baseline: Optional[bool] = False,
                default_layer_dim: int = xnmt.default_layer_dim,
-               permute: Optional[float] = 0):
+               permute: Optional[float] = 0,
+               z_normalization: Optional[bool] = False):
     super().__init__(src_reader=src_reader, trg_reader=trg_reader, encoder=encoder, decoder=decoder)
     self.policy_agent = policy_agent
     self.train_nmt_mle = train_nmt_mle
@@ -40,6 +41,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     self.len_reward = len_reward
     self.no_baseline = no_baseline
     self.permute = permute
+    self.z_normalization = z_normalization
 
     if isinstance(decoder, nn.ArbLenDecoder):
       if not isinstance(decoder.bridge, nn.ZeroBridge):
@@ -129,7 +131,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
     mle_loss = []
     pol_loss = []
-    while not self.finish_generating(-1, state):
+    while not self.finish_generating(-1, state, force_oracle=True):
       search_action, network_state = self.policy_agent.next_action(state, force_oracle=True, is_sample=False)
       action_set = set(search_action.action_id)
       nwrs = state.num_writes
@@ -208,11 +210,10 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                           trg: xnmt.Batch,
                           num_sample=1,
                           max_len=100,
-                          dagger_eps=0.10):
-    self.policy_agent.oracle_in_train = False
+                          dagger_eps=0.00):
     batch_size = src.batch_size()
     refs = [trg[i].get_unpadded_sent().words for i in range(trg.batch_size())]
-    force_oracle = np.random.binomial(1, dagger_eps) == 0
+    force_oracle = xnmt.is_train() and np.random.binomial(1, dagger_eps) == 0
 
     if force_oracle:
       num_sample = 1
@@ -304,42 +305,42 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       reward = np.zeros_like(actions, dtype=float)
       for i, bleu in enumerate(bleus):
         true_bleu = bleu
-#        now_bleu = bleu
-#        shf_bleu = np.roll(bleu, shift=True)
-#        shf_bleu[0] = 0
-#        diff = now_bleu - shf_bleu
-#        diff[-1] = true_bleu
-#        k = 0
-#        for j in range(len(actions[i])):
-#          if actions[i][j] == 5 or actions[i][j] == 7:
-#            reward[i][j] = diff[k]
-#            k += 1
+        now_bleu = bleu
+        shf_bleu = np.roll(bleu, shift=True)
+        shf_bleu[0] = 0
+        diff = now_bleu - shf_bleu
+        diff[-1] = true_bleu
+        k = 0
+        for j in range(len(actions[i])):
+          if actions[i][j] == 5 or actions[i][j] == 7:
+            reward[i][j] = diff[k]
+            k += 1
+        assert k == len(diff)
         reward[i][-1] = true_bleu
         if self.len_reward:
-          reward[i][-1] += min(1.0, len(words[i])/trg[i].len_unpadded())
+          reward[i][-1] += min(1.0, len(words[i]) / trg[i].len_unpadded())
         reward[i] = reward[i][::-1].cumsum()[::-1]
         tr_bleus.append(true_bleu)
       reward = dy.inputTensor(np.asarray(reward).transpose(), batched=True)
 
       ### Reward Discount ###
       baseline = dy.concatenate(baseline_inp, d=0)
+      flags = dy.concatenate(baseline_flg, d=0)
+      reward = dy.cmult(reward, flags)
       if not self.no_baseline:
         reward = reward - baseline
       disc_reward = dy.nobackprop(reward)
 
       ### Variance Reduction ###
-      z_normalization = False
-      if z_normalization:
-        r_mean = dy.mean_dim(reward, d=[0], b=True)
-        r_std = dy.std_dim(reward, d=[0], b=True)
+      if self.z_normalization:
+        r_mean = dy.mean_dim(reward, d=[0], b=False)
+        r_std = dy.std_dim(reward, d=[0], b=False)
         reward = dy.cdiv((reward - r_mean), r_std + xnmt.globals.EPS)
 
       ### calculate loss ###
       reward = dy.nobackprop(reward)
-      flags = dy.concatenate(baseline_flg, d=0)
-      reward = dy.cmult(reward, flags)
       log_ll = dy.concatenate(log_ll, d=0)
-      rf_loss = dy.cmult(-reward, log_ll)
+      rf_loss = dy.cmult(reward, -log_ll)
       rf_units = [len(x) for (x) in words]
       reinf_losses.append(xnmt.LossExpr(dy.sum_elems(rf_loss), rf_units))
 
@@ -348,13 +349,14 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         baseline_loss = dy.squared_distance(baseline, disc_reward)
         baseline_loss = dy.cmult(baseline_loss, flags)
         basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
-
-      print("[{}] BLEU: {}, LL: {}, RW: {}".format(
-        1 if force_oracle else 0,
-        np.mean(tr_bleus),
-        np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value()),
-        np.mean(dy.sum_elems(reward).value())
-      ))
+      
+      if xnmt.is_train():
+        print("[{}] BLEU: {.5f}, LL: {.5f}, RW: {.5f}".format(
+          1 if force_oracle else 0,
+          np.mean(tr_bleus),
+          np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value()),
+          np.mean(dy.sum_elems(reward).value())
+        ))
     # END LOOP: Sample
 
     rf_loss = functools.reduce(lambda x, y: x+y, reinf_losses)
@@ -364,8 +366,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       bs_loss = functools.reduce(lambda x, y: x+y,basel_losses)
       return xnmt.FactoredLossExpr({"rf_loss": rf_loss, "bs_loss": bs_loss})
 
-  def finish_generating(self, output: Any, dec_state: agents.SimultSeqLenUniDirectionalState):
-    if (self.policy_agent.oracle_in_train and xnmt.is_train()) or \
+  def finish_generating(self, output: Any, dec_state: agents.SimultSeqLenUniDirectionalState, force_oracle=False):
+    if force_oracle or \
+       (self.policy_agent.oracle_in_train and xnmt.is_train()) or \
        (self.policy_agent.oracle_in_test and not xnmt.is_train()):
       return self.policy_agent.finish_generating(dec_state)
     return super().finish_generating(output, dec_state)

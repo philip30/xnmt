@@ -182,14 +182,14 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
                oracle_in_train: bool = False,
                oracle_in_test: bool = False,
                default_layer_dim: int = xnmt.default_layer_dim,
-               encoder_attender: models.Attender = xnmt.bare(nn.MlpAttender),
-               decoder_attender: models.Attender = xnmt.bare(nn.MlpAttender),
-               encoder_q_transform: models.Transform = xnmt.bare(nn.Linear, bias=False),
-               encoder_k_transform: models.Transform = xnmt.bare(nn.Linear, bias=False),
-               encoder_v_transform: models.Transform = xnmt.bare(nn.Linear, bias=False),
-               decoder_q_transform: models.Transform = xnmt.bare(nn.Linear, bias=False),
-               decoder_k_transform: models.Transform = xnmt.bare(nn.Linear, bias=False),
-               decoder_v_transform: models.Transform = xnmt.bare(nn.Linear, bias=False)):
+               encoder_attender: models.Attender = xnmt.bare(nn.DotAttender),
+               decoder_attender: models.Attender = xnmt.bare(nn.DotAttender),
+               encoder_q_transform: models.Transform = xnmt.bare(nn.Linear),
+               encoder_k_transform: models.Transform = xnmt.bare(nn.Linear),
+               encoder_v_transform: models.Transform = xnmt.bare(nn.Linear),
+               decoder_q_transform: models.Transform = xnmt.bare(nn.Linear),
+               decoder_k_transform: models.Transform = xnmt.bare(nn.Linear),
+               decoder_v_transform: models.Transform = xnmt.bare(nn.Linear)):
     super().__init__(input_transform, policy_network, oracle_in_train, oracle_in_test, default_layer_dim)
     self.encoder_attender = encoder_attender
     self.decoder_attender = decoder_attender
@@ -209,8 +209,8 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
     )
 
   def add_input_to_network(self, state: SimultSeqLenUniDirectionalState) -> models.DoubleAttentionPolicyAgentState:
-    zeros = lambda: dy.zeros(self.default_layer_dim, batch_size=state.src.batch_size())
-    estate = state.encoder_state()if state.timestep > 0 else zeros()
+    zeros = lambda: dy.constant(self.default_layer_dim, val=1e-3, batch_size=state.src.batch_size())
+    estate = state.encoder_state() if state.timestep > 0 else zeros()
     dstate = state.decoder_state
     encoder_state = dy.nobackprop(estate)
     decoder_state = dy.nobackprop(dstate.merged_context) if dstate.merged_context is not None else zeros()
@@ -227,10 +227,10 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
       write_flag = np.expand_dims(write_flag, axis=1)
 
 
-      encoder_key = self.encoder_k_transform.transform(encoder_state)
-      encoder_value = self.encoder_v_transform.transform(encoder_state)
-      decoder_key = self.decoder_k_transform.transform(decoder_state)
-      decoder_value = self.decoder_v_transform.transform(decoder_state)
+      encoder_key = encoder_state
+      encoder_value = encoder_state
+      decoder_key = decoder_state
+      decoder_value = decoder_state
       # Appending new item in the sentences
       new_encoder_state = self.concat_attender_state(
         prev_state=state.network_state.encoder_state,
@@ -253,7 +253,7 @@ class SimultPolicyAttentionAgent(SimultPolicyAgent, xnmt.Serializable):
     enc_context, new_encoder_state = self.encoder_attender.calc_context(query_e, new_encoder_state)
     dec_context, new_decoder_state = self.encoder_attender.calc_context(query_d, new_decoder_state)
 
-    network_input = dy.concatenate([enc_context, dec_context, trg_embedding])
+    network_input = dy.concatenate([encoder_state+enc_context, decoder_state+dec_context, trg_embedding])
     return models.DoubleAttentionPolicyAgentState(
       src = state.network_state.src,
       policy_state=state.network_state.policy_state.add_input(self.input_transform.transform(network_input)),
