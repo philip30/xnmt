@@ -349,7 +349,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
       baseline_units = np.sum(flags.npvalue(), axis=0)
       if not self.no_baseline:
-        baseline_loss = dy.squared_distance(baseline, disc_reward)
+        baseline_loss = dy.pow(baseline - disc_reward, dy.scalarInput(2))
         baseline_loss = dy.cmult(baseline_loss, flags)
         basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
 
