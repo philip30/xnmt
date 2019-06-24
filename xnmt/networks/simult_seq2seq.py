@@ -30,7 +30,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                no_baseline: Optional[bool] = False,
                default_layer_dim: int = xnmt.default_layer_dim,
                permute: Optional[float] = 0,
-               z_normalization: Optional[bool] = False):
+               z_normalization: Optional[bool] = False,
+               bleu_score_only_reward: Optional[bool] = False):
     super().__init__(src_reader=src_reader, trg_reader=trg_reader, encoder=encoder, decoder=decoder)
     self.policy_agent = policy_agent
     self.train_nmt_mle = train_nmt_mle
@@ -42,6 +43,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     self.no_baseline = no_baseline
     self.permute = permute
     self.z_normalization = z_normalization
+    self.bleu_score_only_reward = bleu_score_only_reward
 
     if isinstance(decoder, nn.ArbLenDecoder):
       if not isinstance(decoder.bridge, nn.ZeroBridge):
@@ -305,17 +307,18 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       reward = np.zeros_like(actions, dtype=float)
       for i, bleu in enumerate(bleus):
         true_bleu = bleu[-1]
-        now_bleu = bleu
-        shf_bleu = np.roll(bleu, shift=True)
-        shf_bleu[0] = 0
-        diff = now_bleu - shf_bleu
-        diff[-1] = true_bleu
-        k = 0
-        for j in range(len(actions[i])):
-          if actions[i][j] == 5 or actions[i][j] == 7:
-            reward[i][j] = diff[k]
-            k += 1
-        assert k == len(diff)
+        if not self.bleu_score_only_reward:
+          now_bleu = bleu
+          shf_bleu = np.roll(bleu, shift=True)
+          shf_bleu[0] = 0
+          diff = now_bleu - shf_bleu
+          diff[-1] = true_bleu
+          k = 0
+          for j in range(len(actions[i])):
+            if actions[i][j] == 5 or actions[i][j] == 7:
+              reward[i][j] = diff[k]
+              k += 1
+          assert k == len(diff)
         reward[i][-1] = true_bleu
         if self.len_reward:
           reward[i][-1] += min(1.0, len(words[i]) / trg[i].len_unpadded())
@@ -340,9 +343,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       ### calculate loss ###
       reward = dy.nobackprop(reward)
       log_ll = dy.concatenate(log_ll, d=0)
-      rf_loss = dy.cmult(reward, -log_ll)
+      rf_loss = dy.sum_elems(dy.cmult(reward, log_ll)) * -1
       rf_units = [len(x) for (x) in words]
-      reinf_losses.append(xnmt.LossExpr(dy.sum_elems(rf_loss), rf_units))
+      reinf_losses.append(xnmt.LossExpr(rf_loss, rf_units))
 
       baseline_units = np.sum(flags.npvalue(), axis=0)
       if not self.no_baseline:
@@ -351,12 +354,15 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
 
       if xnmt.is_train():
-        print("[{}] BLEU: {:.5f}, LL: {:.5f}, RW: {:.5f}".format(
-          1 if force_oracle else 0,
-          np.mean(tr_bleus),
-          np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value()),
-          np.mean(dy.sum_elems(reward).value())
-        ))
+        try:
+          print("[{}] BLEU: {:.5f}, LL: {:.5f}, RW: {:.5f}".format(
+            1 if force_oracle else 0,
+            np.mean(tr_bleus),
+            np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value()),
+            np.mean(dy.sum_elems(reward).value())
+          ))
+        except:
+          pass
     # END LOOP: Sample
 
     rf_loss = functools.reduce(lambda x, y: x+y, reinf_losses)

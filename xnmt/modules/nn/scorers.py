@@ -84,6 +84,8 @@ class Softmax(models.Scorer, xnmt.Serializable):
     samples = scores_expr.tensor_value().categorical_sample_log_prob(num=1).as_numpy()[0]
     ret = []
     for word in samples:
+      if np.isscalar(word):
+        word = np.asarray([word])
       ret.append((word, scores_expr))
     return ret
 
