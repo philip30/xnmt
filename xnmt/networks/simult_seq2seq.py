@@ -248,7 +248,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         actions.append(search_action.action_id)
 
         ### Baseline
-        bs_inp = state.network_state.output() or dy.zeros(*network_state.output().dim())
+        bs_inp = network_state.output() or dy.zeros(*network_state.output().dim())
         baseline_inp.append(self.baseline_network.transform(dy.nobackprop(bs_inp)))
         baseline_flg.append(done_mask)
 
@@ -329,29 +329,31 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       ### Reward Discount ###
       baseline = dy.concatenate(baseline_inp, d=0)
       flags = dy.concatenate(baseline_flg, d=0)
-      reward = dy.cmult(reward, flags)
+      before_reward = dy.cmult(reward, flags)
       if not self.no_baseline:
-        reward = reward - baseline
-      disc_reward = dy.nobackprop(reward)
+        reward = before_reward - baseline
+      else:
+        reward = before_reward
 
       ### Variance Reduction ###
-      if self.z_normalization:
-        r_mean = dy.mean_dim(reward, d=[0], b=False)
-        r_std = dy.std_dim(reward, d=[0], b=False)
-        reward = dy.cdiv((reward - r_mean), r_std + xnmt.globals.EPS)
+#      if self.z_normalization:
+#        r_mean = dy.mean_dim(reward, d=[0], b=True)
+#        r_std = dy.std_dim(reward, d=[0], b=True)
+#        reward = dy.cdiv((reward - r_mean), r_std + 1e-6)
 
       ### calculate loss ###
-      reward = dy.nobackprop(reward)
+#      reward = dy.nobackprop(reward)
       log_ll = dy.concatenate(log_ll, d=0)
-      rf_loss = dy.sum_elems(dy.cmult(reward, log_ll)) * -1
+      rf_loss = dy.sum_elems(dy.cmult(reward, log_ll))
       rf_units = [len(x) for (x) in words]
       reinf_losses.append(xnmt.LossExpr(rf_loss, rf_units))
 
       baseline_units = np.sum(flags.npvalue(), axis=0)
+      b_units = [1 for _ in range(flags.dim()[1])]
       if not self.no_baseline:
-        baseline_loss = dy.pow(baseline - disc_reward, dy.scalarInput(2))
+        baseline_loss = dy.pow(baseline - before_reward, dy.scalarInput(2))
         baseline_loss = dy.cmult(baseline_loss, flags)
-        basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
+        basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), b_units))
 
       if xnmt.is_train():
         try:
