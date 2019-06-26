@@ -360,7 +360,8 @@ class TestSimultaneousTranslationPredict(unittest.TestCase):
   def test_train_reinforce(self):
     xnmt.event_trigger.set_train(True)
     self.model.bleu_score_only_reward = True
-    reinf_loss = xnmt.train.ReinforceLoss(1, 20)
+    self.model.policy_agent.oracle_in_train = False
+    reinf_loss = xnmt.train.ReinforceLoss(num_sample=1, max_len=20, dagger_eps=1.0)
     reinf_loss.calc_loss(self.model, self.src[0], self.trg[0])
 
 

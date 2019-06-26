@@ -224,7 +224,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                           trg: xnmt.Batch,
                           num_sample=1,
                           max_len=100,
-                          dagger_eps=0.00):
+                          dagger_eps=1.00):
     batch_size = src.batch_size()
     refs = [trg[i].get_unpadded_sent().words for i in range(trg.batch_size())]
     force_oracle = xnmt.is_train() and np.random.binomial(1, dagger_eps) == 0
@@ -254,6 +254,15 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
         ### Next Actions
         search_action, network_state = self.policy_agent.next_action(state, is_sample=True, force_oracle=force_oracle)
+        done_mask = dy.inputTensor([0 if done[i] else 1 for i in range(batch_size)], batched=True)
+        search_action.action_id[done] = xnmt.structs.vocabs.SimultActionVocab.PAD
+        log_ll.append(dy.cmult(search_action.log_likelihood, done_mask))
+        actions.append(search_action.action_id)
+
+        ### Baseline
+        bs_inp = network_state.output() or dy.zeros(*network_state.output().dim())
+        baseline_inp.append(self.baseline_network.transform(dy.nobackprop(bs_inp)))
+        baseline_flg.append(done_mask)
 
         ### PERFORM READING + WRITING
         action_set = set(search_action.action_id)
@@ -287,15 +296,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         else:
           write_state = state
 
-        done_mask = dy.inputTensor([0 if done[i] else 1 for i in range(batch_size)], batched=True)
-        search_action.action_id[done] = xnmt.structs.vocabs.SimultActionVocab.PAD
-        log_ll.append(dy.cmult(search_action.log_likelihood, done_mask))
-        actions.append(search_action.action_id)
 
-        ### Baseline
-        bs_inp = network_state.output() or dy.zeros(*network_state.output().dim())
-        baseline_inp.append(self.baseline_network.transform(dy.nobackprop(bs_inp)))
-        baseline_flg.append(done_mask)
 
         ### Next State ###
         state = agents.SimultSeqLenUniDirectionalState(
@@ -358,22 +359,23 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         reward = dy.cdiv((reward - r_mean), r_std + 1e-6)
 
       ### calculate loss ###
-#      reward = dy.nobackprop(reward)
+      reward = dy.nobackprop(reward)
       log_ll = dy.concatenate(log_ll, d=0)
       rf_loss = dy.cmult(reward, log_ll)
       rf_loss = dy.cmult(rf_loss, flags)
       rf_units = [len(x) for (x) in words]
       reinf_losses.append(xnmt.LossExpr(dy.sum_elems(rf_loss), rf_units))
 
-      baseline_units = np.sum(flags.npvalue(), axis=0)
-      b_units = [1 for _ in range(flags.dim()[1])]
+      baseline_units = flags.npvalue()
+      if len(baseline_units.shape) > 1:
+        baseline_units = np.sum(baseline_units, axis=0)
       if not self.no_baseline:
         baseline_loss = dy.pow(baseline - before_reward, dy.scalarInput(2))
         baseline_loss = dy.cmult(baseline_loss, flags)
-        basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), b_units))
+        basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
 
       if xnmt.is_train():
-#        try:
+        try:
           print("[{}] BLEU: {:.5f}, LL: {:.5f}, RW: {:.5f}".format(
             1 if force_oracle else 0,
             np.mean(tr_bleus),
@@ -391,7 +393,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
             a_flags = dy.pick_batch_elem(flags, i).npvalue()
             a = actions[i]
 
-            print("FL  A   LOG_LL    RW     BS   RW-BS   BS_L   RF_L")
+            print("[F] A   LOG_LL    RW     BS   RW-BS   BS_L   RF_L")
             for t in range(len(a)):
               if a[t] != 2:
                 print("[{}] {} {: .5f} {: .3f} {: .3f} {: .3f} {: .3f} {: .3f}".format(
@@ -405,11 +407,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                   a[t], a_bef_rw[t], a_bs[t], a_dis_rw[t], a_bs_loss[t],
                   a_r_loss[t]
                 ))
-            print()
-
-
-#        except:
-#          pass
+            print("")
+        except:
+          pass
     # END LOOP: Sample
 
     rf_loss = functools.reduce(lambda x, y: x+y, reinf_losses)
