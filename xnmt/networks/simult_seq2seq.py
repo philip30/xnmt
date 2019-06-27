@@ -246,7 +246,6 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       baseline_inp = []
       baseline_flg = []
 
-
       # BEGIN LOOP: Create trajectory
       while not np.all(done):
         if force_oracle and state.timestep >= state.oracle_batch.sent_len():
@@ -254,8 +253,10 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
         ### Next Actions
         search_action, network_state = self.policy_agent.next_action(state, is_sample=True, force_oracle=force_oracle)
+        for i in range(batch_size):
+          done[i] = done[i] or search_action.action_id[i] == 2
+
         done_mask = dy.inputTensor([0 if done[i] else 1 for i in range(batch_size)], batched=True)
-        search_action.action_id[done] = xnmt.structs.vocabs.SimultActionVocab.PAD
         log_ll.append(dy.cmult(search_action.log_likelihood, done_mask))
         actions.append(search_action.action_id)
 
@@ -263,7 +264,6 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         bs_inp = network_state.output() or dy.zeros(*network_state.output().dim())
         baseline_inp.append(self.baseline_network.transform(dy.nobackprop(bs_inp)))
         baseline_flg.append(done_mask)
-
         ### PERFORM READING + WRITING
         action_set = set(search_action.action_id)
         ### READING ###
@@ -289,10 +289,11 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
             if write_flag[i]:
               word = write_action[0].action_id[i]
               words[i].append(word)
-              done[i] = done[i] or \
-                        len(words[i]) - 1 >= max_len or \
-                        word == self.decoder.eog_symbol
-            done[i] = done[i] or search_action.action_id[i] == 2
+              if not force_oracle:
+                done[i] = done[i] or \
+                          len(words[i]) - 1 >= max_len or \
+                          word == self.decoder.eog_symbol
+
         else:
           write_state = state
 
@@ -322,35 +323,33 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       actions = np.asarray(actions).transpose()
       reward = np.zeros_like(actions, dtype=float)
       for i, bleu in enumerate(bleus):
-        true_bleu = bleu[-1]
-        if not self.bleu_score_only_reward:
-          now_bleu = bleu
-          shf_bleu = np.roll(bleu, shift=True)
-          shf_bleu[0] = 0
-          diff = now_bleu - shf_bleu
-          diff[-1] = true_bleu
-          k = 0
-          for j in range(len(actions[i])):
-            if actions[i][j] == 5 or actions[i][j] == 7:
-              reward[i][j] = diff[k]
-              k += 1
-          assert k == len(diff)
-        reward[i][-1] = true_bleu
-        if self.len_reward:
-          reward[i][-1] += min(1.0, len(words[i]) / trg[i].len_unpadded())
+        k = 0
+        for j, a in enumerate(actions[i]):
+          if a == agents.SimultPolicyAgent.WRITE or a == agents.SimultPolicyAgent.PREDICT_WRITE:
+            if not self.bleu_score_only_reward or k == len(bleu)-1:
+              if k < 1 or k == len(bleu)-1:
+                reward[i][j] = bleu[k]
+              else:
+                reward[i][j] = bleu[k] - bleu[k-1]
+            if self.len_reward:
+              reward[i][j] += 1 / trg[i].len_unpadded()
+            k += 1
+        tr_bleus.append(bleu[-1])
         reward[i] = reward[i][::-1].cumsum()[::-1]
-        tr_bleus.append(true_bleu)
       reward = dy.inputTensor(np.asarray(reward).transpose(), batched=True)
-
       ### Reward Discount ###
       baseline = dy.concatenate(baseline_inp, d=0)
       flags = dy.concatenate(baseline_flg, d=0)
       baseline = dy.cmult(baseline, flags)
       before_reward = dy.cmult(reward, flags)
+      if self.bleu_score_only_reward:
+        baseline = dy.rectify(baseline)
+
       if not self.no_baseline:
         reward = before_reward - baseline
       else:
         reward = before_reward
+      reward = dy.nobackprop(reward)
 
       ### Variance Reduction ###
       if self.z_normalization:
@@ -359,7 +358,6 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         reward = dy.cdiv((reward - r_mean), r_std + 1e-6)
 
       ### calculate loss ###
-      reward = dy.nobackprop(reward)
       log_ll = dy.concatenate(log_ll, d=0)
       rf_loss = dy.cmult(reward, log_ll)
       rf_loss = dy.cmult(rf_loss, flags)
@@ -367,16 +365,18 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       reinf_losses.append(xnmt.LossExpr(dy.sum_elems(rf_loss), rf_units))
 
       baseline_units = flags.npvalue()
-      if len(baseline_units.shape) > 1:
-        baseline_units = np.sum(baseline_units, axis=0)
+      baseline_units = np.sum(baseline_units, axis=0)
+
+      if len(baseline_units.shape) < 1:
+        baseline_units = np.expand_dims(baseline_units, axis=0)
+
       if not self.no_baseline:
         baseline_loss = dy.pow(baseline - before_reward, dy.scalarInput(2))
         baseline_loss = dy.cmult(baseline_loss, flags)
         basel_losses.append(xnmt.LossExpr(dy.sum_elems(baseline_loss), baseline_units))
 
       if xnmt.is_train():
-        try:
-          print("[{}] BLEU: {:.5f}, LL: {:.5f}, RW: {:.5f}".format(
+          print("{} BLEU: {:.5f}, LL: {:.5f}, RW: {:.5f}".format(
             1 if force_oracle else 0,
             np.mean(tr_bleus),
             np.mean(dy.cdiv(dy.sum_elems(log_ll), dy.inputTensor(baseline_units, batched=True)).value()),
@@ -393,23 +393,22 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
             a_flags = dy.pick_batch_elem(flags, i).npvalue()
             a = actions[i]
 
-            print("[F] A   LOG_LL    RW     BS   RW-BS   BS_L   RF_L")
+            print("F A   LOG_LL    RW     BS   RW-BS   BS_L   RF_L")
             for t in range(len(a)):
               if a[t] != 2:
-                print("[{}] {} {: .5f} {: .3f} {: .3f} {: .3f} {: .3f} {: .3f}".format(
+                print("{} {} {: .5f} {: .3f} {: .3f} {: .3f} {: .3f} {: .3f}".format(
                   int(a_flags[t]),
                   a[t], a_log_ll[t], a_bef_rw[t], a_bs[t], a_dis_rw[t], a_bs_loss[t],
                   a_r_loss[t]
                 ))
-              else:
-                print("[{}] {} -inf     {: .3f} {: .3f} {: .3f} {: .3f} {: .3f}".format(
-                  int(a_flags[t]),
-                  a[t], a_bef_rw[t], a_bs[t], a_dis_rw[t], a_bs_loss[t],
-                  a_r_loss[t]
-                ))
-            print("")
-        except:
-          pass
+#              else:
+#                print("[{}] {} -inf     {: .3f} {: .3f} {: .3f} {: .3f} {: .3f}".format(
+#                  int(a_flags[t]),
+#                  a[t], a_bef_rw[t], a_bs[t], a_dis_rw[t], a_bs_loss[t],
+#                  a_r_loss[t]
+#                ))
+            print("  ")
+
     # END LOOP: Sample
 
     rf_loss = functools.reduce(lambda x, y: x+y, reinf_losses)
