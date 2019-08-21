@@ -80,11 +80,12 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
                policy_network: Optional[networks.PolicyNetwork] = None,
                oracle_in_train: bool = False,
                oracle_in_test: bool = False,
-               default_layer_dim: int = xnmt.default_layer_dim):
+               default_layer_dim: int = xnmt.default_layer_dim,
+               dropout: Optional[float] = 0.0):
     self.input_transform = input_transform
     self.oracle_in_train = oracle_in_train
     self.oracle_in_test = oracle_in_test
-
+    self.dropout = dropout
     self.input_transform = self.add_serializable_component("input_transform", input_transform,
                                                             lambda: nn.Linear(3 * default_layer_dim,
                                                                               default_layer_dim))
@@ -161,6 +162,11 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     encoder_state = dy.nobackprop(estate)
     decoder_state = dy.nobackprop(dstate.merged_context) if dstate.merged_context is not None else dstate.rnn_state.output()
     trg_embedding = dy.nobackprop(dstate.prev_embedding) if dstate.prev_embedding is not None else zeros()
+    if xnmt.is_train() and self.dropout > 0.0:
+      encoder_state = dy.dropout(encoder_state, self.dropout)
+      decoder_state = dy.dropout(decoder_state, self.dropout)
+      trg_embedding = dy.dropout(trg_embedding, self.dropout)
+
     network_input = dy.concatenate([encoder_state, decoder_state, trg_embedding])
     return state.network_state.add_input(self.input_transform.transform(network_input))
 

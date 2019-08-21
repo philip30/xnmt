@@ -32,7 +32,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                permute: Optional[float] = 0,
                z_normalization: Optional[bool] = False,
                bleu_score_only_reward: Optional[bool] = False,
-               train_src_predictor: Optional[bool] = True,
+               train_src_predictor: Optional[bool] = False,
                src_predictor_rnn: Optional[models.UniDiSeqTransducer] = None,
                src_predictor_softmax: Optional[models.Scorer] = None
                ):
@@ -72,6 +72,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         for i in range(src.batch_size()):
           oracle_i = [x for x in src[i].oracle.words]
           permute = np.random.binomial(1, self.permute, size=len(oracle_i))
+          permute[0] = 0
+          permute[-1] = 0
           idx_0 = np.nonzero(permute)[0]
           idx_p = np.random.permutation(idx_0)
           for j, p in zip(idx_0, idx_p):
@@ -179,7 +181,10 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
       ### Calculate MLE POL Loss ###
       if self.train_pol_mle:
-        oracle_action = np.asarray([oracle[state.timestep] for oracle in state.oracle_batch])
+        true_oracle = [src[i].oracle for i in range(src.batch_size())]
+        true_oracle = xnmt.structs.batchers.pad(true_oracle)
+
+        oracle_action = np.asarray([oracle[state.timestep] for oracle in true_oracle])
         oracle_mask = np.zeros(batch_size)
         oracle_mask[oracle_action == xnmt.structs.vocabs.SimultActionVocab.PAD] = 1
         oracle_mask = xnmt.Mask(np.expand_dims(oracle_mask, axis=1))
@@ -205,9 +210,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         trg_counts=state.trg_counts
       )
     # END: Loop
-    src_predictor_loss = []
-    if self.train_src_predictor:
-      self.src_predictor_rnn.transduce()
+#    src_predictor_loss = []
+#    if self.train_src_predictor is not None:
+#      self.src_predictor_rnn.transduce()
 
     ### Calculate Total Loss
     total_loss = {}
@@ -247,7 +252,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       baseline_flg = []
 
       # BEGIN LOOP: Create trajectory
-      while not np.all(done):
+      while True:
         if force_oracle and state.timestep >= state.oracle_batch.sent_len():
           break
 
@@ -255,6 +260,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         search_action, network_state = self.policy_agent.next_action(state, is_sample=True, force_oracle=force_oracle)
         for i in range(batch_size):
           done[i] = done[i] or search_action.action_id[i] == 2
+
+        if np.all(done):
+          break
 
         done_mask = dy.inputTensor([0 if done[i] else 1 for i in range(batch_size)], batched=True)
         log_ll.append(dy.cmult(search_action.log_likelihood, done_mask))
@@ -293,11 +301,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                 done[i] = done[i] or \
                           len(words[i]) - 1 >= max_len or \
                           word == self.decoder.eog_symbol
-
         else:
           write_state = state
-
-
 
         ### Next State ###
         state = agents.SimultSeqLenUniDirectionalState(
@@ -341,9 +346,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       baseline = dy.concatenate(baseline_inp, d=0)
       flags = dy.concatenate(baseline_flg, d=0)
       baseline = dy.cmult(baseline, flags)
-      before_reward = dy.cmult(reward, flags)
-      if self.bleu_score_only_reward:
-        baseline = dy.rectify(baseline)
+      before_reward = dy.nobackprop(dy.cmult(reward, flags))
 
       if not self.no_baseline:
         reward = before_reward - baseline
@@ -359,7 +362,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
       ### calculate loss ###
       log_ll = dy.concatenate(log_ll, d=0)
-      rf_loss = dy.cmult(reward, log_ll)
+      rf_loss = dy.cmult(reward, -log_ll)
       rf_loss = dy.cmult(rf_loss, flags)
       rf_units = [len(x) for (x) in words]
       reinf_losses.append(xnmt.LossExpr(dy.sum_elems(rf_loss), rf_units))
@@ -383,39 +386,41 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
             np.mean(dy.sum_elems(reward).value())
           ))
 
-          for i in range(batch_size):
-            a_bs = dy.pick_batch_elem(baseline, i).npvalue()
-            a_bs_loss = dy.pick_batch_elem(baseline_loss, i).npvalue()
-            a_log_ll = dy.pick_batch_elem(log_ll, i).npvalue()
-            a_bef_rw = dy.pick_batch_elem(before_reward, i).npvalue()
-            a_dis_rw = dy.pick_batch_elem(reward, i).npvalue()
-            a_r_loss = dy.pick_batch_elem(rf_loss, i).npvalue()
-            a_flags = dy.pick_batch_elem(flags, i).npvalue()
-            a = actions[i]
-
-            print("F A   LOG_LL    RW     BS   RW-BS   BS_L   RF_L")
-            for t in range(len(a)):
-              if a[t] != 2:
-                print("{} {} {: .5f} {: .3f} {: .3f} {: .3f} {: .3f} {: .3f}".format(
-                  int(a_flags[t]),
-                  a[t], a_log_ll[t], a_bef_rw[t], a_bs[t], a_dis_rw[t], a_bs_loss[t],
-                  a_r_loss[t]
-                ))
+#          for i in range(batch_size):
+#            a_bs = dy.pick_batch_elem(baseline, i).npvalue()
+#            a_bs_loss = dy.pick_batch_elem(baseline_loss, i).npvalue()
+#            a_log_ll = dy.pick_batch_elem(log_ll, i).npvalue()
+#            a_bef_rw = dy.pick_batch_elem(before_reward, i).npvalue()
+#            a_dis_rw = dy.pick_batch_elem(reward, i).npvalue()
+#            a_r_loss = dy.pick_batch_elem(rf_loss, i).npvalue()
+#            a_flags = dy.pick_batch_elem(flags, i).npvalue()
+#            a = actions[i]
+#
+#            print("F A   LOG_LL    RW     BS   RW-BS   BS_L   RF_L")
+#            for t in range(len(a)):
+#              if a[t] != 2:
+#                print("{} {} {: .5f} {: .3f} {: .3f} {: .3f} {: .3f} {: .3f}".format(
+#                  int(a_flags[t]),
+#                  a[t], a_log_ll[t], a_bef_rw[t], a_bs[t], a_dis_rw[t], a_bs_loss[t],
+#                  a_r_loss[t]
+#                ))
 #              else:
 #                print("[{}] {} -inf     {: .3f} {: .3f} {: .3f} {: .3f} {: .3f}".format(
 #                  int(a_flags[t]),
 #                  a[t], a_bef_rw[t], a_bs[t], a_dis_rw[t], a_bs_loss[t],
 #                  a_r_loss[t]
 #                ))
-            print("  ")
+#            print("  ")
 
     # END LOOP: Sample
 
     rf_loss = functools.reduce(lambda x, y: x+y, reinf_losses)
+    rf_loss.expr /= len(reinf_losses)
+
     if self.no_baseline:
       return xnmt.FactoredLossExpr({"rf_loss": rf_loss})
     else:
-      bs_loss = functools.reduce(lambda x, y: x+y,basel_losses)
+      bs_loss = functools.reduce(lambda x, y: x+y, basel_losses)
       return xnmt.FactoredLossExpr({"rf_loss": rf_loss, "bs_loss": bs_loss})
 
   def finish_generating(self, output: Any, dec_state: agents.SimultSeqLenUniDirectionalState, force_oracle=False):
