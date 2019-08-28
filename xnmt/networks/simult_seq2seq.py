@@ -32,9 +32,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                permute: Optional[float] = 0,
                z_normalization: Optional[bool] = False,
                bleu_score_only_reward: Optional[bool] = False,
-               train_src_predictor: Optional[bool] = False,
-               src_predictor_rnn: Optional[models.UniDiSeqTransducer] = None,
-               src_predictor_softmax: Optional[models.Scorer] = None
+               word_scheduled_sampling = 0.0,
+               act_scheduled_sampling = 0.0,
                ):
     super().__init__(src_reader=src_reader, trg_reader=trg_reader, encoder=encoder, decoder=decoder)
     self.policy_agent = policy_agent
@@ -49,9 +48,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     self.z_normalization = z_normalization
     self.bleu_score_only_reward = bleu_score_only_reward
 
-    self.src_predictor_rnn = src_predictor_rnn
-    self.src_predictor_softmax = src_predictor_softmax
-    self.train_src_predictor = train_src_predictor
+    self.word_scheduled_sampling = word_scheduled_sampling
+    self.act_scheduled_sampling = act_scheduled_sampling
 
     if isinstance(decoder, nn.ArbLenDecoder):
       if not isinstance(decoder.bridge, nn.ZeroBridge):
@@ -80,9 +78,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
             oracle_i[j] = src[i].oracle.words[p]
 
           oracle.append(xnmt.structs.sentences.SimpleSentence(
-            oracle_i, vocab=src[i].oracle.vocab, pad_token=src[i].oracle.pad_token)
-          )
-
+            oracle_i, vocab=src[i].oracle.vocab, pad_token=src[i].oracle.pad_token
+          ))
 
       trg_count = [sum([1 for x in src[i].oracle if x == agents.SimultPolicyAgent.WRITE \
                         or x == agents.SimultPolicyAgent.PREDICT_WRITE]) for i in range(src.batch_size())]
@@ -165,6 +162,12 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         write_mask = xnmt.Mask(1-np.expand_dims(write_flag, 1))
 
         prev_word = np.asarray([trg[i][nwrs[i]-1] if nwrs[i] > 0 else start_sym for i in range(batch_size)])
+
+        if xnmt.globals.is_train() and self.word_scheduled_sampling > 0.0:
+          if np.random.binomial(1, p=self.word_scheduled_sampling) == 1:
+            prev_word = self.decoder.best_k(state.decoder_state, 1)[0].action_id
+
+
         prev_word = xnmt.mark_as_batch(prev_word, write_mask)
         write_state = self._perform_write(state, search_action, prev_word, write_flag)
       else:
@@ -210,9 +213,6 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         trg_counts=state.trg_counts
       )
     # END: Loop
-#    src_predictor_loss = []
-#    if self.train_src_predictor is not None:
-#      self.src_predictor_rnn.transduce()
 
     ### Calculate Total Loss
     total_loss = {}
@@ -287,7 +287,6 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
           write_flag[search_action.action_id == agents.SimultPolicyAgent.WRITE] = 1
           write_flag[search_action.action_id == agents.SimultPolicyAgent.PREDICT_WRITE] = 1
           write_mask = xnmt.Mask(1-np.expand_dims(write_flag, 1))
-
           prev_word = np.asarray([words[i][nwrs[i]] for i in range(batch_size)])
           prev_word = xnmt.mark_as_batch(prev_word, write_mask)
           write_state = self._perform_write(state, search_action, prev_word, write_flag)
