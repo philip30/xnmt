@@ -58,7 +58,7 @@ class Vocab(Serializable):
     """
     reserved = [Vocab.SS_STR, Vocab.ES_STR, Vocab.PAD_STR, Vocab.UNK_STR]
     vocab = {word: i for i, word in enumerate(reserved)}
-    with open(vocab_file, encoding='utf-8') as f:
+    with open(vocab_file) as f:
       for line in f:
         word = line.strip()
         word = word.split('\t')[0]

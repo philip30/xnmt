@@ -164,7 +164,11 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         prev_word = np.asarray([trg[i][nwrs[i]-1] if nwrs[i] > 0 else start_sym for i in range(batch_size)])
 
         if xnmt.globals.is_train() and self.word_scheduled_sampling > 0.0:
-          if np.random.binomial(1, p=self.word_scheduled_sampling) == 1:
+          if hasattr(self.word_scheduled_sampling, "value"):
+            sampling_value = self.word_scheduled_sampling.value()
+          else:
+            sampling_value = self.word_scheduled_sampling
+          if np.random.binomial(1, p=sampling_value) == 1:
             prev_word = self.decoder.best_k(state.decoder_state, 1)[0].action_id
 
 
@@ -184,10 +188,10 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
       ### Calculate MLE POL Loss ###
       if self.train_pol_mle:
-        true_oracle = [src[i].oracle for i in range(src.batch_size())]
-        true_oracle = xnmt.structs.batchers.pad(true_oracle)
+        #true_oracle = [src[i].oracle for i in range(src.batch_size())]
+        #true_oracle = xnmt.structs.batchers.pad(true_oracle)
 
-        oracle_action = np.asarray([oracle[state.timestep] for oracle in true_oracle])
+        oracle_action = np.asarray([oracle[state.timestep] for oracle in state.oracle_batch])
         oracle_mask = np.zeros(batch_size)
         oracle_mask[oracle_action == xnmt.structs.vocabs.SimultActionVocab.PAD] = 1
         oracle_mask = xnmt.Mask(np.expand_dims(oracle_mask, axis=1))
