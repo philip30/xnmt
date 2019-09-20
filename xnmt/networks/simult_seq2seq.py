@@ -428,8 +428,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
   def finish_generating(self, output: Any, dec_state: agents.SimultSeqLenUniDirectionalState, force_oracle=False):
     if force_oracle or \
-       (self.policy_agent.oracle_in_train and xnmt.is_train()) or \
-       (self.policy_agent.oracle_in_test and not xnmt.is_train()):
+       (self.policy_agent.oracle_in_train and xnmt.is_train()):
       return self.policy_agent.finish_generating(dec_state)
     return super().finish_generating(output, dec_state)
 
