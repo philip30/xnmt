@@ -184,10 +184,10 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
       ### Calculate MLE POL Loss ###
       if self.train_pol_mle:
-        true_oracle = [src[i].oracle for i in range(src.batch_size())]
-        true_oracle = xnmt.structs.batchers.pad(true_oracle)
+        #true_oracle = [src[i].oracle for i in range(src.batch_size())]
+        #true_oracle = xnmt.structs.batchers.pad(true_oracle)
 
-        oracle_action = np.asarray([oracle[state.timestep] for oracle in true_oracle])
+        oracle_action = np.asarray([oracle[state.timestep] for oracle in state.oracle_batch])
         oracle_mask = np.zeros(batch_size)
         oracle_mask[oracle_action == xnmt.structs.vocabs.SimultActionVocab.PAD] = 1
         oracle_mask = xnmt.Mask(np.expand_dims(oracle_mask, axis=1))
@@ -424,8 +424,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
   def finish_generating(self, output: Any, dec_state: agents.SimultSeqLenUniDirectionalState, force_oracle=False):
     if force_oracle or \
-       (self.policy_agent.oracle_in_train and xnmt.is_train()) or \
-       (self.policy_agent.oracle_in_test and not xnmt.is_train()):
+       (self.policy_agent.oracle_in_train and xnmt.is_train()):
       return self.policy_agent.finish_generating(dec_state)
     return super().finish_generating(output, dec_state)
 

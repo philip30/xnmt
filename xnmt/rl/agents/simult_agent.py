@@ -112,7 +112,9 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
 
   def next_action(self, state: SimultSeqLenUniDirectionalState, force_oracle = False, is_sample = False) -> Tuple[models.SearchAction, models.PolicyAgentState]:
     if (xnmt.is_train() and self.oracle_in_train) or (not xnmt.is_train() and self.oracle_in_test) or force_oracle:
-      oracle_action = np.array([state.oracle_batch[i][state.timestep] for i in range(state.oracle_batch.batch_size())])
+      oracle_action = np.array([state.oracle_batch[i][state.timestep] if state.timestep < state.oracle_batch.sent_len() \
+                                  else SimultPolicyAgent.WRITE
+                                for i in range(state.oracle_batch.batch_size())])
     else:
       oracle_action = None
     # Training policy?

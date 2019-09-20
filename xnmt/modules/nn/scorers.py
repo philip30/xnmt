@@ -62,15 +62,21 @@ class Softmax(models.Scorer, xnmt.Serializable):
 
   def best_k(self, x: dy.Expression, k: int, normalize_scores: bool = False) -> List[Tuple[int, dy.Expression]]:
     scores_expr = self.calc_log_probs(x) if normalize_scores else self.calc_scores(x)
-    scores = scores_expr.npvalue()
-    if len(scores.shape) == 1:
-      scores = np.expand_dims(scores, axis=1)
-    k = min(len(scores), k)
-    top_words = np.argpartition(scores, -k, axis=0)[-k:]
 
-    ret = []
-    for word in top_words:
-      ret.append((word, scores_expr))
+    if k == 1 and False:
+      scores = scores_expr.tensor_value().argmax(num=1).as_numpy()
+      ret = [(scores, scores_expr)]
+    else:
+      scores = scores_expr.npvalue()
+      if len(scores.shape) == 1:
+        scores = np.expand_dims(scores, axis=1)
+      k = min(len(scores), k)
+      top_words = np.argpartition(scores, -k, axis=0)[-k:]
+
+      ret = []
+      for word in top_words:
+        ret.append((word, scores_expr))
+
 
     return ret
 
