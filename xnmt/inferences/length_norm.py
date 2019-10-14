@@ -48,7 +48,7 @@ class PolynomialNormalization(models.LengthNormalization, xnmt.Serializable):
   Dividing by the length (raised to some power)
   """
   @xnmt.serializable_init
-  def __init__(self, m: float = 1, apply_during_search: bool = False):
+  def __init__(self, m = 1.0, apply_during_search: bool = False):
     self.m = m
     self.apply_during_search = apply_during_search
     self.pows = []

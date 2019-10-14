@@ -188,10 +188,10 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
       ### Calculate MLE POL Loss ###
       if self.train_pol_mle:
-        #true_oracle = [src[i].oracle for i in range(src.batch_size())]
-        #true_oracle = xnmt.structs.batchers.pad(true_oracle)
+        true_oracle = [src[i].oracle for i in range(src.batch_size())]
+        true_oracle = xnmt.structs.batchers.pad(true_oracle)
 
-        oracle_action = np.asarray([oracle[state.timestep] for oracle in state.oracle_batch])
+        oracle_action = np.asarray([oracle[state.timestep] for oracle in true_oracle])
         oracle_mask = np.zeros(batch_size)
         oracle_mask[oracle_action == xnmt.structs.vocabs.SimultActionVocab.PAD] = 1
         oracle_mask = xnmt.Mask(np.expand_dims(oracle_mask, axis=1))
