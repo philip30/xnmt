@@ -61,7 +61,7 @@ class PolicyAgent(object):
   def finish_generating(self, states: models.UniDirectionalState) -> bool:
     raise NotImplementedError()
 
-  def next_action(self, state: models.UniDirectionalState) \
+  def next_action(self, state: models.UniDirectionalState, prev_action: xnmt.Batch) \
       -> Tuple[models.SearchAction, PolicyAgentState]:
     raise NotImplementedError()
 

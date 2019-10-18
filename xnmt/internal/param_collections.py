@@ -44,7 +44,7 @@ class ParamCollection(object):
     else:
       self._data_files = []
 
-  def add_subcollection(self, subcol_owner: 'Serializable', subcol_name: str) -> dy.ParameterCollection:
+  def add_subcollection(self, subcol_owner: 'Serializable', subcol_name: str):
     assert subcol_owner not in self.all_subcol_owners
     self.all_subcol_owners.add(subcol_owner)
     if subcol_name in self.subcols:
@@ -168,7 +168,7 @@ class ParamManager(object):
     logger.info(f"  DyNet param count: {ParamManager.param_col._param_col.parameter_count()}")
 
   @staticmethod
-  def my_params(subcol_owner) -> dy.ParameterCollection:
+  def my_params(subcol_owner):
     """Creates a dedicated parameter subcollection for a serializable object.
 
     This should only be called from the __init__ method of a Serializable.
@@ -191,7 +191,7 @@ class ParamManager(object):
     return subcol
 
   @staticmethod
-  def global_collection() -> dy.ParameterCollection:
+  def global_collection():
     """ Access the top-level parameter collection, including all parameters.
 
     Returns:

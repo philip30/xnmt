@@ -92,9 +92,11 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     if isinstance(decoder_init, nn.decoders.arb_len.ArbSeqLenUniDirectionalState):
       decoder_init.attender_state.read_mask = xnmt.Mask(np.expand_dims(np.array([1] * src.batch_size()), axis=1))
 
+    initial_action = models.SearchAction(action_id=[xnmt.structs.vocabs.SimultActionVocab.SS] * src.batch_size())
+
     return agents.SimultSeqLenUniDirectionalState(
       oracle_batch=oracle_batch, src=src, full_encodings=encoder_seqs, network_state=self.policy_agent.initial_state(src),
-      trg_counts=trg_count, decoder_state=decoder_init
+      trg_counts=trg_count, decoder_state=decoder_init, simult_action=initial_action
     )
 
   def add_input(self, prev_word: xnmt.Batch, state: models.UniDirectionalState) -> agents.SimultSeqLenUniDirectionalState:
@@ -199,6 +201,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
         loss = self.policy_agent.calc_loss(network_state, oracle_batch)
         loss = oracle_mask.cmult_by_timestep_expr(loss, 0, True)
+
         pol_loss.append(loss)
 
       ### Next State ###

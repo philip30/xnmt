@@ -252,40 +252,40 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
     action = self.model.policy_agent.check_sanity(state, pol_action)
     self.assertEqual(action.action_id[0], self.model.policy_agent.WRITE)
 
-  def test_attention_agent(self):
-    self.model.policy_agent = xnmt.rl.agents.SimultPolicyAttentionAgent(
-      self.model.policy_agent.input_transform,
-      self.model.policy_agent.policy_network,
-      self.model.policy_agent.oracle_in_train,
-      self.model.policy_agent.oracle_in_test,
-      self.model.policy_agent.default_layer_dim,
-      nn.DotAttender(True, self.layer_dim),
-      nn.DotAttender(True, self.layer_dim),
-      nn.Linear(self.layer_dim, self.layer_dim, False),
-      nn.Linear(self.layer_dim, self.layer_dim, False),
-      nn.Linear(self.layer_dim, self.layer_dim, False),
-      nn.Linear(self.layer_dim, self.layer_dim, False),
-      nn.Linear(self.layer_dim, self.layer_dim, False),
-      nn.Linear(self.layer_dim, self.layer_dim, False)
-    )
-    self.model.train_pol_mle = True
-    self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
-      transform = nn.NonLinear(self.layer_dim, self.layer_dim),
-      scorer = nn.Softmax(self.layer_dim, 10, trg_reader=self.trg_reader, softmax_mask=[0,1,2,3,6,7,8,9]),
-      rnn = nn.UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim= self.layer_dim)
-    )
-
-    mle_loss = xnmt.train.MLELoss()
-    for src, trg in zip(self.src, self.trg):
-      loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()
-      losses = []
-      for s, t in zip(src, trg):
-        loss_i, _ = mle_loss.calc_loss(self.model,
-                                       xnmt.mark_as_batch([s.get_unpadded_sent()]),
-                                       xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
-        losses.append(loss_i)
-
-      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
+#  def test_attention_agent(self):
+#    self.model.policy_agent = xnmt.rl.agents.SimultPolicyAttentionAgent(
+#      self.model.policy_agent.input_transform,
+#      self.model.policy_agent.policy_network,
+#      self.model.policy_agent.oracle_in_train,
+#      self.model.policy_agent.oracle_in_test,
+#      self.model.policy_agent.default_layer_dim,
+#      nn.DotAttender(True, self.layer_dim),
+#      nn.DotAttender(True, self.layer_dim),
+#      nn.Linear(self.layer_dim, self.layer_dim, False),
+#      nn.Linear(self.layer_dim, self.layer_dim, False),
+#      nn.Linear(self.layer_dim, self.layer_dim, False),
+#      nn.Linear(self.layer_dim, self.layer_dim, False),
+#      nn.Linear(self.layer_dim, self.layer_dim, False),
+#      nn.Linear(self.layer_dim, self.layer_dim, False)
+#    )
+#    self.model.train_pol_mle = True
+#    self.model.policy_agent.policy_network = xnmt.rl.policy_networks.RecurrentPolicyNetwork(
+#      transform = nn.NonLinear(self.layer_dim, self.layer_dim),
+#      scorer = nn.Softmax(self.layer_dim, 10, trg_reader=self.trg_reader, softmax_mask=[0,1,2,3,6,7,8,9]),
+#      rnn = nn.UniLSTMSeqTransducer(input_dim=self.layer_dim, hidden_dim= self.layer_dim)
+#    )
+#
+#    mle_loss = xnmt.train.MLELoss()
+#    for src, trg in zip(self.src, self.trg):
+#      loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()
+#      losses = []
+#      for s, t in zip(src, trg):
+#        loss_i, _ = mle_loss.calc_loss(self.model,
+#                                       xnmt.mark_as_batch([s.get_unpadded_sent()]),
+#                                       xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
+#        losses.append(loss_i)
+#
+#      self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
 
 
 

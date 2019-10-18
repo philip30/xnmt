@@ -4,9 +4,6 @@ _activation = {
   "tanh": dy.tanh,
   "relu": dy.rectify,
   "sigmoid": dy.logistic,
-  "elu": dy.elu,
-  "selu": dy.selu,
-  "ainsh": dy.asinh,
   "identity": lambda x: x
 }
 
