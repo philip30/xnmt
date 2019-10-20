@@ -72,7 +72,11 @@ class Softmax(models.Scorer, xnmt.Serializable):
         scores = np.expand_dims(scores, axis=1)
       k = min(len(scores), k)
 
-      top_words = np.squeeze(np.argpartition(scores, -k, axis=0)[-k:], axis=1)
+      top_words = np.argpartition(scores, -k, axis=0)[-k:]
+
+      if len(top_words.shape) == 3:
+        top_words = np.squeeze(top_words, axis=1)
+
       ret = []
       for word in top_words:
         if len(word.shape) == 0:

@@ -103,7 +103,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     if prev_word is not None and not xnmt.is_batched(prev_word):
       prev_word = xnmt.mark_as_batch([prev_word])
 
-    while not self.finish_generating(prev_word, state):
+    while not self.finish_generating(prev_word, state, is_generation=True):
       search_action, network_state = self.policy_agent.next_action(state)
       if search_action.action_id == agents.SimultPolicyAgent.READ or \
          search_action.action_id == agents.SimultPolicyAgent.PREDICT_READ:
@@ -142,7 +142,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
     mle_loss = []
     pol_loss = []
-    while not self.finish_generating(-1, state):
+    while not self.finish_generating(-1, state, is_generation=False):
       search_action, network_state = self.policy_agent.next_action(state, is_sample=False)
       action_set = set(search_action.action_id)
       nwrs = state.num_writes
@@ -433,12 +433,14 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       bs_loss = functools.reduce(lambda x, y: x+y, basel_losses)
       return xnmt.FactoredLossExpr({"rf_loss": rf_loss, "bs_loss": bs_loss})
 
-  def finish_generating(self, output: Any, dec_state: agents.SimultSeqLenUniDirectionalState):
-    if self.policy_agent.oracle_in_train and xnmt.is_train():
-      return self.policy_agent.finish_generating(dec_state)
-    elif self.train_nmt_mle and xnmt.is_train() and not self.policy_agent.oracle_in_train:
-      return np.all([x == y for x, y in zip(dec_state.trg_counts, dec_state.num_writes)])
-    return super().finish_generating(output, dec_state)
+  def finish_generating(self, output: Any, dec_state: agents.SimultSeqLenUniDirectionalState, is_generation: bool=True):
+    if not is_generation:
+      if self.policy_agent.oracle_in_train:
+        return self.policy_agent.finish_generating(dec_state)
+      else:
+        return np.all([x == y for x, y in zip(dec_state.trg_counts, dec_state.num_writes)])
+    else:
+      return super().finish_generating(output, dec_state)
 
   def _perform_read(self,
                     state: agents.SimultSeqLenUniDirectionalState,

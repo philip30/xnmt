@@ -249,7 +249,7 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
       log_softmax=dy.inputTensor([(1,1,1,1,1,1)], batched=True)
     )
 
-    action = self.model.policy_agent.check_sanity(state, pol_action)
+    action = self.model.policy_agent.check_sanity(state, pol_action, using_oracle=True)
     self.assertEqual(action.action_id[0], self.model.policy_agent.WRITE)
 
 #  def test_attention_agent(self):

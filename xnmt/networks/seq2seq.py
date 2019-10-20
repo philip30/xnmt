@@ -24,7 +24,7 @@ class Seq2Seq(models.AutoRegressiveModel, xnmt.Serializable, models.Reportable):
   def initial_state(self, src: xnmt.Batch) -> models.UniDirectionalState:
     return self.decoder.initial_state(self.encoder.encode(src), src)
 
-  def finish_generating(self, output: int, dec_state: models.UniDirectionalState):
+  def finish_generating(self, output: int, dec_state: models.UniDirectionalState, is_generation: bool=True):
     return self.decoder.finish_generating(output, dec_state)
 
   def calc_nll(self, src: xnmt.Batch, trg: xnmt.Batch) -> xnmt.LossExpr:
