@@ -104,7 +104,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       prev_word = xnmt.mark_as_batch([prev_word])
 
     while not self.finish_generating(prev_word, state, is_generation=True):
-      search_action, network_state = self.policy_agent.next_action(state)
+      search_action, network_state = self.policy_agent.next_action(state, is_generation=True)
       if search_action.action_id == agents.SimultPolicyAgent.READ or \
          search_action.action_id == agents.SimultPolicyAgent.PREDICT_READ:
         state = self._perform_read(state, search_action)
@@ -143,7 +143,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     mle_loss = []
     pol_loss = []
     while not self.finish_generating(-1, state, is_generation=False):
-      search_action, network_state = self.policy_agent.next_action(state, is_sample=False)
+      search_action, network_state = self.policy_agent.next_action(state, is_sample=False, is_generation=False)
       action_set = set(search_action.action_id)
       nwrs = state.num_writes
 
@@ -265,7 +265,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
           break
 
         ### Next Actions
-        search_action, network_state = self.policy_agent.next_action(state, is_sample=True)
+        search_action, network_state = self.policy_agent.next_action(state, is_sample=True, is_generation=False)
         for i in range(batch_size):
           done[i] = done[i] or search_action.action_id[i] == 2
 

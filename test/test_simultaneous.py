@@ -249,7 +249,7 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
       log_softmax=dy.inputTensor([(1,1,1,1,1,1)], batched=True)
     )
 
-    action = self.model.policy_agent.check_sanity(state, pol_action, using_oracle=True)
+    action = self.model.policy_agent.check_sanity(state, pol_action)
     self.assertEqual(action.action_id[0], self.model.policy_agent.WRITE)
 
 #  def test_attention_agent(self):
@@ -366,6 +366,7 @@ class TestSimultaneousTranslationPredict(unittest.TestCase):
     mle_loss = xnmt.train.MLELoss()
     mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
     xnmt.event_trigger.set_train(False)
+    mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
     result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
 #    self.assertEqual(result[0].sent_len(), self.trg_data[0].sent_len())
     result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())

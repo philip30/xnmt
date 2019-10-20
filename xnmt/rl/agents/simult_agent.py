@@ -113,7 +113,8 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
 
   def next_action(self,
                   state: SimultSeqLenUniDirectionalState,
-                  is_sample = False) -> Tuple[models.SearchAction, models.PolicyAgentState]:
+                  is_sample = False,
+                  is_generation = False) -> Tuple[models.SearchAction, models.PolicyAgentState]:
     if (xnmt.is_train() and self.oracle_in_train) or (not xnmt.is_train() and self.oracle_in_test):
       oracle_action = np.array([state.oracle_batch[i][state.timestep] if state.timestep < state.oracle_batch.sent_len() \
                                   else SimultPolicyAgent.WRITE
@@ -135,11 +136,11 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
       network_state = state.network_state
 
     if oracle_action is None:
-      policy_action = self.check_sanity(state, policy_action, oracle_action is not None)
+      policy_action = self.check_sanity(state, policy_action, is_generation=is_generation)
 
     return policy_action, network_state
 
-  def check_sanity(self, state: SimultSeqLenUniDirectionalState, policy_action: models.SearchAction, using_oracle: bool):
+  def check_sanity(self, state: SimultSeqLenUniDirectionalState, policy_action: models.SearchAction, is_generation:bool = False):
     src_len  = np.array([state.src[i].len_unpadded() for i in range(state.src.batch_size())])
 
     num_reads = state.num_reads
@@ -151,7 +152,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
       if l == r and (a == self.READ or a == self.PREDICT_READ):
         a = self.WRITE
         modified = True
-      if xnmt.is_train() and w == state.trg_counts[i]:
+      if not is_generation and w == state.trg_counts[i]:
         a = self.ACTION_PAD
         modified = True
       new_actions.append(a)
