@@ -64,19 +64,20 @@ class Softmax(models.Scorer, xnmt.Serializable):
     scores_expr = self.calc_log_probs(x) if normalize_scores else self.calc_scores(x)
 
     if k == 1 and False:
-      scores = scores_expr.tensor_value().argmax(num=1).as_numpy()
-      ret = [(scores, scores_expr)]
+      scores = scores_expr.tensor_value().argmax(num=1).as_numpy()[0].transpose()
+      ret = [(scores[0], scores_expr)]
     else:
       scores = scores_expr.npvalue()
       if len(scores.shape) == 1:
         scores = np.expand_dims(scores, axis=1)
       k = min(len(scores), k)
-      top_words = np.argpartition(scores, -k, axis=0)[-k:]
 
+      top_words = np.squeeze(np.argpartition(scores, -k, axis=0)[-k:], axis=1)
       ret = []
       for word in top_words:
+        if len(word.shape) == 0:
+          word = np.array([word])
         ret.append((word, scores_expr))
-
 
     return ret
 

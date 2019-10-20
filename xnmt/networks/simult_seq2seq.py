@@ -142,8 +142,8 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
 
     mle_loss = []
     pol_loss = []
-    while not self.finish_generating(-1, state, force_oracle=True):
-      search_action, network_state = self.policy_agent.next_action(state, force_oracle=True, is_sample=False)
+    while not self.finish_generating(-1, state):
+      search_action, network_state = self.policy_agent.next_action(state, is_sample=False)
       action_set = set(search_action.action_id)
       nwrs = state.num_writes
 
@@ -162,7 +162,6 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         is_pwrite = search_action.action_id == agents.SimultPolicyAgent.PREDICT_WRITE
         write_flag[np.logical_or(is_write, is_pwrite)] = 1
         write_mask = xnmt.Mask(1-np.expand_dims(write_flag, 1))
-
         prev_word = np.asarray([trg[i][nwrs[i]-1] if nwrs[i] > 0 else start_sym for i in range(batch_size)])
 
         if xnmt.globals.is_train() and self.word_scheduled_sampling > 0.0:
@@ -240,8 +239,10 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     batch_size = src.batch_size()
     refs = [trg[i].get_unpadded_sent().words for i in range(trg.batch_size())]
     force_oracle = xnmt.is_train() and np.random.binomial(1, dagger_eps) == 0
+    policy_value = self.policy_agent.oracle_in_train
 
     if force_oracle:
+      self.policy_agent.oracle_in_train = force_oracle
       num_sample = 1
 
     reinf_losses = []
@@ -264,7 +265,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
           break
 
         ### Next Actions
-        search_action, network_state = self.policy_agent.next_action(state, is_sample=True, force_oracle=force_oracle)
+        search_action, network_state = self.policy_agent.next_action(state, is_sample=True)
         for i in range(batch_size):
           done[i] = done[i] or search_action.action_id[i] == 2
 
@@ -326,6 +327,9 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
           trg_counts=state.trg_counts
         )
       # END LOOP: Create trajectory
+      if force_oracle:
+        self.policy_agent.oracle_in_train = policy_value
+
       ### Calculate Rewards ###
       words = [w[1:] for w in words]
       bleus = [np.asarray(xnmt_cython.bleu_sentence_prog(4, 1, ref_i, hyp_i)) for ref_i, hyp_i in zip(refs, words)]
@@ -429,10 +433,11 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
       bs_loss = functools.reduce(lambda x, y: x+y, basel_losses)
       return xnmt.FactoredLossExpr({"rf_loss": rf_loss, "bs_loss": bs_loss})
 
-  def finish_generating(self, output: Any, dec_state: agents.SimultSeqLenUniDirectionalState, force_oracle=False):
-    if force_oracle or \
-       (self.policy_agent.oracle_in_train and xnmt.is_train()):
+  def finish_generating(self, output: Any, dec_state: agents.SimultSeqLenUniDirectionalState):
+    if self.policy_agent.oracle_in_train and xnmt.is_train():
       return self.policy_agent.finish_generating(dec_state)
+    elif self.train_nmt_mle and xnmt.is_train() and not self.policy_agent.oracle_in_train:
+      return np.all([x == y for x, y in zip(dec_state.trg_counts, dec_state.num_writes)])
     return super().finish_generating(output, dec_state)
 
   def _perform_read(self,

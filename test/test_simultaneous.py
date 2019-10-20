@@ -357,6 +357,27 @@ class TestSimultaneousTranslationPredict(unittest.TestCase):
     inference.perform_inference(self.model)
 
 
+  def test_train_nll_no_oracle(self):
+    self.model.policy_agent.oracle_in_train = False
+    self.model.policy_agent.oracle_in_test = False
+    self.model.train_nmt_mle = True
+    self.model.train_pol_mle = False
+    xnmt.event_trigger.set_train(True)
+    mle_loss = xnmt.train.MLELoss()
+    mle_loss.calc_loss(self.model, self.src[0], self.trg[0])
+    xnmt.event_trigger.set_train(False)
+    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.GreedySearch())
+#    self.assertEqual(result[0].sent_len(), self.trg_data[0].sent_len())
+    result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
+#    self.assertEqual(result[0].sent_len(), self.trg_data[0].sent_len())
+    inference = xnmt.inferences.AutoRegressiveInference(src_file=["examples/data/head.ja",
+                                                                  "examples/data/simult/head.jaen.lm.actions"],
+                                                        ref_file="examples/data/head.en",
+                                                        trg_file="test/output/hyp",
+                                                        search_strategy=xnmt.inferences.GreedySearch(),
+                                                        reporter=None)
+    inference.perform_inference(self.model)
+
   def test_train_reinforce(self):
     xnmt.event_trigger.set_train(True)
     self.model.bleu_score_only_reward = False

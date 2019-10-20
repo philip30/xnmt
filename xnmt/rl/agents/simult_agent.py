@@ -71,6 +71,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
   WRITE = xnmt.structs.vocabs.SimultActionVocab.WRITE
   PREDICT_READ = xnmt.structs.vocabs.SimultActionVocab.PREDICT_READ
   PREDICT_WRITE = xnmt.structs.vocabs.SimultActionVocab.PREDICT_WRITE
+  ACTION_PAD = xnmt.structs.vocabs.SimultActionVocab.PAD
 
   __ACTIONS__ = [READ, WRITE, PREDICT_READ, PREDICT_WRITE]
 
@@ -78,7 +79,6 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
   def __init__(self,
                input_transform: Optional[models.Transform] = None,
                policy_network: Optional[networks.PolicyNetwork] = None,
-               action_embedder: Optional[nn.WordEmbedder] = None,
                oracle_in_train: bool = False,
                oracle_in_test: bool = False,
                default_layer_dim: int = xnmt.default_layer_dim,
@@ -105,10 +105,6 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
         )
       )
     )
-    self.action_embedder = self.add_serializable_component(
-      "action_embedder", action_embedder,
-      lambda: nn.LookupEmbedder(emb_dim=default_layer_dim, vocab_size=xnmt.structs.vocabs.SimultActionVocab.VOCAB_SIZE)
-    )
     self.default_layer_dim = default_layer_dim
 
   def initial_state(self, src: xnmt.Batch) -> models.PolicyAgentState:
@@ -117,9 +113,8 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
 
   def next_action(self,
                   state: SimultSeqLenUniDirectionalState,
-                  force_oracle = False,
                   is_sample = False) -> Tuple[models.SearchAction, models.PolicyAgentState]:
-    if (xnmt.is_train() and self.oracle_in_train) or (not xnmt.is_train() and self.oracle_in_test) or force_oracle:
+    if (xnmt.is_train() and self.oracle_in_train) or (not xnmt.is_train() and self.oracle_in_test):
       oracle_action = np.array([state.oracle_batch[i][state.timestep] if state.timestep < state.oracle_batch.sent_len() \
                                   else SimultPolicyAgent.WRITE
                                 for i in range(state.oracle_batch.batch_size())])
@@ -140,23 +135,26 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
       network_state = state.network_state
 
     if oracle_action is None:
-      policy_action = self.check_sanity(state, policy_action)
+      policy_action = self.check_sanity(state, policy_action, oracle_action is not None)
 
     return policy_action, network_state
 
-  def check_sanity(self, state: SimultSeqLenUniDirectionalState, policy_action: models.SearchAction):
+  def check_sanity(self, state: SimultSeqLenUniDirectionalState, policy_action: models.SearchAction, using_oracle: bool):
     src_len  = np.array([state.src[i].len_unpadded() for i in range(state.src.batch_size())])
-    num_reads = state.num_reads
-    actions = policy_action.action_id
 
+    num_reads = state.num_reads
+    num_writes = state.num_writes
+    actions = policy_action.action_id
     new_actions = []
     modified =  False
-    for l, r, a in zip(src_len, num_reads, actions):
+    for i, (l, r, w, a) in enumerate(zip(src_len, num_reads, num_writes, actions)):
       if l == r and (a == self.READ or a == self.PREDICT_READ):
-        new_actions.append(self.WRITE)
+        a = self.WRITE
         modified = True
-      else:
-        new_actions.append(a)
+      if xnmt.is_train() and w == state.trg_counts[i]:
+        a = self.ACTION_PAD
+        modified = True
+      new_actions.append(a)
 
     if modified and policy_action.log_likelihood is not None:
       log_likelihood = dy.pick_batch(policy_action.log_softmax, actions)
@@ -171,13 +169,13 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     dstate = state.decoder_state
     encoder_state = dy.nobackprop(estate)
     decoder_state = dy.nobackprop(dstate.merged_context) if dstate.merged_context is not None else dstate.rnn_state.output()
-    action_embedding = self.action_embedder.embed(xnmt.mark_as_batch(state.simult_action.action_id))
+    trg_embedding = dy.nobackprop(dstate.prev_embedding) if dstate.prev_embedding is not None else zeros()
     if xnmt.is_train() and self.dropout > 0.0:
       encoder_state = dy.dropout(encoder_state, self.dropout)
       decoder_state = dy.dropout(decoder_state, self.dropout)
-      action_embedding = dy.dropout(action_embedding, self.dropout)
+      trg_embedding = dy.dropout(trg_embedding, self.dropout)
 
-    network_input = dy.concatenate([encoder_state, decoder_state, action_embedding])
+    network_input = dy.concatenate([encoder_state, decoder_state, trg_embedding])
     return state.network_state.add_input(self.input_transform.transform(network_input))
 
 
