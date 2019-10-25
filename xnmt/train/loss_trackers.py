@@ -98,7 +98,7 @@ class TrainLossTracker(object):
                                              data_name="train",
                                              task_name=self.name,
                                              loss_name=loss_name,
-                                             loss=loss_values / self.epoch_words[loss_name])
+                                             loss=loss_values / units)
 
       self.last_report_words = self.epoch_words["__TRG__"]
       self.last_report_sents_since_start = self.training_task.training_state.sents_since_start

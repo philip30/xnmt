@@ -217,14 +217,12 @@ class SortBatcher(Batcher):
                granularity: str = 'sent',
                sort_key: Callable = lambda x: x[0].sent_len(),
                break_ties_randomly: bool=True,
-               max_len: int = -1,
                pad_src_to_multiple: int = 1) -> None:
     super().__init__(batch_size, granularity=granularity,
                      pad_src_to_multiple=pad_src_to_multiple,
                      sort_within_by_trg_len=True)
     self.sort_key = sort_key
     self.break_ties_randomly = break_ties_randomly
-    self.max_len = max_len
 
   def pack(self, src: Sequence[sent.Sentence], trg: Optional[Sequence[sent.Sentence]]) \
           -> Tuple[Sequence[batch.Batch], Sequence[batch.Batch]]:
@@ -233,9 +231,6 @@ class SortBatcher(Batcher):
     else:
       order = np.argsort([self.sort_key(x) for x in zip(src,trg)])
     
-    if self.max_len != -1:
-      order = [x for x in order if src[x].sent_len() <= self.max_len and trg[x].sent_len() <= self.max_len]
-
     return self._pack_by_order(src, trg, order)
 
   def is_random(self) -> bool:
@@ -257,9 +252,8 @@ class SrcBatcher(SortBatcher, xnmt.Serializable):
   def __init__(self,
                batch_size: int,
                break_ties_randomly: bool = True,
-               max_len: int = -1,
                pad_src_to_multiple: int = 1) -> None:
-    super().__init__(batch_size, sort_key=lambda x: x[0].sent_len(), granularity='sent', max_len=max_len,
+    super().__init__(batch_size, sort_key=lambda x: x[0].sent_len(), granularity='sent',
                      break_ties_randomly=break_ties_randomly, pad_src_to_multiple=pad_src_to_multiple)
 
 
@@ -279,11 +273,9 @@ class TrgBatcher(SortBatcher, xnmt.Serializable):
   def __init__(self,
                batch_size: int,
                break_ties_randomly: bool = True,
-               max_len: int = -1,
                pad_src_to_multiple: int = 1) -> None:
     super().__init__(batch_size, sort_key=lambda x: x[1].sent_len(), granularity='sent',
                      break_ties_randomly=break_ties_randomly,
-                     max_len=max_len,
                      pad_src_to_multiple=pad_src_to_multiple)
 
 
@@ -303,11 +295,9 @@ class SrcTrgBatcher(SortBatcher, xnmt.Serializable):
   def __init__(self,
                batch_size: int,
                break_ties_randomly: bool = True,
-               max_len: int = -1,
                pad_src_to_multiple: int = 1) -> None:
     super().__init__(batch_size, sort_key=lambda x: x[0].sent_len() + 1.0e-6 * len(x[1]),
                      granularity='sent', break_ties_randomly=break_ties_randomly,
-                     max_len=max_len,
                      pad_src_to_multiple=pad_src_to_multiple)
 
 
@@ -316,7 +306,6 @@ class TrgSrcBatcher(SortBatcher, xnmt.Serializable):
   """
   A batcher that creates fixed-size batches, grouped by trg len, then src len.
 
-  Sentences inside each batch are sorted by reverse trg length.
 
   Args:
     batch_size: batch size
@@ -327,12 +316,10 @@ class TrgSrcBatcher(SortBatcher, xnmt.Serializable):
   def __init__(self,
                batch_size: int,
                break_ties_randomly: bool = True,
-               max_len: int = -1,
                pad_src_to_multiple: int = 1) -> None:
     super().__init__(batch_size, sort_key=lambda x: x[1].sent_len() + 1.0e-6 * len(x[0]),
                      granularity='sent',
                      break_ties_randomly=break_ties_randomly,
-                     max_len=max_len,
                      pad_src_to_multiple=pad_src_to_multiple)
 
 
@@ -388,7 +375,6 @@ class WordSortBatcher(SortBatcher):
                avg_batch_size: Optional[numbers.Real],
                sort_key: Callable,
                break_ties_randomly: bool = True,
-               max_len: int = -1,
                pad_src_to_multiple: int = 1) -> None:
     # Sanity checks
     if words_per_batch and avg_batch_size:
@@ -398,8 +384,7 @@ class WordSortBatcher(SortBatcher):
 
     super().__init__(words_per_batch, sort_key=sort_key, granularity='word',
                      break_ties_randomly=break_ties_randomly,
-                     pad_src_to_multiple=pad_src_to_multiple,
-                     max_len=max_len)
+                     pad_src_to_multiple=pad_src_to_multiple)
     self.avg_batch_size = avg_batch_size
 
 
@@ -421,12 +406,10 @@ class WordSrcBatcher(WordSortBatcher, xnmt.Serializable):
                words_per_batch: Optional[int] = None,
                avg_batch_size: Optional[numbers.Real] = None,
                break_ties_randomly: bool = True,
-               max_len: int = -1,
                pad_src_to_multiple: int = 1) -> None:
     super().__init__(words_per_batch, avg_batch_size, sort_key=lambda x: x[0].sent_len(),
                      break_ties_randomly=break_ties_randomly,
-                     pad_src_to_multiple=pad_src_to_multiple,
-                     max_len = max_len)
+                     pad_src_to_multiple=pad_src_to_multiple)
 
   def _pack_by_order(self, src, trg, order):
     if self.avg_batch_size:
@@ -452,12 +435,10 @@ class WordTrgBatcher(WordSortBatcher, xnmt.Serializable):
                words_per_batch: Optional[int] = None,
                avg_batch_size: Optional[numbers.Real] = None,
                break_ties_randomly: bool = True,
-               max_len: int = -1,
                pad_src_to_multiple: int = 1) -> None:
     super().__init__(words_per_batch, avg_batch_size, sort_key=lambda x: x[1].sent_len(),
                      break_ties_randomly=break_ties_randomly,
-                     pad_src_to_multiple=pad_src_to_multiple,
-                     max_len=max_len)
+                     pad_src_to_multiple=pad_src_to_multiple)
 
   def _pack_by_order(self, src, trg, order):
     if self.avg_batch_size:
@@ -483,12 +464,10 @@ class WordSrcTrgBatcher(WordSortBatcher, xnmt.Serializable):
                words_per_batch: Optional[int] = None,
                avg_batch_size: Optional[numbers.Real] = None,
                break_ties_randomly: bool = True,
-               max_len: int = -1,
                pad_src_to_multiple: int = 1) -> None:
     super().__init__(words_per_batch, avg_batch_size, sort_key=lambda x: x[0].sent_len() + 1.0e-6 * x[1].sent_len(),
                      break_ties_randomly=break_ties_randomly,
-                     pad_src_to_multiple=pad_src_to_multiple,
-                     max_len=max_len)
+                     pad_src_to_multiple=pad_src_to_multiple)
 
   def _pack_by_order(self, src, trg, order):
     if self.avg_batch_size:
@@ -514,12 +493,10 @@ class WordTrgSrcBatcher(WordSortBatcher, xnmt.xnmt.Serializable):
                words_per_batch: Optional[int] = None,
                avg_batch_size: Optional[numbers.Real] = None,
                break_ties_randomly: bool = True,
-               max_len: int = -1,
                pad_src_to_multiple: int = 1) -> None:
     super().__init__(words_per_batch, avg_batch_size, sort_key=lambda x: x[1].sent_len() + 1.0e-6 * x[0].sent_len(),
                      break_ties_randomly=break_ties_randomly,
-                     pad_src_to_multiple=pad_src_to_multiple,
-                     max_len=max_len)
+                     pad_src_to_multiple=pad_src_to_multiple)
 
   def _pack_by_order(self, src, trg, order):
     if self.avg_batch_size:
