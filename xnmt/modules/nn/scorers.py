@@ -79,7 +79,7 @@ class Softmax(models.Scorer, xnmt.Serializable):
 
       ret = []
       for word in top_words:
-        if len(word.shape) == 0:
+        if np.isscalar(word):
           word = np.array([word])
         ret.append((word, scores_expr))
 
