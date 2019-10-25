@@ -143,10 +143,10 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     mle_loss = []
     pol_loss = []
     while not self.finish_generating(-1, state, is_generation=False):
-      search_action, network_state = self.policy_agent.next_action(state, is_sample=False, is_generation=False)
+      search_action, network_state = self.policy_agent.next_action(state, is_sample=xnmt.is_train(), is_generation=False)
       action_set = set(search_action.action_id)
-      nwrs = state.num_writes
 
+      nwrs = state.num_writes
       ### READING ###
       if self._is_reading(action_set):
         read_state = self._perform_read(state, search_action)
