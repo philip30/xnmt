@@ -29,11 +29,12 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
                len_reward: Optional[bool] = False,
                no_baseline: Optional[bool] = False,
                default_layer_dim: int = xnmt.default_layer_dim,
-               permute: Optional[float] = 0,
                z_normalization: Optional[bool] = False,
                bleu_score_only_reward: Optional[bool] = False,
-               word_scheduled_sampling = 0.0,
-               act_scheduled_sampling = 0.0,
+               word_scheduled_sampling: Optional[float] = 0.0,    # NOT USED
+               act_scheduled_sampling: Optional[float] = 0.0,     # NOT USED
+               permute_word: Optional[float] = 0.0,
+               permute_action: Optional[float] = 0.0
                ):
     super().__init__(src_reader=src_reader, trg_reader=trg_reader, encoder=encoder, decoder=decoder)
     self.policy_agent = policy_agent
@@ -44,7 +45,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
     )
     self.len_reward = len_reward
     self.no_baseline = no_baseline
-    self.permute = permute
+    self.permute_action = permute_action
     self.z_normalization = z_normalization
     self.bleu_score_only_reward = bleu_score_only_reward
 
@@ -58,18 +59,21 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         else:
           xnmt.logger.warning("Cannot use any bridge except ZeroBridge for SimultSeq2Seq.")
 
+    self.permute_action = permute_action
+    self.permute_word = permute_word
+
 
   def initial_state(self, src: xnmt.Batch) -> agents.SimultSeqLenUniDirectionalState:
     oracle_batch = None
     trg_count = None
     if type(src[0]) == xnmt.structs.sentences.OracleSentence:
-      if self.permute == 0 or not xnmt.is_train():
+      if self.permute_action == 0 or not xnmt.is_train():
         oracle = [src[i].oracle for i in range(src.batch_size())]
       else:
         oracle = []
         for i in range(src.batch_size()):
           oracle_i = [x for x in src[i].oracle.words]
-          permute = np.random.binomial(1, self.permute, size=len(oracle_i))
+          permute = np.random.binomial(1, self.permute_action, size=len(oracle_i))
           permute[0] = 0
           permute[-1] = 0
           idx_0 = np.nonzero(permute)[0]
@@ -197,7 +201,6 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         oracle_mask[oracle_action == xnmt.structs.vocabs.SimultActionVocab.PAD] = 1
         oracle_mask = xnmt.Mask(np.expand_dims(oracle_mask, axis=1))
         oracle_batch = xnmt.mark_as_batch(oracle_action, oracle_mask)
-
         loss = self.policy_agent.calc_loss(network_state, oracle_batch)
         loss = oracle_mask.cmult_by_timestep_expr(loss, 0, True)
 
@@ -493,10 +496,20 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
         position=decoder_state.position,
         merged_context=decoder_state.merged_context
       )
+
+    input_prev_word = prev_word
+    if xnmt.is_train() and self.permute_word > 0.0:
+      replace_prob = np.random.binomial(n=1, p=self.permute_word, size=prev_word.batch_size())
+      random_word = np.random.randint(low=0, high=len(self.trg_reader.vocab)-1, size=prev_word.batch_size())
+
+      for idx, prob in enumerate(replace_prob):
+        if prob == 1:
+          input_prev_word[idx] = random_word[idx]
+
     return agents.SimultSeqLenUniDirectionalState(
       src=state.src,
       full_encodings=state.full_encodings,
-      decoder_state=self.decoder.add_input(decoder_state, prev_word),
+      decoder_state=self.decoder.add_input(decoder_state, input_prev_word),
       num_reads=state.num_reads,
       num_writes=state.num_writes + write_flag,
       simult_action=search_action,

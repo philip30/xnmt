@@ -219,8 +219,9 @@ class TestSimultaneousTranslationOracle(unittest.TestCase):
       self.assertAlmostEqual(dy.sum_batches(loss).scalar_value(), dy.esum(losses).scalar_value(), places=4)
 
   def test_same_loss_batch_single_pol(self):
-    #xnmt.event_trigger.set_train(True)
-    self.model.train_nmt_mle = False
+    xnmt.event_trigger.set_train(False)
+    self.model.policy_agent.oracle_in_test = False
+    self.model.train_nmtx_mle = False
     mle_loss = xnmt.train.MLELoss()
     for src, trg in zip(self.src, self.trg):
       loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()
@@ -446,6 +447,22 @@ class TestSimultaneousTranslationPredict(unittest.TestCase):
     self.assertNotEqual(len(result), 0)
     result = self.model.generate(xnmt.mark_as_batch([self.src_data[0]]), xnmt.inferences.BeamSearch())
     self.assertNotEqual(len(result), 0)
+
+  def test_word_ss(self):
+    xnmt.event_trigger.set_train(True)
+    self.model.train_nmt_mle = True
+    self.model.permute_word = 0.5
+    mle_loss = xnmt.train.MLELoss()
+    for src, trg in zip(self.src, self.trg):
+      loss, loss_stat = mle_loss.calc_loss(self.model, src, trg).compute()
+      losses = []
+      for s, t in zip(src, trg):
+        loss_i, _ = mle_loss.calc_loss(self.model,
+                                       xnmt.mark_as_batch([s.get_unpadded_sent()]),
+                                       xnmt.mark_as_batch([t.get_unpadded_sent()])).compute()
+        losses.append(loss_i)
+
+
 
 
 if __name__ == "__main__":
