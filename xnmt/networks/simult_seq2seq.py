@@ -59,7 +59,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
           xnmt.logger.warning("Cannot use any bridge except ZeroBridge for SimultSeq2Seq.")
 
 
-  def initial_state(self, src: xnmt.Batch) -> agents.SimultSeqLenUniDirectionalState:
+  def initial_state(self, src: xnmt.Batch, trg: Optional[xnmt.Batch] = None) -> agents.SimultSeqLenUniDirectionalState:
     oracle_batch = None
     trg_count = None
     if type(src[0]) == xnmt.structs.sentences.OracleSentence:
@@ -80,9 +80,11 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
           oracle.append(xnmt.structs.sentences.SimpleSentence(
             oracle_i, vocab=src[i].oracle.vocab, pad_token=src[i].oracle.pad_token
           ))
-
-      trg_count = [sum([1 for x in src[i].oracle if x == agents.SimultPolicyAgent.WRITE \
-                        or x == agents.SimultPolicyAgent.PREDICT_WRITE]) for i in range(src.batch_size())]
+      if trg is None:
+        trg_count = [sum([1 for x in src[i].oracle if x == agents.SimultPolicyAgent.WRITE \
+                          or x == agents.SimultPolicyAgent.PREDICT_WRITE]) for i in range(src.batch_size())]
+      else:
+        trg_count = [t.len_unpadded() for t in trg]
       oracle_batch = xnmt.structs.batchers.pad(oracle)
 
     encoding = self.encoder.encode(src)
@@ -138,7 +140,7 @@ class SimultSeq2Seq(base.Seq2Seq, xnmt.Serializable):
   def calc_nll(self, src: xnmt.Batch, trg: xnmt.Batch):
     batch_size = src.batch_size()
     start_sym = xnmt.Vocab.SS
-    state = self.initial_state(src)
+    state = self.initial_state(src, trg=trg)
 
     mle_loss = []
     pol_loss = []

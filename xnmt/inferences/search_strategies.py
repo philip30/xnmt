@@ -5,7 +5,7 @@ import xnmt.models as models
 import xnmt.inferences.length_norm as norms
 
 
-class GreedySearch(models.SearchStrategy, models.ForceableSearchStrategy, xnmt.Serializable):
+class GreedySearch(models.SearchStrategy, xnmt.Serializable, models.ForceableSearchStrategy):
   yaml_tag = "!GreedySearch"
   """
   Performs greedy search (aka beam search with beam size 1)

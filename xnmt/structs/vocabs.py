@@ -125,6 +125,8 @@ class SimultActionVocab(Vocab):
     self.w2i = {word: word_id for (word_id, word) in enumerate(self.i2w)}
 
   def convert(self, w: str) -> int:
+    if (w.startswith("READ") or w.startswith("WRITE")) and "(" in w:
+      w = w[:w.index("(")]
     if w not in self.w2i:
       raise ValueError("Unknown actions: {}".format(w))
     return self.w2i.get(w)

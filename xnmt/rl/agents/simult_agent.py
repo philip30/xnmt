@@ -62,8 +62,9 @@ class SimultSeqLenUniDirectionalState(models.UniDirectionalState):
     now = self
 
     if not hasattr(self, "_trajectory_cache"):
-      result = [now]
+      result = []
       if now.parent is not None:
+        result.append(now)
         result.extend(now.parent.collect_trajectories_backward())
       setattr(self, "_trajectory_cache", result)
 
@@ -145,8 +146,8 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
       policy_action = models.SearchAction(action_id=oracle_action)
       network_state = state.network_state
 
-    if oracle_action is None:
-      policy_action = self.check_sanity(state, policy_action, is_generation=is_generation)
+    #if oracle_action is None:
+    policy_action = self.check_sanity(state, policy_action, is_generation=is_generation)
 
     return policy_action, network_state
 
@@ -162,7 +163,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
       if l == r and (a == self.READ or a == self.PREDICT_READ):
         a = self.WRITE
         modified = True
-      if not is_generation and w == state.trg_counts[i]:
+      if not is_generation and w >= state.trg_counts[i]:
         a = self.ACTION_PAD
         modified = True
       new_actions.append(a)
