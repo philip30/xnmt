@@ -95,7 +95,7 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     self.oracle_in_test = oracle_in_test
     self.dropout = dropout
     self.input_transform = self.add_serializable_component("input_transform", input_transform,
-                                                            lambda: nn.Linear(3 * default_layer_dim,
+                                                            lambda: nn.Linear(4 * default_layer_dim,
                                                                               default_layer_dim))
     self.policy_network = self.add_serializable_component(
       "policy_network", policy_network,
@@ -181,13 +181,16 @@ class SimultPolicyAgent(xnmt.models.PolicyAgent, xnmt.Serializable):
     dstate = state.decoder_state
     encoder_state = dy.nobackprop(estate)
     decoder_state = dy.nobackprop(dstate.merged_context) if dstate.merged_context is not None else dstate.rnn_state.output()
-    action_embedding = self.action_embedder.embed(xnmt.mark_as_batch(state.simult_action.action_id))
+
+    action_id = state.simult_action.action_id
+    trg_embedding = state.decoder_state.prev_embedding if state.decoder_state.prev_embedding is not None else dstate.rnn_state.output()
+
+    action_embedding = self.action_embedder.embed(xnmt.mark_as_batch(action_id))
     if xnmt.is_train() and self.dropout > 0.0:
       encoder_state = dy.dropout(encoder_state, self.dropout)
       decoder_state = dy.dropout(decoder_state, self.dropout)
-      action_embedding = dy.dropout(action_embedding, self.dropout)
 
-    network_input = dy.concatenate([encoder_state, decoder_state, action_embedding])
+    network_input = dy.concatenate([encoder_state, decoder_state, action_embedding, trg_embedding])
     return state.network_state.add_input(self.input_transform.transform(network_input))
 
 

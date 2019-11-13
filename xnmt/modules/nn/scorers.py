@@ -118,7 +118,6 @@ class Softmax(models.Scorer, xnmt.Serializable):
         loss = dy.pickneglogsoftmax_batch(scores, y)
     else:
       log_prob = self.calc_log_probs(x)
-
       if not xnmt.is_batched(y):
         loss = -dy.pick(log_prob, y)
       else:
